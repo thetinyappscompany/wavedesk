@@ -149,6 +149,11 @@ def apply_event(event: dict) -> None:
     frappe.db.set_value(
         "WD Chat", chat, "last_message_at", frappe.utils.now_datetime(), update_modified=False
     )
+    # Unread badge for the inbox list; reset lands with the conversation pane epic.
+    frappe.db.sql(
+        "update `tabWD Chat` set unread_count = unread_count + 1 where name = %s",
+        (chat,),
+    )
 
 
 def _extract(

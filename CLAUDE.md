@@ -11,16 +11,17 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 0
-Current epic: Phase 1 — epic 1 (Number management) DONE
-Last completed: P1.1 — numbers API both transports (api/numbers.py: quota + Owner/Admin
-gates, encrypted cloud tokens; gateway_client.py), gateway QR-polling endpoints
-(GET /sessions/:id, disconnect/reconnect without re-scan, JSON-mode create), SPA real
-login + /numbers page (QR pairing panel w/ polling, Cloud API form, lifecycle actions).
-Suites: 58 Frappe + 31 gateway + 11 frontend + 4 api-client, ruff — all green. CI green
-on GitHub (github.com/Kushalnahata17/wavedesk). Phase 0 also fully done incl. Sentry
-scrubbers + live E2E webhook→consumer smoke.
-Founder items open: real-number QR test, Meta Business Verification, staging VM, DSNs.
-Next code epic: Phase 1 — 2. Chat-list pane (virtualized, filters, search).
+Current epic: Phase 1 — epic 2 (Chat-list pane) DONE
+Last completed: P1.2 — api/chats.py list_chats (filters, search by name/phone, pagination),
+consumer bumps unread_count, /inbox 3-pane shell with @tanstack/react-virtual chat list,
+status tabs, debounced search, AppShell sidebar nav. REAL WhatsApp number paired via the
+product UI (Phase 0 exit item ✓) after two live-run fixes: fetchLatestBaileysVersion +
+515 auto-restart on close (see docs/reference/baileys-pairing-notes.md). Real inbound
+chats visible in the inbox.
+Before: P1.1 numbers mgmt (QR pairing panel, Cloud API form) · Phase 0 complete.
+Suites: 63 Frappe + 42 gateway + 15 frontend + 4 api-client + ruff, all green; CI green.
+Founder items open: Meta Business Verification, staging VM, Sentry DSNs.
+Next code epic: Phase 1 — 3. Conversation pane (history, media, ticks, quotes).
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

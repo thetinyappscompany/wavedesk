@@ -37,7 +37,7 @@ export default function LoginPage(): React.JSX.Element {
     setAuthError(null);
     try {
       await client.login(values.email, values.password);
-      await navigate('/numbers');
+      await navigate('/inbox');
     } catch {
       setAuthError('Login failed — check your email and password.');
     }

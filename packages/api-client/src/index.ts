@@ -48,6 +48,32 @@ export interface NumberStatus {
   qr: string | null;
 }
 
+export interface WdChat {
+  name: string;
+  chat_type: 'dm' | 'group';
+  status: 'open' | 'pending' | 'resolved' | 'snoozed';
+  number: string | null;
+  assigned_agent: string | null;
+  last_message_at: string | null;
+  unread_count: number;
+  wa_chat_id: string;
+  contact_name: string | null;
+  contact_phone: string | null;
+}
+
+export interface ChatListParams {
+  status?: string;
+  number?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ChatListResult {
+  chats: WdChat[];
+  total: number;
+}
+
 export interface ConnectCloudParams {
   phone: string;
   phone_number_id: string;
@@ -105,6 +131,11 @@ export class WaveDeskClient {
 
   connectCloudNumber(params: ConnectCloudParams): Promise<{ number: string; status: string }> {
     return this.call('wavedesk.api.numbers.connect_cloud_number', { ...params });
+  }
+
+  // --- chats (Phase 1 feature 2) ---
+  listChats(params: ChatListParams = {}): Promise<ChatListResult> {
+    return this.call('wavedesk.api.chats.list_chats', { ...params });
   }
 
   /** Low-level call to a whitelisted Frappe method (`/api/method/<path>`). */
