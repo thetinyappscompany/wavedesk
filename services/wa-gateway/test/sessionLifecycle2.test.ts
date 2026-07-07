@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import RedisMock from 'ioredis-mock';
 import type { Redis } from 'ioredis';
 import { pino } from 'pino';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { RedisAuthStore } from '../src/baileys/authStore.js';
 import { SessionManager } from '../src/baileys/sessionManager.js';
@@ -46,13 +46,15 @@ describe('auto-restart on close (Baileys 515 pairing flow)', () => {
       connection: 'close',
       lastDisconnect: { error: { output: { statusCode: 515 } } },
     });
-    await tick();
-    await tick();
 
-    expect(sockets).toHaveLength(2); // new socket created automatically
+    // restart runs via timer + async chain — poll instead of counting ticks (CI-safe)
+    await vi.waitFor(() => {
+      expect(sockets).toHaveLength(2); // new socket created automatically
+    });
     expect(sockets[1]!.hadCredsAtCreation).toBe(true); // with the paired creds
-    await tick();
-    expect(manager.get('p1')?.info.status).toBe('connected');
+    await vi.waitFor(() => {
+      expect(manager.get('p1')?.info.status).toBe('connected');
+    });
     await manager.shutdown();
   });
 
@@ -69,11 +71,11 @@ describe('auto-restart on close (Baileys 515 pairing flow)', () => {
       connection: 'close',
       lastDisconnect: { error: { output: { statusCode: 401 } } },
     });
-    await tick();
-    await tick();
-
+    await vi.waitFor(async () => {
+      expect(await store.hasCreds()).toBe(false); // creds are dead
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50)); // would-be restart window
     expect(sockets).toHaveLength(1); // no restart
-    expect(await store.hasCreds()).toBe(false); // creds are dead
     await manager.shutdown();
   });
 });
