@@ -1,6 +1,8 @@
 import { Redis } from 'ioredis';
 import { buildApp } from './app.js';
 import { realSocketFactory } from './baileys/realSocket.js';
+import { loadCloudApiConfig } from './cloudapi/config.js';
+import { GraphClient } from './cloudapi/graphClient.js';
 import { SessionManager } from './baileys/sessionManager.js';
 import { S3SnapshotStorage } from './baileys/snapshot.js';
 import { loadConfig } from './config.js';
@@ -12,17 +14,26 @@ const config = loadConfig();
 const logger = createLogger(config.logLevel);
 
 const redis = new Redis(config.redisUrl, { lazyConnect: false, maxRetriesPerRequest: 3 });
+const publisher = new EventPublisher(redis, logger);
 const manager = new SessionManager({
   redis,
   snapshots: new S3SnapshotStorage(config.s3),
   snapshotKey: config.sessionSnapshotKey ? parseKey(config.sessionSnapshotKey) : undefined,
   factory: realSocketFactory,
-  publisher: new EventPublisher(redis, logger),
+  publisher,
   logger,
   snapshotIntervalMs: config.snapshotIntervalMs,
 });
 
-const app = buildApp(config, { sessionManager: manager });
+const cloudConfig = loadCloudApiConfig();
+const app = buildApp(config, {
+  sessionManager: manager,
+  cloudApi: {
+    config: cloudConfig,
+    client: new GraphClient(cloudConfig),
+    publisher,
+  },
+});
 
 app
   .listen({ host: config.host, port: config.port })

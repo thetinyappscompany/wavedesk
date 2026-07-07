@@ -19,6 +19,13 @@ doc_events = {
 
 # --- Scheduler ---------------------------------------------------------------
 scheduler_events = {
+    # Poll wa:events every minute as the RQ baseline; a dedicated long-running
+    # consumer worker replaces this for sub-second latency in Phase 1 (p95 < 2s).
+    "cron": {
+        "* * * * *": [
+            "wavedesk.pipeline.consumer.process_wa_events",
+        ],
+    },
     "daily": [
         "wavedesk.wallet.ledger.reconcile_all_wallets",
     ],

@@ -1,0 +1,69 @@
+# WaveDesk — staging stack (single VM, Traefik + Let's Encrypt)
+# Stateful services are MANAGED (MariaDB/Redis endpoints via env) per master doc §2.5.
+# Frappe runs from a custom image built by CI (see deploy/frappe.Dockerfile, epic 0.8+).
+#
+# Usage on the VM:
+#   cp .env.staging.example .env   # fill in real values
+#   docker compose -f compose.staging.yml pull && docker compose -f compose.staging.yml up -d
+
+name: wavedesk-staging
+
+services:
+  traefik:
+    image: traefik:v3.3
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+    restart: unless-stopped
+
+  wa-gateway:
+    image: ${REGISTRY}/wavedesk-gateway:${TAG:-latest}
+    env_file: .env
+    environment:
+      WA_GATEWAY_PORT: "8081"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.gateway.rule=Host(`gw.${STAGING_DOMAIN}`)
+      - traefik.http.routers.gateway.tls.certresolver=le
+      - traefik.http.services.gateway.loadbalancer.server.port=8081
+    restart: unless-stopped
+
+  frontend:
+    image: ${REGISTRY}/wavedesk-frontend:${TAG:-latest}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.frontend.rule=Host(`app.${STAGING_DOMAIN}`)
+      - traefik.http.routers.frontend.tls.certresolver=le
+      - traefik.http.services.frontend.loadbalancer.server.port=80
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes:
+      - qdrant-data:/qdrant/storage
+    restart: unless-stopped
+
+  # Phase 4 replaces this with the real faster-whisper service.
+  whisper:
+    image: alpine:3.21
+    command: ["sh", "-c", "sleep infinity"]
+    restart: unless-stopped
+
+  # Frappe (bench) staging container lands when the custom image exists —
+  # tracked in docs/runbooks/deploy.md. MariaDB/Redis are managed endpoints.
+
+volumes:
+  letsencrypt:
+  qdrant-data:

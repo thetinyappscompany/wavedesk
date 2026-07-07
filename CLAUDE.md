@@ -11,14 +11,15 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 0
-Current epic: Session 0.6 — Baileys session manager
-Last completed: 0.6 (gateway SessionManager: Redis auth state + AES-256-GCM S3 snapshots,
-restart-without-rescan proven vs mocked socket, SSE QR route, wa:events publisher,
-internal shared-secret auth; Baileys PINNED 6.7.23; 25 gateway tests green).
-Founder to run docs/runbooks/baileys-qr-test.md with spare SIM.
-Before that: 0.5 gating · 0.4 wallet · 0.3 tenancy · 0.2 DocTypes · 0.1 monorepo (48 Frappe tests green).
-Next: 0.7 Cloud API adapter (port docs/reference/cloud-api-integration-design.md into
-gateway) + Frappe wa:events consumer. Then 0.8 staging.
+Current epic: Phase 0 COMPLETE (code) — 0.7 Cloud API + consumer, 0.8 staging config
+Last completed: 0.7 (gateway: Meta webhook verify + X-Hub-Signature-256 + Graph send
+client w/ per-number env token map, normalized to wa:events; Frappe pipeline/consumer.py:
+consumer group, exactly-once upserts Contact→Chat→Message, ack-after-commit, poison
+parking — 1000-event replay + crash-restart tests green). 0.8 (compose.staging.yml,
+gated deploy workflow, deploy+observability runbook — VM provisioning pending, founder).
+Suites: 51 Frappe tests + 30 gateway tests + ruff, all green.
+Phase 0 exit items on founder: real-number QR test (runbook), staging VM, gh auth+push,
+Meta Business Verification. Next code epic: Phase 1 — 1. Number mgmt UI.
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.
