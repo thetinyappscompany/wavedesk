@@ -64,6 +64,18 @@ services:
     image: alpine:3.21
     command: ["sh", "-c", "echo 'whisper placeholder (Phase 4)'; sleep infinity"]
 
+  # One-shot: create the session-snapshot bucket so the gateway can persist.
+  minio-init:
+    image: minio/mc:latest
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set dev http://minio:9000 ${MINIO_ROOT_USER:-devminio} ${MINIO_ROOT_PASSWORD:-devminio123} &&
+      mc mb --ignore-existing dev/wavedesk-sessions &&
+      mc mb --ignore-existing dev/wavedesk-media"
+    depends_on:
+      minio:
+        condition: service_healthy
+
   wa-gateway:
     build:
       context: ../services/wa-gateway
@@ -72,9 +84,15 @@ services:
       LOG_LEVEL: debug
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: wavedesk-sessions
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-devminio}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-devminio123}
       WA_GATEWAY_INTERNAL_SECRET: ${WA_GATEWAY_INTERNAL_SECRET:-dev-internal-secret}
+      # Dev-only defaults — staging/prod inject real values from secrets.
+      SESSION_SNAPSHOT_KEY: ${SESSION_SNAPSHOT_KEY:-QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=}
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-dev-verify-token}
+      META_APP_SECRET: ${META_APP_SECRET:-dev-meta-app-secret}
+      CLOUD_API_NUMBERS: ${CLOUD_API_NUMBERS:-{}}
     ports:
       - "8081:8081"
     depends_on:
