@@ -30,6 +30,54 @@ function make() {
   return { app, manager, redis, sockets };
 }
 
+describe('auto-restart on close (Baileys 515 pairing flow)', () => {
+  it('recreates the socket after restart-required so pairing completes', async () => {
+    const { manager, redis, sockets } = make();
+    await manager.create('p1', 'WS-1');
+    await tick();
+    expect(sockets).toHaveLength(1);
+
+    // Phone scanned: creds persist, then WhatsApp closes with 515.
+    const store = new RedisAuthStore(redis, 'p1');
+    const loaded = await store.load();
+    simulatePairing(loaded.state);
+    await loaded.saveCreds();
+    sockets[0]!.emitConnection({
+      connection: 'close',
+      lastDisconnect: { error: { output: { statusCode: 515 } } },
+    });
+    await tick();
+    await tick();
+
+    expect(sockets).toHaveLength(2); // new socket created automatically
+    expect(sockets[1]!.hadCredsAtCreation).toBe(true); // with the paired creds
+    await tick();
+    expect(manager.get('p1')?.info.status).toBe('connected');
+    await manager.shutdown();
+  });
+
+  it('clears creds and does NOT restart on logged-out (401)', async () => {
+    const { manager, redis, sockets } = make();
+    await manager.create('p2', 'WS-1');
+    await tick();
+    const store = new RedisAuthStore(redis, 'p2');
+    const loaded = await store.load();
+    simulatePairing(loaded.state);
+    await loaded.saveCreds();
+
+    sockets[0]!.emitConnection({
+      connection: 'close',
+      lastDisconnect: { error: { output: { statusCode: 401 } } },
+    });
+    await tick();
+    await tick();
+
+    expect(sockets).toHaveLength(1); // no restart
+    expect(await store.hasCreds()).toBe(false); // creds are dead
+    await manager.shutdown();
+  });
+});
+
 describe('P1.1 gateway session API', () => {
   it('POST /sessions with stream:false returns JSON immediately', async () => {
     const { app, manager } = make();

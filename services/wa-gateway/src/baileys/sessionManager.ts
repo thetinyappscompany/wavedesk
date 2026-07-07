@@ -35,6 +35,20 @@ interface ManagedSession {
   store: RedisAuthStore;
   credsExisted: boolean;
   lastQr: string | null;
+  /** Auto-restarts since the last successful 'open' (bounded — no crash loops). */
+  restartCount: number;
+}
+
+// WhatsApp disconnect codes we act on (Boom statusCode from lastDisconnect).
+const DISCONNECT_RESTART_REQUIRED = 515; // normal after QR pairing — MUST reconnect
+const DISCONNECT_LOGGED_OUT = 401; // device unlinked — creds are dead
+const MAX_AUTO_RESTARTS = 5;
+
+function disconnectCode(update: { lastDisconnect?: { error?: unknown } }): number | undefined {
+  const error = update.lastDisconnect?.error as
+    | { output?: { statusCode?: number } }
+    | undefined;
+  return error?.output?.statusCode;
 }
 
 export interface SessionManagerDeps {
@@ -105,6 +119,7 @@ export class SessionManager {
       store,
       credsExisted,
       lastQr: null,
+      restartCount: 0,
     };
     this.sessions.set(id, session);
     this.wire(session, saveCreds);
@@ -151,6 +166,10 @@ export class SessionManager {
               : 'connecting';
         if (info.status === 'connected') {
           session.lastQr = null; // paired — QR is spent
+          session.restartCount = 0;
+        }
+        if (update.connection === 'close') {
+          this.handleClose(session, disconnectCode(update));
         }
         emitter.emit('status', info.status);
         void this.deps.publisher.publish(
@@ -180,6 +199,60 @@ export class SessionManager {
         );
       }
     });
+  }
+
+  /** Baileys closes the stream mid-flow by design: after QR pairing succeeds the
+   * server sends 515 (restart required) and the client MUST reconnect with the
+   * saved creds to complete the link — without this the phone hangs on loading. */
+  private handleClose(session: ManagedSession, code: number | undefined): void {
+    const id = session.info.id;
+    if (code === DISCONNECT_LOGGED_OUT) {
+      this.deps.logger.info(logFields({ session_id: id }), 'device unlinked — creds cleared');
+      void session.store.clear();
+      return;
+    }
+    if (session.restartCount >= MAX_AUTO_RESTARTS) {
+      this.deps.logger.warn(
+        logFields({ session_id: id, restart_count: session.restartCount }),
+        'giving up on auto-restart',
+      );
+      return;
+    }
+    session.restartCount += 1;
+    this.deps.logger.info(
+      logFields({
+        session_id: id,
+        disconnect_code: code ?? null,
+        restart_count: session.restartCount,
+        restart_required: code === DISCONNECT_RESTART_REQUIRED,
+      }),
+      'auto-restarting baileys socket',
+    );
+    const restartCount = session.restartCount;
+    const timer = setTimeout(() => {
+      void (async () => {
+        const current = this.sessions.get(id);
+        if (!current || current !== session) {
+          return; // destroyed or already replaced
+        }
+        current.socket.end();
+        this.sessions.delete(id);
+        const handle = await this.startSocket(id, session.info.workspace);
+        const replacement = this.sessions.get(id);
+        if (replacement) {
+          replacement.restartCount = restartCount; // carry the bound across restarts
+        }
+        // Re-point existing emitter subscribers (SSE) at the new socket's events.
+        handle.emitter.on('qr', (qr: string) => session.emitter.emit('qr', qr));
+        handle.emitter.on('status', (status: string) => session.emitter.emit('status', status));
+      })().catch((err: unknown) => {
+        this.deps.logger.error(
+          logFields({ session_id: id, err_type: String(err) }),
+          'auto-restart failed',
+        );
+      });
+    }, code === DISCONNECT_RESTART_REQUIRED ? 0 : 2000);
+    timer.unref();
   }
 
   list(): SessionInfo[] {
