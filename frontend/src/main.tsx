@@ -3,7 +3,10 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
+import { initSentry } from './lib/sentry';
 import './index.css';
+
+initSentry(); // no-op until VITE_SENTRY_DSN is set
 
 const queryClient = new QueryClient({
   defaultOptions: {

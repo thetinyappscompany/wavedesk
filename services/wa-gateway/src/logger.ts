@@ -48,6 +48,11 @@ function keyTokens(key: string): string[] {
     .filter(Boolean);
 }
 
+/** Shared PII rule — used by logging AND the Sentry scrubber. */
+export function isPiiFieldName(key: string): boolean {
+  return isForbiddenKey(key);
+}
+
 function isForbiddenKey(key: string): boolean {
   const tokens = keyTokens(key);
   if (ALWAYS_FORBIDDEN.some((banned) => tokens.includes(banned))) {

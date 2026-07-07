@@ -9,9 +9,11 @@ import { loadConfig } from './config.js';
 import { parseKey } from './crypto/secretbox.js';
 import { createLogger } from './logger.js';
 import { EventPublisher } from './events/publisher.js';
+import { initSentry } from './observability/sentry.js';
 
 const config = loadConfig();
 const logger = createLogger(config.logLevel);
+initSentry(process.env.SENTRY_DSN, logger);
 
 const redis = new Redis(config.redisUrl, { lazyConnect: false, maxRetriesPerRequest: 3 });
 const publisher = new EventPublisher(redis, logger);
