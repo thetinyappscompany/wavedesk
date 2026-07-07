@@ -106,7 +106,6 @@ def _seed_roles() -> None:
         role = frappe.new_doc("Role")
         role.update({"role_name": role_name, "desk_access": 1})
         role.insert(ignore_permissions=True)
-    frappe.db.commit()
 
 
 def _seed_plans() -> None:
@@ -123,7 +122,6 @@ def _seed_plans() -> None:
             }
         )
         doc.insert(ignore_permissions=True)
-    frappe.db.commit()
 
 
 def _seed_ai_pricing_config() -> None:
@@ -137,4 +135,3 @@ def _seed_ai_pricing_config() -> None:
     config.model_rates = json.dumps(DEFAULT_MODEL_RATES)
     config.credit_packs = json.dumps(DEFAULT_CREDIT_PACKS)
     config.save(ignore_permissions=True)
-    frappe.db.commit()

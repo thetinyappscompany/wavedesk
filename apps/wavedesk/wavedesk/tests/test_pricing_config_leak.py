@@ -52,7 +52,7 @@ class TestAIPricingConfigLeak(IntegrationTestCase):
         frappe.set_user(TEST_USER)
         # Single DocType: no table, so list queries fail with TableMissingError
         # before the permission layer. Either way: it must raise, never return rows.
-        with self.assertRaises(Exception):
+        with self.assertRaises((frappe.PermissionError, frappe.db.TableMissingError)):
             frappe.get_list("WD AI Pricing Config")
 
     def test_confidential_fieldnames_never_in_client_payload(self):

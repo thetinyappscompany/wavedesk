@@ -89,10 +89,10 @@ class TestCoreDocTypes(IntegrationTestCase):
         self.assertIsNotNone(uuid.UUID(msg.name), "WD Message name must be a UUID")
 
     def test_wallet_transaction_idempotency_key_unique(self):
+        from wavedesk.wallet.ledger import get_or_create_wallet
+
         ws = make_workspace(f"WS {uuid.uuid4().hex[:8]}")
-        wallet = frappe.new_doc("WD Wallet")
-        wallet.update({"workspace": ws.name, "currency": "INR"})
-        wallet.insert(ignore_permissions=True)
+        wallet_name = get_or_create_wallet(ws.name)  # auto-provisioned on insert
 
         key = f"idem-{uuid.uuid4().hex}"
 
@@ -101,7 +101,7 @@ class TestCoreDocTypes(IntegrationTestCase):
             txn.update(
                 {
                     "workspace": ws.name,
-                    "wallet": wallet.name,
+                    "wallet": wallet_name,
                     "txn_type": "topup",
                     "amount": 100,
                     "running_balance": 100,
@@ -131,16 +131,15 @@ class TestCoreDocTypes(IntegrationTestCase):
 
         make_contact(ws_a.name)
         make_contact(ws_b.name)  # same phone, different workspace — allowed
-        with self.assertRaises(Exception):
+        with self.assertRaises((frappe.DuplicateEntryError, frappe.UniqueValidationError)):
             make_contact(ws_a.name)  # duplicate within a workspace — rejected
 
     def test_one_wallet_per_workspace(self):
         ws = make_workspace(f"WS {uuid.uuid4().hex[:8]}")
-        w1 = frappe.new_doc("WD Wallet")
-        w1.update({"workspace": ws.name})
-        w1.insert(ignore_permissions=True)
+        # Auto-provisioned on workspace insert (Session 0.5)
+        self.assertTrue(frappe.db.exists("WD Wallet", {"workspace": ws.name}))
 
         w2 = frappe.new_doc("WD Wallet")
         w2.update({"workspace": ws.name})
-        with self.assertRaises(Exception):
+        with self.assertRaises((frappe.DuplicateEntryError, frappe.UniqueValidationError)):
             w2.insert(ignore_permissions=True)

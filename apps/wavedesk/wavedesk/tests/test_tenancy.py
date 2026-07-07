@@ -30,8 +30,10 @@ from wavedesk.tenancy import (
     workspace_room,
 )
 
-USER_A = "tenancy-a@wavedesk.test"
-USER_B = "tenancy-b@wavedesk.test"
+# Unique per run: fixed emails accumulate committed memberships across test runs,
+# which breaks sole-membership assumptions (get_active_workspace).
+USER_A = f"tenancy-a-{uuid.uuid4().hex[:10]}@wavedesk.test"
+USER_B = f"tenancy-b-{uuid.uuid4().hex[:10]}@wavedesk.test"
 
 
 def _make_user(email: str) -> None:
@@ -86,8 +88,11 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         message_type="text",
         body="tenant fixture",
     )
-    insert("WD Subscription", plan="Trial", status="trialing")
-    wallet = insert("WD Wallet", currency="INR")
+    # Subscription + wallet are auto-provisioned on workspace insert (Session 0.5);
+    # reference those rows instead of inserting duplicates.
+    docs["WD Subscription"] = frappe.db.get_value("WD Subscription", {"workspace": workspace})
+    wallet = frappe.db.get_value("WD Wallet", {"workspace": workspace})
+    docs["WD Wallet"] = wallet
     insert(
         "WD Wallet Transaction",
         wallet=wallet,

@@ -11,11 +11,13 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 0
-Current epic: Session 0.3 — Tenancy isolation layer
-Last completed: Session 0.3 (tenancy.py hooks on all WD DocTypes, WD Workspace Member
-+ WD Owner/Admin/Agent roles, socket room gate, active-workspace-from-session;
-24-test suite green incl. cross-tenant isolation + 100%-coverage meta-test).
-Before that: 0.2 (Frappe app, 11 DocTypes, seeds, leak test) · 0.1 (monorepo, skeletons, CI).
+Current epic: Session 0.5 — Quota & feature gating
+Last completed: 0.5 (plan/gating.py check_quota/has_feature/@requires_feature +
+plan_context with leak-tested allowlist; trial auto-provisioning: subscription 14d +
+wallet + AI preview on workspace insert). 0.4 (wallet/ledger.py append-only ledger,
+idempotency, row-lock ADR 0002, nightly reconciliation). Suite: 48 tests green + ruff.
+Before that: 0.3 tenancy · 0.2 DocTypes · 0.1 monorepo/skeletons/CI.
+Next: 0.6 gateway Baileys session manager (real-number QR test: founder has spare SIMs).
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

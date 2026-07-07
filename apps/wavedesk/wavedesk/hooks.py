@@ -9,6 +9,21 @@ app_license = "Proprietary"
 after_install = "wavedesk.setup.install.after_install"
 after_migrate = ["wavedesk.setup.install.seed_defaults"]
 
+# --- Document events ----------------------------------------------------------
+doc_events = {
+    "WD Workspace": {
+        # §3.2: trial subscription + wallet + AI preview, same transaction as insert
+        "after_insert": "wavedesk.plan.provisioning.provision_workspace",
+    },
+}
+
+# --- Scheduler ---------------------------------------------------------------
+scheduler_events = {
+    "daily": [
+        "wavedesk.wallet.ledger.reconcile_all_wallets",
+    ],
+}
+
 # --- Tenancy (master doc §3.1) ---------------------------------------------
 # Single registration point. The doctype lists live in wavedesk/tenancy.py;
 # the meta-test in tests/test_tenancy.py fails CI if any WD DocType is missing.
