@@ -43,6 +43,8 @@ interface ManagedSession {
 const DISCONNECT_RESTART_REQUIRED = 515; // normal after QR pairing — MUST reconnect
 const DISCONNECT_LOGGED_OUT = 401; // device unlinked — creds are dead
 const MAX_AUTO_RESTARTS = 5;
+const FAST_RESTART_DELAY_MS = 2_000;
+export const SLOW_RESTART_DELAY_MS = 60_000;
 
 function disconnectCode(update: { lastDisconnect?: { error?: unknown } }): number | undefined {
   const error = update.lastDisconnect?.error as
@@ -212,10 +214,14 @@ export class SessionManager {
       return;
     }
     if (session.restartCount >= MAX_AUTO_RESTARTS) {
+      // Fast lane exhausted (e.g. a network blip caused a 408 loop). Do NOT die:
+      // keep trying on the slow lane — a paired session must survive transient
+      // outages without human intervention (master doc: number safety).
       this.deps.logger.warn(
         logFields({ session_id: id, restart_count: session.restartCount }),
-        'giving up on auto-restart',
+        'fast-lane restarts exhausted — retrying on slow lane',
       );
+      this.scheduleRestart(session, SLOW_RESTART_DELAY_MS);
       return;
     }
     session.restartCount += 1;
@@ -228,6 +234,14 @@ export class SessionManager {
       }),
       'auto-restarting baileys socket',
     );
+    this.scheduleRestart(
+      session,
+      code === DISCONNECT_RESTART_REQUIRED ? 0 : FAST_RESTART_DELAY_MS,
+    );
+  }
+
+  private scheduleRestart(session: ManagedSession, delayMs: number): void {
+    const id = session.info.id;
     const restartCount = session.restartCount;
     const timer = setTimeout(() => {
       void (async () => {
@@ -251,7 +265,7 @@ export class SessionManager {
           'auto-restart failed',
         );
       });
-    }, code === DISCONNECT_RESTART_REQUIRED ? 0 : 2000);
+    }, delayMs);
     timer.unref();
   }
 

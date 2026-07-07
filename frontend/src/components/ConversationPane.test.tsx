@@ -7,7 +7,12 @@ import ConversationPane from './ConversationPane';
 import { client } from '@/lib/client';
 
 vi.mock('@/lib/client', () => ({
-  client: { listMessages: vi.fn(), markChatRead: vi.fn() },
+  client: {
+    listMessages: vi.fn(),
+    markChatRead: vi.fn(),
+    sendMessage: vi.fn(),
+    retryMessage: vi.fn(),
+  },
 }));
 
 function message(overrides: Partial<WdMessage>): WdMessage {
@@ -76,6 +81,53 @@ describe('ConversationPane', () => {
     expect(screen.getByText('reply')).toBeInTheDocument();
     expect(screen.getByText(/Voice message/)).toBeInTheDocument();
     expect(screen.getByText(/media preview lands/)).toBeInTheDocument();
+  });
+
+  it('sends a message on Enter through the queued pipeline', async () => {
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [],
+      has_more: false,
+      next_before: null,
+    });
+    vi.mocked(client.sendMessage).mockResolvedValue({ name: 'MSG-NEW', status: 'queued' });
+
+    const user = userEvent.setup();
+    renderPane();
+    const box = await screen.findByLabelText('Message');
+    await user.type(box, 'namaste ji{Enter}');
+
+    expect(client.sendMessage).toHaveBeenCalledWith('CHAT-1', 'namaste ji');
+    expect(box).toHaveValue(''); // draft cleared
+  });
+
+  it('Shift+Enter makes a newline instead of sending', async () => {
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [],
+      has_more: false,
+      next_before: null,
+    });
+    const user = userEvent.setup();
+    renderPane();
+    const box = await screen.findByLabelText('Message');
+    await user.type(box, 'line1{Shift>}{Enter}{/Shift}line2');
+    expect(client.sendMessage).not.toHaveBeenCalled();
+    expect(box).toHaveValue('line1\nline2');
+  });
+
+  it('failed outbound bubbles offer retry', async () => {
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [
+        message({ name: 'M-FAIL', direction: 'out', status: 'failed', body: 'lost one' }),
+      ],
+      has_more: false,
+      next_before: null,
+    });
+    vi.mocked(client.retryMessage).mockResolvedValue({ name: 'M-FAIL', status: 'queued' });
+
+    const user = userEvent.setup();
+    renderPane();
+    await user.click(await screen.findByLabelText('Retry send'));
+    expect(client.retryMessage).toHaveBeenCalledWith('M-FAIL');
   });
 
   it('loads earlier messages via the cursor', async () => {

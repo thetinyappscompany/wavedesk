@@ -170,6 +170,15 @@ export class WaveDeskClient {
     return this.call('wavedesk.api.messages.mark_chat_read', { chat });
   }
 
+  // --- sending (Phase 1 feature 7 — queued pipeline) ---
+  sendMessage(chat: string, body: string): Promise<{ name: string; status: string }> {
+    return this.call('wavedesk.api.send.send_message', { chat, body });
+  }
+
+  retryMessage(message: string): Promise<{ name: string; status: string }> {
+    return this.call('wavedesk.api.send.retry_message', { message });
+  }
+
   /** Low-level call to a whitelisted Frappe method (`/api/method/<path>`). */
   async call<T>(method: string, params?: Record<string, unknown>): Promise<T> {
     const res = await this.fetchFn(`${this.baseUrl}/api/method/${method}`, {

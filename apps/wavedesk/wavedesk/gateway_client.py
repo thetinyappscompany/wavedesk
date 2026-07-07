@@ -59,3 +59,11 @@ def reconnect_session(session_id: str) -> dict:
 
 def delete_session(session_id: str) -> dict:
     return _request("DELETE", f"/sessions/{session_id}")
+
+
+def send_session_message(session_id: str, to: str, text: str) -> dict:
+    return _request("POST", f"/sessions/{session_id}/messages", {"to": to, "text": text})
+
+
+def send_cloud_message(phone_number_id: str, to: str, text: str) -> dict:
+    return _request("POST", f"/cloud/{phone_number_id}/messages", {"to": to, "text": text})

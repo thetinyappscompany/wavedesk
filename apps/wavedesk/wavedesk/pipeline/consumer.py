@@ -132,7 +132,8 @@ def apply_event(event: dict) -> None:
     phone, body, message_type, chat_type, direction = extracted
 
     contact = _upsert_contact(workspace, phone) if phone else None
-    chat = _upsert_chat(workspace, wa_chat_id, chat_type, contact)
+    number = _resolve_number(workspace, transport, payload)
+    chat = _upsert_chat(workspace, wa_chat_id, chat_type, contact, number)
 
     message = frappe.new_doc("WD Message")
     message.update(
@@ -246,10 +247,43 @@ def _upsert_contact(workspace: str, phone: str) -> str:
     return contact.name
 
 
-def _upsert_chat(workspace: str, wa_chat_id: str, chat_type: str, contact: str | None) -> str:
-    existing = frappe.db.get_value("WD Chat", {"workspace": workspace, "wa_chat_id": wa_chat_id})
+def _resolve_number(workspace: str, transport: str | None, payload: dict) -> str | None:
+    """Link the chat to the receiving WD WhatsApp Number — replies need it
+    to pick the outbound session (pipeline/sender.py)."""
+    if transport == "baileys":
+        session_ref = payload.get("session_id")
+        if session_ref:
+            return frappe.db.get_value(
+                "WD WhatsApp Number", {"workspace": workspace, "session_ref": session_ref}
+            )
+    elif transport == "cloud_api":
+        phone_number_id = payload.get("phone_number_id")
+        if phone_number_id:
+            return frappe.db.get_value(
+                "WD WhatsApp Number",
+                {"workspace": workspace, "phone_number_id": phone_number_id},
+            )
+    return None
+
+
+def _upsert_chat(
+    workspace: str,
+    wa_chat_id: str,
+    chat_type: str,
+    contact: str | None,
+    number: str | None = None,
+) -> str:
+    existing = frappe.db.get_all(
+        "WD Chat",
+        filters={"workspace": workspace, "wa_chat_id": wa_chat_id},
+        fields=["name", "number"],
+        limit=1,
+    )
     if existing:
-        return existing
+        row = existing[0]
+        if number and not row.number:  # backfill chats created before linking existed
+            frappe.db.set_value("WD Chat", row.name, "number", number, update_modified=False)
+        return row.name
     chat = frappe.new_doc("WD Chat")
     chat.update(
         {
@@ -257,6 +291,7 @@ def _upsert_chat(workspace: str, wa_chat_id: str, chat_type: str, contact: str |
             "wa_chat_id": wa_chat_id,
             "chat_type": chat_type,
             "contact": contact,
+            "number": number,
             "status": "open",
         }
     )
