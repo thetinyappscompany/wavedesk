@@ -24,6 +24,8 @@ export default tseslint.config(
     rules: {
       // expect(() => fnReturningVoid()) is idiomatic in vitest assertions
       '@typescript-eslint/no-confusing-void-expression': 'off',
+      // arr[0]!.field after a length assertion is idiomatic in tests
+      '@typescript-eslint/no-non-null-assertion': 'off',
     },
   },
   prettier,

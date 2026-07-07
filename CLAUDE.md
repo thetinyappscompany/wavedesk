@@ -11,13 +11,14 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 0
-Current epic: Session 0.5 — Quota & feature gating
-Last completed: 0.5 (plan/gating.py check_quota/has_feature/@requires_feature +
-plan_context with leak-tested allowlist; trial auto-provisioning: subscription 14d +
-wallet + AI preview on workspace insert). 0.4 (wallet/ledger.py append-only ledger,
-idempotency, row-lock ADR 0002, nightly reconciliation). Suite: 48 tests green + ruff.
-Before that: 0.3 tenancy · 0.2 DocTypes · 0.1 monorepo/skeletons/CI.
-Next: 0.6 gateway Baileys session manager (real-number QR test: founder has spare SIMs).
+Current epic: Session 0.6 — Baileys session manager
+Last completed: 0.6 (gateway SessionManager: Redis auth state + AES-256-GCM S3 snapshots,
+restart-without-rescan proven vs mocked socket, SSE QR route, wa:events publisher,
+internal shared-secret auth; Baileys PINNED 6.7.23; 25 gateway tests green).
+Founder to run docs/runbooks/baileys-qr-test.md with spare SIM.
+Before that: 0.5 gating · 0.4 wallet · 0.3 tenancy · 0.2 DocTypes · 0.1 monorepo (48 Frappe tests green).
+Next: 0.7 Cloud API adapter (port docs/reference/cloud-api-integration-design.md into
+gateway) + Frappe wa:events consumer. Then 0.8 staging.
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

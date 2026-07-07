@@ -1,16 +1,48 @@
+import { Redis } from 'ioredis';
 import { buildApp } from './app.js';
+import { realSocketFactory } from './baileys/realSocket.js';
+import { SessionManager } from './baileys/sessionManager.js';
+import { S3SnapshotStorage } from './baileys/snapshot.js';
 import { loadConfig } from './config.js';
+import { parseKey } from './crypto/secretbox.js';
+import { createLogger } from './logger.js';
+import { EventPublisher } from './events/publisher.js';
 
 const config = loadConfig();
-const app = buildApp(config);
+const logger = createLogger(config.logLevel);
 
-app.listen({ host: config.host, port: config.port }).catch((err: unknown) => {
-  app.log.error(err);
-  process.exit(1);
+const redis = new Redis(config.redisUrl, { lazyConnect: false, maxRetriesPerRequest: 3 });
+const manager = new SessionManager({
+  redis,
+  snapshots: new S3SnapshotStorage(config.s3),
+  snapshotKey: config.sessionSnapshotKey ? parseKey(config.sessionSnapshotKey) : undefined,
+  factory: realSocketFactory,
+  publisher: new EventPublisher(redis, logger),
+  logger,
+  snapshotIntervalMs: config.snapshotIntervalMs,
 });
+
+const app = buildApp(config, { sessionManager: manager });
+
+app
+  .listen({ host: config.host, port: config.port })
+  .then(async () => {
+    // Boot-time restore: every registered session re-attaches without QR re-scan.
+    const restored = await manager.restoreAll();
+    app.log.info({ restored_count: restored.length }, 'session restore complete');
+    manager.startSnapshotTimer();
+  })
+  .catch((err: unknown) => {
+    app.log.error(err);
+    process.exit(1);
+  });
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
-    void app.close().then(() => process.exit(0));
+    void manager
+      .shutdown()
+      .then(() => app.close())
+      .then(() => redis.quit())
+      .then(() => process.exit(0));
   });
 }

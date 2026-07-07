@@ -13,7 +13,16 @@ Frappe never talks to WhatsApp directly.
 - REST for Frappe (shared-secret header auth): POST/DELETE/GET /sessions, POST /sessions/:id/messages.
 
 ## Current state
-Session 0.1 skeleton: /health route, config, PII-safe logger. Baileys/Cloud API land in epics 0.6–0.7.
+Session 0.6 done: SessionManager (src/baileys/) — Redis auth state, AES-256-GCM snapshots
+to S3/MinIO (5-min timer + graceful shutdown), boot-time restoreAll (no QR re-scan),
+SSE QR route, wa:events publisher, shared-secret internal auth. Sockets are injectable
+(src/baileys/socket.ts) — tests run against test/helpers/mockSocket.ts.
+Cloud API adapter + Frappe consumer land in 0.7 (reference: docs/reference/
+cloud-api-integration-design.md). Manual QR runbook: docs/runbooks/baileys-qr-test.md.
+
+## PINNED
+@whiskeysockets/baileys = 6.7.23 EXACTLY (7.0 still RC). Bumps are deliberate: canary
+number test first (root guide pitfall #3). Never re-add a semver range.
 
 ## Commands
 `npm run dev` · `npm test` · `npm run lint` · `npm run typecheck` · `npm run build`
