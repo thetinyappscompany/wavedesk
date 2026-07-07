@@ -7,7 +7,7 @@ import InboxPage from './InboxPage';
 import { client } from '@/lib/client';
 
 vi.mock('@/lib/client', () => ({
-  client: { listChats: vi.fn() },
+  client: { listChats: vi.fn(), listMessages: vi.fn(), markChatRead: vi.fn() },
 }));
 
 function chat(overrides: Partial<WdChat>): WdChat {
@@ -80,15 +80,22 @@ describe('InboxPage', () => {
     });
   });
 
-  it('selecting a chat shows the placeholder conversation pane', async () => {
+  it('selecting a chat opens the conversation pane', async () => {
     vi.mocked(client.listChats).mockResolvedValue({
-      chats: [chat({ name: 'CHAT-42' })],
+      chats: [chat({ name: 'CHAT-42', contact_name: 'Asha Traders' })],
       total: 1,
     });
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [],
+      has_more: false,
+      next_before: null,
+    });
+    vi.mocked(client.markChatRead).mockResolvedValue({ chat: 'CHAT-42', unread_count: 0 });
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByTestId('chat-row'));
-    expect(screen.getByText('CHAT-42')).toBeInTheDocument();
-    expect(screen.getByText(/lands in the next/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Asha Traders' })).toBeInTheDocument();
+    expect(client.listMessages).toHaveBeenCalledWith('CHAT-42', undefined);
+    expect(client.markChatRead).toHaveBeenCalledWith('CHAT-42');
   });
 });

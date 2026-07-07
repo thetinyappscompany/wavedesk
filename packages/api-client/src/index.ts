@@ -74,6 +74,26 @@ export interface ChatListResult {
   total: number;
 }
 
+export interface WdMessage {
+  name: string;
+  direction: 'in' | 'out';
+  message_type: string;
+  body: string | null;
+  status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | null;
+  sender_agent: string | null;
+  sender_contact: string | null;
+  wa_message_id: string | null;
+  quoted_message: string | null;
+  quoted_body: string | null;
+  creation: string;
+}
+
+export interface MessageListResult {
+  messages: WdMessage[];
+  has_more: boolean;
+  next_before: string | null;
+}
+
 export interface ConnectCloudParams {
   phone: string;
   phone_number_id: string;
@@ -136,6 +156,18 @@ export class WaveDeskClient {
   // --- chats (Phase 1 feature 2) ---
   listChats(params: ChatListParams = {}): Promise<ChatListResult> {
     return this.call('wavedesk.api.chats.list_chats', { ...params });
+  }
+
+  listMessages(chat: string, before?: string, limit?: number): Promise<MessageListResult> {
+    return this.call('wavedesk.api.messages.list_messages', {
+      chat,
+      ...(before ? { before } : {}),
+      ...(limit ? { limit } : {}),
+    });
+  }
+
+  markChatRead(chat: string): Promise<{ chat: string; unread_count: number }> {
+    return this.call('wavedesk.api.messages.mark_chat_read', { chat });
   }
 
   /** Low-level call to a whitelisted Frappe method (`/api/method/<path>`). */

@@ -26,6 +26,27 @@ def cleanup_pending_numbers() -> int:
     return len(rows)
 
 
+def cleanup_protocol_artifacts() -> int:
+    """One-off: drop bodyless text 'messages' created before the consumer learned
+    to skip WhatsApp protocol noise, and reset affected unread counters."""
+    rows = frappe.get_all(
+        "WD Message",
+        filters={"sent_via": "baileys", "message_type": "text", "body": ("is", "not set")},
+        fields=["name", "chat"],
+    )
+    chats = set()
+    for row in rows:
+        frappe.delete_doc("WD Message", row.name, ignore_permissions=True, force=True)
+        chats.add(row.chat)
+    for chat in chats:
+        remaining = frappe.db.count("WD Message", {"chat": chat, "direction": "in"})
+        frappe.db.set_value(
+            "WD Chat", chat, "unread_count", min(remaining, 99), update_modified=False
+        )
+    frappe.db.commit()
+    return len(rows)
+
+
 def set_admin_email(email: str = "admin@example.com") -> str:
     """Dev convenience: let the SPA's email-based login reach Administrator."""
     frappe.db.set_value("User", "Administrator", "email", email)

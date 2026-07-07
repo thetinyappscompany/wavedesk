@@ -11,7 +11,13 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 0
-Current epic: Phase 1 — epic 2 (Chat-list pane) DONE
+Current epic: Phase 1 — epic 3 (Conversation pane) DONE
+P1.3: api/messages.py (cursor pagination for upward scroll, quoted bodies, mark_chat_read),
+ConversationPane (bubbles in/out, status ticks, quotes, media placeholders, load-earlier,
+unread reset, 5s polling). Consumer hardened from REAL traffic: WhatsApp protocolMessage/
+sync noise skipped, fromMe → direction out (no unread bump), media types + captions,
+ephemeral/viewOnce unwrapping. Composer is next (P1.4).
+Previous: Phase 1 — epic 2 (Chat-list pane) DONE
 Last completed: P1.2 — api/chats.py list_chats (filters, search by name/phone, pagination),
 consumer bumps unread_count, /inbox 3-pane shell with @tanstack/react-virtual chat list,
 status tabs, debounced search, AppShell sidebar nav. REAL WhatsApp number paired via the

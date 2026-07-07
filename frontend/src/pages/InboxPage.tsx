@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { WdChat } from '@wavedesk/api-client';
 import { client } from '@/lib/client';
+import ConversationPane from '@/components/ConversationPane';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
@@ -175,17 +176,21 @@ export default function InboxPage(): React.JSX.Element {
         </div>
       </section>
 
-      {/* Conversation pane placeholder — lands in P1 epic 3 */}
-      <section className="flex min-w-0 flex-1 items-center justify-center text-muted-foreground">
-        {selected ? (
-          <p className="text-sm">
-            Conversation view for <span className="font-mono">{selected}</span> lands in the next
-            epic.
-          </p>
-        ) : (
+      {selected ? (
+        <ConversationPane
+          chatName={selected}
+          title={
+            (() => {
+              const chat = rows.find((row) => row.name === selected);
+              return chat?.contact_name ?? chat?.contact_phone ?? chat?.wa_chat_id ?? selected;
+            })()
+          }
+        />
+      ) : (
+        <section className="flex min-w-0 flex-1 items-center justify-center text-muted-foreground">
           <p className="text-sm">Select a conversation</p>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   );
 }

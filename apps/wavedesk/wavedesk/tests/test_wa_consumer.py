@@ -160,6 +160,75 @@ class TestCrashRecovery(WaConsumerTestBase):
         )
 
 
+class TestBaileysExtraction(WaConsumerTestBase):
+    """Real-pairing findings: protocol noise must be skipped; fromMe means outbound."""
+
+    def _baileys(self, ws: str, content: dict, from_me: bool = False) -> dict:
+        return {
+            "transport": "baileys",
+            "type": "message.received",
+            "workspace_hint": ws,
+            "wa_chat_id": "919033230372@s.whatsapp.net",
+            "wa_message_id": f"BX-{uuid.uuid4().hex[:10]}",
+            "payload": {
+                "session_id": "s1",
+                "message": {"key": {"fromMe": from_me}, "message": content},
+            },
+            "ts": "2026-07-07T12:00:00Z",
+        }
+
+    def test_protocol_messages_are_skipped(self):
+        ws = self._ws = _make_workspace()
+        apply_event(
+            self._baileys(
+                ws,
+                {"protocolMessage": {"type": "APP_STATE_SYNC_KEY_SHARE"}},
+                from_me=True,
+            )
+        )
+        frappe.db.commit()
+        self.assertEqual(frappe.db.count("WD Message", {"workspace": ws}), 0)
+        self.assertEqual(frappe.db.count("WD Chat", {"workspace": ws}), 0)
+
+    def test_from_me_text_is_outbound_and_does_not_bump_unread(self):
+        ws = self._ws = _make_workspace()
+        apply_event(self._baileys(ws, {"conversation": "sent from my phone"}, from_me=True))
+        frappe.db.commit()
+        row = frappe.get_all(
+            "WD Message",
+            filters={"workspace": ws},
+            fields=["direction", "status", "body"],
+        )[0]
+        self.assertEqual(row.direction, "out")
+        self.assertEqual(row.status, "sent")
+        self.assertEqual(row.body, "sent from my phone")
+        chat = frappe.get_all("WD Chat", filters={"workspace": ws}, fields=["unread_count"])[0]
+        self.assertEqual(chat.unread_count, 0)
+
+    def test_media_types_and_captions(self):
+        ws = self._ws = _make_workspace()
+        apply_event(self._baileys(ws, {"imageMessage": {"caption": "our new stock"}}))
+        frappe.db.commit()
+        row = frappe.get_all(
+            "WD Message", filters={"workspace": ws}, fields=["message_type", "body", "direction"]
+        )[0]
+        self.assertEqual(row.message_type, "image")
+        self.assertEqual(row.body, "our new stock")
+        self.assertEqual(row.direction, "in")
+
+    def test_ephemeral_wrapper_unwraps(self):
+        ws = self._ws = _make_workspace()
+        apply_event(
+            self._baileys(
+                ws,
+                {"ephemeralMessage": {"message": {"conversation": "disappearing hi"}}},
+            )
+        )
+        frappe.db.commit()
+        row = frappe.get_all("WD Message", filters={"workspace": ws}, fields=["body"])[0]
+        self.assertEqual(row.body, "disappearing hi")
+
+
 class TestPoisonParking(WaConsumerTestBase):
     def test_bad_entry_parks_after_three_deliveries_and_never_blocks(self):
         ws = self._ws = _make_workspace()

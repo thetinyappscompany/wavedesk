@@ -36,3 +36,4 @@ class ResizeObserverStub {
 
 globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
 Element.prototype.getBoundingClientRect = () => rect;
+Element.prototype.scrollIntoView = () => {};

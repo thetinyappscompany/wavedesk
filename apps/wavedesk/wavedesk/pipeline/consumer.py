@@ -126,7 +126,10 @@ def apply_event(event: dict) -> None:
     transport = event.get("transport")
     payload = event.get("payload") or {}
     wa_chat_id = event.get("wa_chat_id") or ""
-    phone, body, message_type, chat_type = _extract(transport, wa_chat_id, payload)
+    extracted = _extract(transport, wa_chat_id, payload)
+    if extracted is None:
+        return  # protocol/sync noise — never a user-visible message
+    phone, body, message_type, chat_type, direction = extracted
 
     contact = _upsert_contact(workspace, phone) if phone else None
     chat = _upsert_chat(workspace, wa_chat_id, chat_type, contact)
@@ -136,9 +139,10 @@ def apply_event(event: dict) -> None:
         {
             "workspace": workspace,
             "chat": chat,
-            "direction": "in",
+            "direction": direction,
+            "status": "sent" if direction == "out" else None,
             "wa_message_id": wa_message_id,
-            "sender_contact": contact,
+            "sender_contact": contact if direction == "in" else None,
             "message_type": message_type,
             "body": body,
             "sent_via": transport,
@@ -149,39 +153,87 @@ def apply_event(event: dict) -> None:
     frappe.db.set_value(
         "WD Chat", chat, "last_message_at", frappe.utils.now_datetime(), update_modified=False
     )
-    # Unread badge for the inbox list; reset lands with the conversation pane epic.
-    frappe.db.sql(
-        "update `tabWD Chat` set unread_count = unread_count + 1 where name = %s",
-        (chat,),
-    )
+    if direction == "in":
+        # Unread badge for the inbox list; reset happens on conversation open.
+        frappe.db.sql(
+            "update `tabWD Chat` set unread_count = unread_count + 1 where name = %s",
+            (chat,),
+        )
+
+
+# Wrappers whose real content sits one level deeper (message.<wrapper>.message).
+_BAILEYS_WRAPPERS = ("ephemeralMessage", "viewOnceMessage", "viewOnceMessageV2")
+# Content keys that carry no user-visible message — pairing/sync plumbing.
+_BAILEYS_IGNORED_KEYS = {
+    "protocolMessage",
+    "senderKeyDistributionMessage",
+    "messageContextInfo",
+    "pollUpdateMessage",
+    "keepInChatMessage",
+    "deviceSentMessage",
+}
+# content key -> (WD message_type, body extractor)
+_BAILEYS_CONTENT: dict[str, tuple[str, Any]] = {
+    "conversation": ("text", lambda c: c if isinstance(c, str) else None),
+    "extendedTextMessage": ("text", lambda c: c.get("text")),
+    "imageMessage": ("image", lambda c: c.get("caption")),
+    "videoMessage": ("video", lambda c: c.get("caption")),
+    "audioMessage": ("audio", lambda c: None),
+    "documentMessage": ("document", lambda c: c.get("fileName")),
+    "stickerMessage": ("sticker", lambda c: None),
+    "locationMessage": ("location", lambda c: c.get("name")),
+    "contactMessage": ("contact_card", lambda c: c.get("displayName")),
+    "contactsArrayMessage": ("contact_card", lambda c: c.get("displayName")),
+    "reactionMessage": ("reaction", lambda c: c.get("text")),
+}
 
 
 def _extract(
     transport: str | None, wa_chat_id: str, payload: dict
-) -> tuple[str | None, str | None, str, str]:
-    """Returns (phone, body, message_type, chat_type) for either transport."""
+) -> tuple[str | None, str | None, str, str, str] | None:
+    """Returns (phone, body, message_type, chat_type, direction), or None when
+    the event is protocol noise that must not become a WD Message."""
     if transport == "cloud_api":
         return (
             payload.get("from"),
             payload.get("text"),
             payload.get("message_type") or "text",
             "dm",  # Cloud API is DM-only in Phase 0
+            "in",  # outbound Cloud API messages surface via statuses, not webhooks
         )
+
     # baileys: wa_chat_id is a jid — DMs end @s.whatsapp.net, groups @g.us
+    raw = payload.get("message") or {}
+    direction = "out" if (raw.get("key") or {}).get("fromMe") else "in"
+    content = _unwrap_baileys_content(raw.get("message"))
+    if not content:
+        return None
+
+    message_type, body = "text", None
+    for key, value in content.items():
+        if key in _BAILEYS_IGNORED_KEYS:
+            continue
+        handler = _BAILEYS_CONTENT.get(key)
+        if handler:
+            message_type = handler[0]
+            body = handler[1](value if isinstance(value, dict) else value)
+            break
+    else:
+        return None  # only ignored/unknown keys — nothing user-visible
+
     chat_type = "group" if wa_chat_id.endswith("@g.us") else "dm"
     phone = wa_chat_id.split("@")[0] if chat_type == "dm" and "@" in wa_chat_id else None
-    body = _baileys_text(payload)
-    return phone, body, "text", chat_type
+    return phone, body, message_type, chat_type, direction
 
 
-def _baileys_text(payload: dict) -> str | None:
-    message: dict[str, Any] = (payload.get("message") or {}).get("message") or {}
-    if isinstance(message.get("conversation"), str):
-        return message["conversation"]
-    extended = message.get("extendedTextMessage") or {}
-    if isinstance(extended.get("text"), str):
-        return extended["text"]
-    return None
+def _unwrap_baileys_content(content: Any) -> dict | None:
+    if not isinstance(content, dict):
+        return None
+    for wrapper in _BAILEYS_WRAPPERS:
+        inner = content.get(wrapper)
+        if isinstance(inner, dict) and isinstance(inner.get("message"), dict):
+            return _unwrap_baileys_content(inner["message"])
+    return content
 
 
 def _upsert_contact(workspace: str, phone: str) -> str:
