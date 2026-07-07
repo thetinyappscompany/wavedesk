@@ -11,10 +11,11 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 0
-Current epic: Session 0.2 — Frappe v16 app + core DocTypes
-Last completed: Session 0.2 (bench v16 @ WSL Python 3.14, 11 WD DocTypes, plan +
-AI-pricing seeds, pricing-config leak test; site dev.localhost on docker MariaDB).
-Before that: 0.1 (monorepo, gateway+frontend skeletons, compose stack verified live, CI).
+Current epic: Session 0.3 — Tenancy isolation layer
+Last completed: Session 0.3 (tenancy.py hooks on all WD DocTypes, WD Workspace Member
++ WD Owner/Admin/Agent roles, socket room gate, active-workspace-from-session;
+24-test suite green incl. cross-tenant isolation + 100%-coverage meta-test).
+Before that: 0.2 (Frappe app, 11 DocTypes, seeds, leak test) · 0.1 (monorepo, skeletons, CI).
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

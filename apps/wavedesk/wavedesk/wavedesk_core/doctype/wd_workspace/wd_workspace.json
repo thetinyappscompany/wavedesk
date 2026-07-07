@@ -9,7 +9,8 @@
   "plan",
   "owner_user",
   "settings",
-  "ai_config"
+  "ai_config",
+  "members"
  ],
  "fields": [
   {
@@ -40,11 +41,17 @@
    "fieldname": "ai_config",
    "fieldtype": "JSON",
    "label": "AI Config"
+  },
+  {
+   "fieldname": "members",
+   "fieldtype": "Table",
+   "label": "Members",
+   "options": "WD Workspace Member"
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-07 12:00:00.000000",
+ "modified": "2026-07-07 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "WaveDesk Core",
  "name": "WD Workspace",
@@ -61,6 +68,31 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "role": "WD Owner",
+   "read": 1,
+   "write": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1
+  },
+  {
+   "role": "WD Admin",
+   "read": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1
+  },
+  {
+   "role": "WD Agent",
+   "read": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1
   }
  ],
  "sort_field": "creation",

@@ -9,5 +9,17 @@ app_license = "Proprietary"
 after_install = "wavedesk.setup.install.after_install"
 after_migrate = ["wavedesk.setup.install.seed_defaults"]
 
-# Tenancy hooks (permission_query_conditions / has_permission for ALL WD DocTypes)
-# are registered here in Session 0.3 from wavedesk/tenancy.py — single registration point.
+# --- Tenancy (master doc §3.1) ---------------------------------------------
+# Single registration point. The doctype lists live in wavedesk/tenancy.py;
+# the meta-test in tests/test_tenancy.py fails CI if any WD DocType is missing.
+from wavedesk.tenancy import TENANT_DOCTYPES as _TENANT_DOCTYPES  # noqa: E402
+
+permission_query_conditions = {
+    "WD Workspace": "wavedesk.tenancy.workspace_permission_query",
+    **{dt: "wavedesk.tenancy.permission_query" for dt in _TENANT_DOCTYPES},
+}
+
+has_permission = {
+    "WD Workspace": "wavedesk.tenancy.has_permission",
+    **{dt: "wavedesk.tenancy.has_permission" for dt in _TENANT_DOCTYPES},
+}

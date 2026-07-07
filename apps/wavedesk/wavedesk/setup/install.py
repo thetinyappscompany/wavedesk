@@ -91,8 +91,22 @@ def after_install() -> None:
 
 
 def seed_defaults() -> None:
+    _seed_roles()
     _seed_plans()
     _seed_ai_pricing_config()
+
+
+def _seed_roles() -> None:
+    """Workspace roles (§3.1): global Frappe roles; scoping happens in tenancy.py."""
+    from wavedesk.tenancy import WORKSPACE_ROLES
+
+    for role_name in WORKSPACE_ROLES:
+        if frappe.db.exists("Role", role_name):
+            continue
+        role = frappe.new_doc("Role")
+        role.update({"role_name": role_name, "desk_access": 1})
+        role.insert(ignore_permissions=True)
+    frappe.db.commit()
 
 
 def _seed_plans() -> None:
