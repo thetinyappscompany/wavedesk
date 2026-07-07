@@ -1,0 +1,26 @@
+[project]
+name = "wavedesk"
+authors = [
+    { name = "WaveDesk", email = "bacokushal@gmail.com" },
+]
+description = "Multi-tenant WhatsApp team-inbox & group-management SaaS"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+dependencies = []
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true

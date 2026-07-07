@@ -11,8 +11,10 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 0
-Current epic: Session 0.1 — Monorepo & tooling skeleton
-Last completed: Session 0.1 (monorepo, wa-gateway skeleton, frontend skeleton, compose, CI)
+Current epic: Session 0.2 — Frappe v16 app + core DocTypes
+Last completed: Session 0.2 (bench v16 @ WSL Python 3.14, 11 WD DocTypes, plan +
+AI-pricing seeds, pricing-config leak test; site dev.localhost on docker MariaDB).
+Before that: 0.1 (monorepo, gateway+frontend skeletons, compose stack verified live, CI).
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.
