@@ -9,6 +9,8 @@ import {
 interface CreateSessionBody {
   session_id: string;
   workspace: string;
+  /** stream:false → plain JSON response (Frappe-driven polling instead of SSE). */
+  stream?: boolean;
 }
 
 interface SendMessageBody {
@@ -37,6 +39,10 @@ export function registerSessionRoutes(app: FastifyInstance, manager: SessionMana
         return reply.code(409).send({ error: 'session already exists' });
       }
       throw err;
+    }
+
+    if (request.body.stream === false) {
+      return reply.code(201).send({ session: handle.info, restored: handle.credsExisted });
     }
 
     reply.raw.writeHead(200, {
@@ -91,6 +97,36 @@ export function registerSessionRoutes(app: FastifyInstance, manager: SessionMana
   });
 
   app.get('/sessions', () => ({ sessions: manager.list() }));
+
+  // Status + current QR (base64 data-URL) — polled by Frappe for the SPA,
+  // which never talks to the gateway directly (master doc §2.6).
+  app.get<{ Params: { id: string } }>('/sessions/:id', async (request, reply) => {
+    const handle = manager.get(request.params.id);
+    if (!handle) {
+      return reply.code(404).send({ error: 'session not found' });
+    }
+    const qr = handle.lastQr ? await toDataURL(handle.lastQr).catch(() => null) : null;
+    return { session: handle.info, qr, restored: handle.credsExisted };
+  });
+
+  app.post<{ Params: { id: string } }>('/sessions/:id/disconnect', (request, reply) => {
+    if (!manager.disconnect(request.params.id)) {
+      return reply.code(404).send({ error: 'session not found' });
+    }
+    return reply.code(204).send();
+  });
+
+  app.post<{ Params: { id: string } }>('/sessions/:id/reconnect', async (request, reply) => {
+    try {
+      const handle = await manager.reconnect(request.params.id);
+      return { session: handle.info, restored: handle.credsExisted };
+    } catch (err) {
+      if (err instanceof SessionNotFoundError) {
+        return reply.code(404).send({ error: 'session not found' });
+      }
+      throw err;
+    }
+  });
 
   app.delete<{ Params: { id: string } }>('/sessions/:id', async (request, reply) => {
     const removed = await manager.destroy(request.params.id);

@@ -13,7 +13,10 @@
   "session_ref",
   "health_score",
   "daily_send_limit",
-  "warmup_stage"
+  "warmup_stage",
+  "waba_id",
+  "phone_number_id",
+  "cloud_token"
  ],
  "fields": [
   {
@@ -29,8 +32,7 @@
   {
    "fieldname": "phone",
    "fieldtype": "Data",
-   "label": "Phone",
-   "reqd": 1
+   "label": "Phone"
   },
   {
    "fieldname": "display_name",
@@ -76,11 +78,29 @@
    "fieldtype": "Int",
    "label": "Warm-up Stage",
    "default": "1"
+  },
+  {
+   "fieldname": "waba_id",
+   "fieldtype": "Data",
+   "label": "WABA ID",
+   "description": "Cloud API only"
+  },
+  {
+   "fieldname": "phone_number_id",
+   "fieldtype": "Data",
+   "label": "Phone Number ID",
+   "description": "Cloud API only — Meta's internal id, used in the messages URL"
+  },
+  {
+   "fieldname": "cloud_token",
+   "fieldtype": "Password",
+   "label": "Cloud API Token",
+   "description": "Cloud API only — permanent system-user token, stored encrypted"
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-07 15:00:00.000000",
+ "modified": "2026-07-07 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "WaveDesk Core",
  "name": "WD WhatsApp Number",

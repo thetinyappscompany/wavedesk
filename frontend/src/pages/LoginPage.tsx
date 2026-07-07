@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { client } from '@/lib/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,16 +24,22 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 export default function LoginPage(): React.JSX.Element {
+  const navigate = useNavigate();
+  const [authError, setAuthError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
 
-  // Shell only (Session 0.1): real auth against Frappe /api/method/login
-  // lands with the onboarding epic (Phase 1) via packages/api-client.
-  const onSubmit = handleSubmit(() => {
-    // no-op until backend auth is wired
+  const onSubmit = handleSubmit(async (values) => {
+    setAuthError(null);
+    try {
+      await client.login(values.email, values.password);
+      await navigate('/numbers');
+    } catch {
+      setAuthError('Login failed — check your email and password.');
+    }
   });
 
   return (
@@ -72,10 +81,15 @@ export default function LoginPage(): React.JSX.Element {
               )}
             </div>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex-col gap-2">
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               Sign in
             </Button>
+            {authError && (
+              <p role="alert" className="text-sm text-destructive">
+                {authError}
+              </p>
+            )}
           </CardFooter>
         </form>
       </Card>

@@ -28,6 +28,34 @@ export class ApiError extends Error {
   }
 }
 
+export interface WdNumber {
+  name: string;
+  phone: string | null;
+  display_name: string | null;
+  connection_type: 'baileys' | 'cloud_api';
+  status: 'connecting' | 'connected' | 'disconnected' | 'banned';
+  health_score: number;
+  daily_send_limit: number;
+  warmup_stage: number;
+  waba_id: string | null;
+  phone_number_id: string | null;
+}
+
+export interface NumberStatus {
+  number: string;
+  status: WdNumber['status'];
+  /** base64 data-URL QR while pairing, null otherwise */
+  qr: string | null;
+}
+
+export interface ConnectCloudParams {
+  phone: string;
+  phone_number_id: string;
+  waba_id: string;
+  token: string;
+  display_name?: string;
+}
+
 export class WaveDeskClient {
   private readonly baseUrl: string;
   private readonly fetchFn: typeof fetch;
@@ -35,6 +63,46 @@ export class WaveDeskClient {
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
     this.fetchFn = options.fetchFn ?? fetch;
+  }
+
+  // --- auth (cookie session) ---
+  async login(email: string, password: string): Promise<void> {
+    await this.call('login', { usr: email, pwd: password });
+  }
+
+  async logout(): Promise<void> {
+    await this.call('logout');
+  }
+
+  // --- numbers (Phase 1 feature 1) ---
+  listNumbers(): Promise<WdNumber[]> {
+    return this.call('wavedesk.api.numbers.list_numbers');
+  }
+
+  connectBaileys(displayName?: string): Promise<{ number: string; session_ref: string }> {
+    return this.call('wavedesk.api.numbers.connect_baileys', {
+      display_name: displayName ?? null,
+    });
+  }
+
+  numberStatus(number: string): Promise<NumberStatus> {
+    return this.call('wavedesk.api.numbers.number_status', { number });
+  }
+
+  disconnectNumber(number: string): Promise<{ status: string }> {
+    return this.call('wavedesk.api.numbers.disconnect_number', { number });
+  }
+
+  reconnectNumber(number: string): Promise<{ status: string }> {
+    return this.call('wavedesk.api.numbers.reconnect_number', { number });
+  }
+
+  deleteNumber(number: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.numbers.delete_number', { number });
+  }
+
+  connectCloudNumber(params: ConnectCloudParams): Promise<{ number: string; status: string }> {
+    return this.call('wavedesk.api.numbers.connect_cloud_number', { ...params });
   }
 
   /** Low-level call to a whitelisted Frappe method (`/api/method/<path>`). */

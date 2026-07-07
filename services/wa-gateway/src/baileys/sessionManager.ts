@@ -23,6 +23,9 @@ export interface SessionHandle {
   emitter: EventEmitter;
   /** True when the session came up from persisted creds (no QR scan needed). */
   credsExisted: boolean;
+  /** Latest QR payload while pairing (null once connected) — enables polling
+   * via Frappe, since the SPA never talks to the gateway directly. */
+  lastQr: string | null;
 }
 
 interface ManagedSession {
@@ -31,6 +34,7 @@ interface ManagedSession {
   socket: GatewaySocket;
   store: RedisAuthStore;
   credsExisted: boolean;
+  lastQr: string | null;
 }
 
 export interface SessionManagerDeps {
@@ -100,6 +104,7 @@ export class SessionManager {
       socket,
       store,
       credsExisted,
+      lastQr: null,
     };
     this.sessions.set(id, session);
     this.wire(session, saveCreds);
@@ -107,7 +112,16 @@ export class SessionManager {
       logFields({ session_id: id, workspace, restored: credsExisted }),
       'baileys session started',
     );
-    return { info: session.info, emitter, credsExisted };
+    return this.toHandle(session);
+  }
+
+  private toHandle(session: ManagedSession): SessionHandle {
+    return {
+      info: session.info,
+      emitter: session.emitter,
+      credsExisted: session.credsExisted,
+      lastQr: session.lastQr,
+    };
   }
 
   private wire(session: ManagedSession, saveCreds: () => Promise<void>): void {
@@ -125,6 +139,7 @@ export class SessionManager {
     socket.onConnectionUpdate((update) => {
       if (update.qr) {
         info.status = 'connecting';
+        session.lastQr = update.qr;
         emitter.emit('qr', update.qr);
       }
       if (update.connection) {
@@ -134,6 +149,9 @@ export class SessionManager {
             : update.connection === 'close'
               ? 'disconnected'
               : 'connecting';
+        if (info.status === 'connected') {
+          session.lastQr = null; // paired — QR is spent
+        }
         emitter.emit('status', info.status);
         void this.deps.publisher.publish(
           makeEvent({
@@ -173,7 +191,32 @@ export class SessionManager {
     if (!session) {
       return undefined;
     }
-    return { info: session.info, emitter: session.emitter, credsExisted: session.credsExisted };
+    return this.toHandle(session);
+  }
+
+  /** Disconnect the socket but KEEP auth state — reconnect() resumes without QR. */
+  disconnect(id: string): boolean {
+    const session = this.sessions.get(id);
+    if (!session) {
+      return false;
+    }
+    session.socket.end();
+    session.info.status = 'disconnected';
+    session.lastQr = null;
+    session.emitter.emit('status', 'disconnected');
+    return true;
+  }
+
+  /** Re-attach a disconnected session from persisted creds (no QR re-scan). */
+  async reconnect(id: string): Promise<SessionHandle> {
+    const session = this.sessions.get(id);
+    if (!session) {
+      throw new SessionNotFoundError(id);
+    }
+    const workspace = session.info.workspace;
+    session.socket.end();
+    this.sessions.delete(id);
+    return this.startSocket(id, workspace);
   }
 
   async sendText(

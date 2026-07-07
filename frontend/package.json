@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
+    "@wavedesk/api-client": "file:../packages/api-client",
     "@sentry/react": "^10.64.0",
     "@tanstack/react-query": "^5.66.0",
     "class-variance-authority": "^0.7.1",

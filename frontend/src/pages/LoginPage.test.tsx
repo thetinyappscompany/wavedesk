@@ -1,11 +1,29 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { MemoryRouter } from 'react-router';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LoginPage from './LoginPage';
+import { client } from '@/lib/client';
+
+vi.mock('@/lib/client', () => ({
+  client: { login: vi.fn() },
+}));
+
+function renderPage() {
+  return render(
+    <MemoryRouter>
+      <LoginPage />
+    </MemoryRouter>,
+  );
+}
 
 describe('LoginPage', () => {
-  it('renders the login shell', () => {
-    render(<LoginPage />);
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders the login form', () => {
+    renderPage();
     expect(screen.getByText('WaveDesk')).toBeInTheDocument();
     expect(screen.getByLabelText('Email')).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
@@ -14,18 +32,30 @@ describe('LoginPage', () => {
 
   it('shows validation errors on empty submit', async () => {
     const user = userEvent.setup();
-    render(<LoginPage />);
+    renderPage();
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     const alerts = await screen.findAllByRole('alert');
     expect(alerts.length).toBeGreaterThanOrEqual(2);
+    expect(client.login).not.toHaveBeenCalled();
   });
 
-  it('rejects an invalid email', async () => {
+  it('logs in against Frappe with the entered credentials', async () => {
+    vi.mocked(client.login).mockResolvedValue(undefined);
     const user = userEvent.setup();
-    render(<LoginPage />);
-    await user.type(screen.getByLabelText('Email'), 'not-an-email');
-    await user.type(screen.getByLabelText('Password'), 'secret');
+    renderPage();
+    await user.type(screen.getByLabelText('Email'), 'owner@acme.in');
+    await user.type(screen.getByLabelText('Password'), 'secret123');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
-    expect(await screen.findByText('Enter a valid email')).toBeInTheDocument();
+    expect(client.login).toHaveBeenCalledWith('owner@acme.in', 'secret123');
+  });
+
+  it('surfaces auth failures', async () => {
+    vi.mocked(client.login).mockRejectedValue(new Error('401'));
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText('Email'), 'owner@acme.in');
+    await user.type(screen.getByLabelText('Password'), 'wrong');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByText(/Login failed/)).toBeInTheDocument();
   });
 });
