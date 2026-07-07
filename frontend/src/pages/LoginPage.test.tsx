@@ -25,7 +25,7 @@ describe('LoginPage', () => {
   it('renders the login form', () => {
     renderPage();
     expect(screen.getByText('WaveDesk')).toBeInTheDocument();
-    expect(screen.getByLabelText('Email')).toBeInTheDocument();
+    expect(screen.getByLabelText('Email or username')).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
   });
@@ -43,7 +43,7 @@ describe('LoginPage', () => {
     vi.mocked(client.login).mockResolvedValue(undefined);
     const user = userEvent.setup();
     renderPage();
-    await user.type(screen.getByLabelText('Email'), 'owner@acme.in');
+    await user.type(screen.getByLabelText('Email or username'), 'owner@acme.in');
     await user.type(screen.getByLabelText('Password'), 'secret123');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     expect(client.login).toHaveBeenCalledWith('owner@acme.in', 'secret123');
@@ -53,7 +53,7 @@ describe('LoginPage', () => {
     vi.mocked(client.login).mockRejectedValue(new Error('401'));
     const user = userEvent.setup();
     renderPage();
-    await user.type(screen.getByLabelText('Email'), 'owner@acme.in');
+    await user.type(screen.getByLabelText('Email or username'), 'owner@acme.in');
     await user.type(screen.getByLabelText('Password'), 'wrong');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     expect(await screen.findByText(/Login failed/)).toBeInTheDocument();

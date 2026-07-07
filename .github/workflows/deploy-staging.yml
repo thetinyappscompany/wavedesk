@@ -30,7 +30,8 @@ jobs:
           cache-to: type=gha,mode=max
       - uses: docker/build-push-action@v6
         with:
-          context: frontend
+          context: .
+          file: frontend/Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/wavedesk-frontend:latest,ghcr.io/${{ github.repository_owner }}/wavedesk-frontend:${{ github.sha }}
           cache-from: type=gha

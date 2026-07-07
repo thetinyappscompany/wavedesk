@@ -11,15 +11,16 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 0
-Current epic: Phase 0 COMPLETE (code) — 0.7 Cloud API + consumer, 0.8 staging config
-Last completed: 0.7 (gateway: Meta webhook verify + X-Hub-Signature-256 + Graph send
-client w/ per-number env token map, normalized to wa:events; Frappe pipeline/consumer.py:
-consumer group, exactly-once upserts Contact→Chat→Message, ack-after-commit, poison
-parking — 1000-event replay + crash-restart tests green). 0.8 (compose.staging.yml,
-gated deploy workflow, deploy+observability runbook — VM provisioning pending, founder).
-Suites: 51 Frappe tests + 30 gateway tests + ruff, all green.
-Phase 0 exit items on founder: real-number QR test (runbook), staging VM, gh auth+push,
-Meta Business Verification. Next code epic: Phase 1 — 1. Number mgmt UI.
+Current epic: Phase 1 — epic 1 (Number management) DONE
+Last completed: P1.1 — numbers API both transports (api/numbers.py: quota + Owner/Admin
+gates, encrypted cloud tokens; gateway_client.py), gateway QR-polling endpoints
+(GET /sessions/:id, disconnect/reconnect without re-scan, JSON-mode create), SPA real
+login + /numbers page (QR pairing panel w/ polling, Cloud API form, lifecycle actions).
+Suites: 58 Frappe + 31 gateway + 11 frontend + 4 api-client, ruff — all green. CI green
+on GitHub (github.com/Kushalnahata17/wavedesk). Phase 0 also fully done incl. Sentry
+scrubbers + live E2E webhook→consumer smoke.
+Founder items open: real-number QR test, Meta Business Verification, staging VM, DSNs.
+Next code epic: Phase 1 — 2. Chat-list pane (virtualized, filters, search).
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

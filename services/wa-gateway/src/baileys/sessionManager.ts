@@ -96,7 +96,7 @@ export class SessionManager {
     }
 
     const { state, saveCreds, credsExisted } = await store.load();
-    const socket = this.deps.factory({ sessionId: id, state });
+    const socket = await this.deps.factory({ sessionId: id, state });
     const emitter = new EventEmitter();
     const session: ManagedSession = {
       info: { id, workspace, status: 'connecting', transport: 'baileys' },

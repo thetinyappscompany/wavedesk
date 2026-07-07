@@ -62,7 +62,9 @@ export class WaveDeskClient {
 
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
-    this.fetchFn = options.fetchFn ?? fetch;
+    // Bind: calling bare `fetch` through a property (`this.fetchFn(...)`) throws
+    // "Illegal invocation" in browsers — fetch requires the global as receiver.
+    this.fetchFn = options.fetchFn ?? fetch.bind(globalThis);
   }
 
   // --- auth (cookie session) ---

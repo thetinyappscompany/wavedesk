@@ -32,4 +32,6 @@ export interface SocketFactoryOptions {
   state: AuthenticationState;
 }
 
-export type SocketFactory = (options: SocketFactoryOptions) => GatewaySocket;
+export type SocketFactory = (
+  options: SocketFactoryOptions,
+) => GatewaySocket | Promise<GatewaySocket>;

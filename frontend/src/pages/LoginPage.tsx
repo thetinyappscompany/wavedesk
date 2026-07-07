@@ -16,8 +16,9 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 
+// Frappe accepts email OR username (e.g. Administrator on dev) — don't over-validate.
 const loginSchema = z.object({
-  email: z.string().email('Enter a valid email'),
+  email: z.string().min(1, 'Email or username is required'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -52,12 +53,12 @@ export default function LoginPage(): React.JSX.Element {
         <form onSubmit={(e) => void onSubmit(e)} noValidate>
           <CardContent className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email or username</Label>
               <Input
                 id="email"
-                type="email"
+                type="text"
                 placeholder="you@company.com"
-                autoComplete="email"
+                autoComplete="username"
                 {...register('email')}
               />
               {errors.email && (

@@ -13,9 +13,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Frappe backend in dev
-      '/api': { target: 'http://localhost:8000', changeOrigin: true },
-      '/socket.io': { target: 'http://localhost:9000', ws: true },
+      // Frappe backend in dev (this bench runs web on 8001, socketio on 9001)
+      '/api': { target: 'http://localhost:8001', changeOrigin: true },
+      '/socket.io': { target: 'http://localhost:9002', ws: true },
     },
   },
   test: {

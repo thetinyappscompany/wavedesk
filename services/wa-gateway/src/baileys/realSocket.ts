@@ -1,11 +1,27 @@
 /** Real Baileys socket factory. Version PINNED at 6.7.23 (root guide pitfall #3):
  * bumps happen deliberately, tested on canary numbers — never via semver range. */
-import makeWASocket from '@whiskeysockets/baileys';
+import makeWASocket, { fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import type { GatewaySocket, SocketFactory } from './socket.js';
 
-export const realSocketFactory: SocketFactory = ({ state }) => {
+type WaVersion = [number, number, number];
+
+// WhatsApp rejects registrations that advertise a stale web-client version
+// ("Connection Failure" right after hello). Fetch the current version once per
+// process; fall back to the library default if the lookup fails offline.
+let versionPromise: Promise<WaVersion | undefined> | undefined;
+
+function currentWaVersion(): Promise<WaVersion | undefined> {
+  versionPromise ??= fetchLatestBaileysVersion()
+    .then((result): WaVersion => result.version)
+    .catch(() => undefined);
+  return versionPromise;
+}
+
+export const realSocketFactory: SocketFactory = async ({ state }) => {
+  const version = await currentWaVersion();
   const sock = makeWASocket({
     auth: state,
+    ...(version ? { version } : {}),
     printQRInTerminal: false,
     syncFullHistory: false,
   });
