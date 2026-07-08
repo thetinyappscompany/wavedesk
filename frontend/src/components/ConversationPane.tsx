@@ -297,7 +297,7 @@ export default function ConversationPane({
         <div className="min-w-0">
           <h2 className="truncate font-semibold">{title}</h2>
           {others.length > 0 && (
-            <p data-testid="presence-indicator" className="text-xs text-muted-foreground">
+            <p data-testid="presence-indicator" className="truncate text-xs text-muted-foreground">
               {others
                 .map((o) => `${o.fullName} is ${o.state === 'typing' ? 'typing…' : 'viewing'}`)
                 .join(' · ')}
