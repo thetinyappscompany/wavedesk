@@ -15,6 +15,12 @@ const STATUS_TABS = [
   { key: 'resolved', label: 'Resolved' },
 ] as const;
 
+const VIEW_TABS = [
+  { key: '', label: 'All' },
+  { key: 'me', label: 'Mine' },
+  { key: 'unassigned', label: 'Unassigned' },
+] as const;
+
 const ROW_HEIGHT = 72;
 const PAGE_SIZE = 100;
 
@@ -75,6 +81,7 @@ function ChatRow({ chat, selected, onSelect }: {
 export default function InboxPage(): React.JSX.Element {
   useWorkspaceEvents(); // socket-driven cache invalidation — polling is a fallback
   const [status, setStatus] = useState<string>('');
+  const [assignee, setAssignee] = useState<string>('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
@@ -89,10 +96,11 @@ export default function InboxPage(): React.JSX.Element {
   }, [search]);
 
   const chats = useQuery({
-    queryKey: ['chats', status, debouncedSearch],
+    queryKey: ['chats', status, assignee, debouncedSearch],
     queryFn: () =>
       client.listChats({
         status: status || undefined,
+        assignee: assignee || undefined,
         search: debouncedSearch || undefined,
         limit: PAGE_SIZE,
       }),
@@ -122,7 +130,7 @@ export default function InboxPage(): React.JSX.Element {
               setSearch(e.target.value);
             }}
           />
-          <div role="tablist" className="flex gap-1">
+          <div role="tablist" aria-label="Status" className="flex gap-1">
             {STATUS_TABS.map((tab) => (
               <button
                 key={tab.key}
@@ -134,6 +142,26 @@ export default function InboxPage(): React.JSX.Element {
                 className={cn(
                   'rounded-md px-2 py-1 text-xs',
                   status === tab.key
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent',
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div role="tablist" aria-label="Assignee" className="flex gap-1">
+            {VIEW_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                role="tab"
+                aria-selected={assignee === tab.key}
+                onClick={() => {
+                  setAssignee(tab.key);
+                }}
+                className={cn(
+                  'rounded-md px-2 py-1 text-xs',
+                  assignee === tab.key
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-accent',
                 )}
@@ -179,15 +207,16 @@ export default function InboxPage(): React.JSX.Element {
       </section>
 
       {selected ? (
-        <ConversationPane
-          chatName={selected}
-          title={
-            (() => {
-              const chat = rows.find((row) => row.name === selected);
-              return chat?.contact_name ?? chat?.contact_phone ?? chat?.wa_chat_id ?? selected;
-            })()
-          }
-        />
+        (() => {
+          const chat = rows.find((row) => row.name === selected);
+          return (
+            <ConversationPane
+              chatName={selected}
+              title={chat?.contact_name ?? chat?.contact_phone ?? chat?.wa_chat_id ?? selected}
+              chat={chat}
+            />
+          );
+        })()
       ) : (
         <section className="flex min-w-0 flex-1 items-center justify-center text-muted-foreground">
           <p className="text-sm">Select a conversation</p>

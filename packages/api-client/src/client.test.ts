@@ -32,6 +32,29 @@ describe('WaveDeskClient', () => {
     );
   });
 
+  it('assignment helpers hit the assign API with null-safe params', async () => {
+    const fetchFn = mockFetch(200, { message: { chat: 'CHAT-1' } });
+    const client = new WaveDeskClient({ baseUrl: '', fetchFn });
+    await client.assignChat('CHAT-1', 'riya@x.test');
+    expect(fetchFn).toHaveBeenCalledWith(
+      '/api/method/wavedesk.api.assign.assign_chat',
+      expect.objectContaining({
+        body: JSON.stringify({ chat: 'CHAT-1', agent: 'riya@x.test', team: null }),
+      }),
+    );
+    await client.setChatStatus('CHAT-1', 'snoozed', '2026-07-09 10:00:00');
+    expect(fetchFn).toHaveBeenCalledWith(
+      '/api/method/wavedesk.api.assign.set_chat_status',
+      expect.objectContaining({
+        body: JSON.stringify({
+          chat: 'CHAT-1',
+          status: 'snoozed',
+          snoozed_until: '2026-07-09 10:00:00',
+        }),
+      }),
+    );
+  });
+
   it('throws ApiError with status on non-2xx', async () => {
     const fetchFn = mockFetch(403, { exc_type: 'PermissionError' });
     const client = new WaveDeskClient({ baseUrl: '', fetchFn });

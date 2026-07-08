@@ -4,7 +4,7 @@ Frappe v16 custom app. All business logic, DocTypes, REST, socket.io, RQ jobs.
 Runs ONLY inside a bench (WSL `~/bench`, Python 3.14, symlinked from this repo).
 
 ## Module layout
-- `wavedesk_core/doctype/` — all WD DocTypes (12 incl. WD Workspace Member child)
+- `wavedesk_core/doctype/` — all WD DocTypes (14 incl. WD Workspace Member + WD Team Member children)
 - `setup/install.py` — idempotent seeds (roles, plan catalog §3.2, AI pricing config)
 - `tenancy.py` — permission hooks for ALL WD DocTypes (single registration point;
   new DocType MUST be classified here or the coverage meta-test fails CI)

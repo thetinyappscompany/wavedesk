@@ -102,6 +102,7 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         idempotency_key=f"idem-{workspace}-{suffix}",
     )
     insert("WD Audit Log", action="tenancy.fixture", entity=workspace)
+    insert("WD Team", team_name=f"Team {suffix}")
     return docs
 
 

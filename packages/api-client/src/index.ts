@@ -54,6 +54,8 @@ export interface WdChat {
   status: 'open' | 'pending' | 'resolved' | 'snoozed';
   number: string | null;
   assigned_agent: string | null;
+  assigned_team: string | null;
+  snoozed_until: string | null;
   last_message_at: string | null;
   unread_count: number;
   wa_chat_id: string;
@@ -65,8 +67,22 @@ export interface ChatListParams {
   status?: string;
   number?: string;
   search?: string;
+  /** 'me' | 'unassigned' | a member's user id */
+  assignee?: string;
   limit?: number;
   offset?: number;
+}
+
+export interface WdMember {
+  user: string;
+  role: 'Owner' | 'Admin' | 'Agent';
+  full_name: string | null;
+}
+
+export interface WdTeam {
+  name: string;
+  team_name: string;
+  members: string[];
 }
 
 export interface ChatListResult {
@@ -168,6 +184,67 @@ export class WaveDeskClient {
 
   markChatRead(chat: string): Promise<{ chat: string; unread_count: number }> {
     return this.call('wavedesk.api.messages.mark_chat_read', { chat });
+  }
+
+  // --- assignment / status / presence (Phase 1 feature 3) ---
+  listMembers(): Promise<WdMember[]> {
+    return this.call('wavedesk.api.assign.list_members');
+  }
+
+  assignChat(
+    chat: string,
+    agent?: string | null,
+    team?: string | null,
+  ): Promise<{ chat: string; assigned_agent: string | null; assigned_team: string | null }> {
+    return this.call('wavedesk.api.assign.assign_chat', {
+      chat,
+      agent: agent ?? null,
+      team: team ?? null,
+    });
+  }
+
+  setChatStatus(
+    chat: string,
+    status: WdChat['status'],
+    snoozedUntil?: string,
+  ): Promise<{ chat: string; status: WdChat['status']; snoozed_until: string | null }> {
+    return this.call('wavedesk.api.assign.set_chat_status', {
+      chat,
+      status,
+      ...(snoozedUntil ? { snoozed_until: snoozedUntil } : {}),
+    });
+  }
+
+  presencePing(chat: string, state: 'viewing' | 'typing'): Promise<{ ok: boolean }> {
+    return this.call('wavedesk.api.assign.presence_ping', { chat, state });
+  }
+
+  getLoggedUser(): Promise<string> {
+    return this.call('frappe.auth.get_logged_user');
+  }
+
+  // --- teams (Phase 1 feature 3 — manual assignment; routing is Phase 3) ---
+  listTeams(): Promise<WdTeam[]> {
+    return this.call('wavedesk.api.teams.list_teams');
+  }
+
+  createTeam(teamName: string, members?: string[]): Promise<WdTeam> {
+    return this.call('wavedesk.api.teams.create_team', {
+      team_name: teamName,
+      ...(members ? { members } : {}),
+    });
+  }
+
+  updateTeam(team: string, changes: { teamName?: string; members?: string[] }): Promise<WdTeam> {
+    return this.call('wavedesk.api.teams.update_team', {
+      team,
+      ...(changes.teamName !== undefined ? { team_name: changes.teamName } : {}),
+      ...(changes.members !== undefined ? { members: changes.members } : {}),
+    });
+  }
+
+  deleteTeam(team: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.teams.delete_team', { team });
   }
 
   // --- sending (Phase 1 feature 7 — queued pipeline) ---

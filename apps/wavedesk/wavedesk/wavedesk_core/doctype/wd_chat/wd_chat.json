@@ -11,7 +11,9 @@
   "number",
   "contact",
   "status",
+  "snoozed_until",
   "assigned_agent",
+  "assigned_team",
   "last_message_at",
   "unread_count"
  ],
@@ -63,10 +65,22 @@
    "in_standard_filter": 1
   },
   {
+   "fieldname": "snoozed_until",
+   "fieldtype": "Datetime",
+   "label": "Snoozed Until",
+   "depends_on": "eval:doc.status=='snoozed'"
+  },
+  {
    "fieldname": "assigned_agent",
    "fieldtype": "Link",
    "label": "Assigned Agent",
    "options": "User"
+  },
+  {
+   "fieldname": "assigned_team",
+   "fieldtype": "Link",
+   "label": "Assigned Team",
+   "options": "WD Team"
   },
   {
    "fieldname": "last_message_at",
@@ -82,7 +96,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-07 15:00:00.000000",
+ "modified": "2026-07-08 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "WaveDesk Core",
  "name": "WD Chat",

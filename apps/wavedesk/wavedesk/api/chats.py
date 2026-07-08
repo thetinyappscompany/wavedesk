@@ -19,12 +19,14 @@ def list_chats(
     status: str | None = None,
     number: str | None = None,
     search: str | None = None,
+    assignee: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> dict:
     """Chats for the active workspace, newest activity first.
 
     search matches the contact's name or phone (and the chat id for groups).
+    assignee: "me" | "unassigned" | a member's user id (Mine/Unassigned views).
     Returns {chats: [...], total: int} for virtualized pagination.
     """
     workspace = get_active_workspace()
@@ -46,6 +48,13 @@ def list_chats(
         query = query.where(chat.status == status)
     if number:
         query = query.where(chat.number == number)
+    if assignee:
+        if assignee == "me":
+            query = query.where(chat.assigned_agent == frappe.session.user)
+        elif assignee == "unassigned":
+            query = query.where(chat.assigned_agent.isnull() | (chat.assigned_agent == ""))
+        else:
+            query = query.where(chat.assigned_agent == assignee)
     if search:
         needle = f"%{search}%"
         query = query.where(
@@ -63,6 +72,8 @@ def list_chats(
             chat.status,
             chat.number,
             chat.assigned_agent,
+            chat.assigned_team,
+            chat.snoozed_until,
             chat.last_message_at,
             chat.unread_count,
             chat.wa_chat_id,
@@ -77,5 +88,6 @@ def list_chats(
 
     for row in rows:
         row["last_message_at"] = str(row["last_message_at"]) if row["last_message_at"] else None
+        row["snoozed_until"] = str(row["snoozed_until"]) if row["snoozed_until"] else None
 
     return {"chats": rows, "total": total}

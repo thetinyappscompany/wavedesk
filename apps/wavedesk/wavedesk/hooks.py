@@ -24,6 +24,7 @@ scheduler_events = {
     "cron": {
         "* * * * *": [
             "wavedesk.pipeline.consumer.process_wa_events",
+            "wavedesk.inbox.unsnooze_due_chats",
         ],
     },
     "daily": [

@@ -3,13 +3,34 @@ import {
   keepPreviousData,
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
 import { AlertCircle, Check, CheckCheck, Clock, RotateCcw, SendHorizontal } from 'lucide-react';
-import type { WdMessage } from '@wavedesk/api-client';
+import type { WdChat, WdMessage } from '@wavedesk/api-client';
 import { client } from '@/lib/client';
+import { useChatPresence } from '@/lib/realtime';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+
+/** Snooze presets keep Phase 1 free of a datetime picker. */
+const SNOOZE_PRESETS = [
+  { key: '1h', label: 'Snooze 1 hour', hours: 1 },
+  { key: '4h', label: 'Snooze 4 hours', hours: 4 },
+  { key: '24h', label: 'Snooze until tomorrow', hours: 24 },
+] as const;
+
+/** Frappe expects 'YYYY-MM-DD HH:mm:ss' (site-local clock). */
+function frappeDatetime(date: Date): string {
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return (
+    `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  );
+}
+
+const PRESENCE_HEARTBEAT_MS = 10_000;
+const TYPING_PING_MIN_GAP_MS = 4_000;
 
 const MEDIA_LABEL: Record<string, string> = {
   image: '📷 Photo',
@@ -100,14 +121,122 @@ function Bubble({
   );
 }
 
+function HeaderControls({
+  chatName,
+  chat,
+}: {
+  chatName: string;
+  chat: WdChat | undefined;
+}): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const members = useQuery({ queryKey: ['members'], queryFn: () => client.listMembers() });
+  const refreshChats = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ['chats'] });
+  };
+  const assign = useMutation({
+    mutationFn: (agent: string | null) => client.assignChat(chatName, agent),
+    onSuccess: refreshChats,
+  });
+  const setStatus = useMutation({
+    mutationFn: (change: { status: WdChat['status']; snoozedUntil?: string }) =>
+      client.setChatStatus(chatName, change.status, change.snoozedUntil),
+    onSuccess: refreshChats,
+  });
+
+  const status = chat?.status ?? 'open';
+  const onStatusChange = (value: string): void => {
+    const preset = SNOOZE_PRESETS.find((p) => `snooze-${p.key}` === value);
+    if (preset) {
+      const until = new Date(Date.now() + preset.hours * 3_600_000);
+      setStatus.mutate({ status: 'snoozed', snoozedUntil: frappeDatetime(until) });
+      return;
+    }
+    setStatus.mutate({ status: value as WdChat['status'] });
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <select
+        aria-label="Assignee"
+        className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+        value={chat?.assigned_agent ?? ''}
+        onChange={(e) => {
+          assign.mutate(e.target.value || null);
+        }}
+      >
+        <option value="">Unassigned</option>
+        {(members.data ?? []).map((member) => (
+          <option key={member.user} value={member.user}>
+            {member.full_name ?? member.user}
+          </option>
+        ))}
+      </select>
+      <select
+        aria-label="Status"
+        className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+        value={status}
+        onChange={(e) => {
+          onStatusChange(e.target.value);
+        }}
+      >
+        <option value="open">Open</option>
+        <option value="pending">Pending</option>
+        <option value="resolved">Resolved</option>
+        {status === 'snoozed' && <option value="snoozed">Snoozed</option>}
+        {SNOOZE_PRESETS.map((preset) => (
+          <option key={preset.key} value={`snooze-${preset.key}`}>
+            {preset.label}
+          </option>
+        ))}
+      </select>
+      {status !== 'resolved' && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setStatus.mutate({ status: 'resolved' });
+          }}
+        >
+          Resolve
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export default function ConversationPane({
   chatName,
   title,
+  chat,
 }: {
   chatName: string;
   title: string;
+  chat?: WdChat;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
+
+  // --- presence: heartbeat own state, render others' ---
+  const me = useQuery({ queryKey: ['logged-user'], queryFn: () => client.getLoggedUser() });
+  const others = useChatPresence(chatName, me.data ?? null);
+  const lastTypingPing = useRef(0);
+  useEffect(() => {
+    const ping = (): void => {
+      client.presencePing(chatName, 'viewing').catch(() => undefined);
+    };
+    ping();
+    const timer = setInterval(ping, PRESENCE_HEARTBEAT_MS);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [chatName]);
+  const pingTyping = (): void => {
+    const now = Date.now();
+    if (now - lastTypingPing.current < TYPING_PING_MIN_GAP_MS) {
+      return;
+    }
+    lastTypingPing.current = now;
+    client.presencePing(chatName, 'typing').catch(() => undefined);
+  };
 
   const messages = useInfiniteQuery({
     queryKey: ['messages', chatName],
@@ -164,8 +293,18 @@ export default function ConversationPane({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
-      <header className="border-b px-4 py-3">
-        <h2 className="font-semibold">{title}</h2>
+      <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
+        <div className="min-w-0">
+          <h2 className="truncate font-semibold">{title}</h2>
+          {others.length > 0 && (
+            <p data-testid="presence-indicator" className="text-xs text-muted-foreground">
+              {others
+                .map((o) => `${o.fullName} is ${o.state === 'typing' ? 'typing…' : 'viewing'}`)
+                .join(' · ')}
+            </p>
+          )}
+        </div>
+        <HeaderControls chatName={chatName} chat={chat} />
       </header>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4" data-testid="message-scroll">
@@ -204,6 +343,9 @@ export default function ConversationPane({
             rows={Math.min(draft.split('\n').length, 5)}
             onChange={(e) => {
               setDraft(e.target.value);
+              if (e.target.value) {
+                pingTyping();
+              }
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {

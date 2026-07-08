@@ -7,10 +7,20 @@ import InboxPage from './InboxPage';
 import { client } from '@/lib/client';
 
 vi.mock('@/lib/client', () => ({
-  client: { listChats: vi.fn(), listMessages: vi.fn(), markChatRead: vi.fn() },
+  client: {
+    listChats: vi.fn(),
+    listMessages: vi.fn(),
+    markChatRead: vi.fn(),
+    listMembers: vi.fn(),
+    assignChat: vi.fn(),
+    setChatStatus: vi.fn(),
+    presencePing: vi.fn(),
+    getLoggedUser: vi.fn(),
+  },
 }));
 vi.mock('@/lib/realtime', () => ({
   useWorkspaceEvents: vi.fn(),
+  useChatPresence: vi.fn(() => []),
 }));
 
 function chat(overrides: Partial<WdChat>): WdChat {
@@ -20,6 +30,8 @@ function chat(overrides: Partial<WdChat>): WdChat {
     status: 'open',
     number: null,
     assigned_agent: null,
+    assigned_team: null,
+    snoozed_until: null,
     last_message_at: '2026-07-07 12:00:00',
     unread_count: 0,
     wa_chat_id: '9199@s.whatsapp.net',
@@ -41,6 +53,9 @@ function renderPage() {
 describe('InboxPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(client.listMembers).mockResolvedValue([]);
+    vi.mocked(client.presencePing).mockResolvedValue({ ok: true });
+    vi.mocked(client.getLoggedUser).mockResolvedValue('me@x.test');
   });
 
   it('renders chats with unread badges', async () => {
@@ -67,6 +82,25 @@ describe('InboxPage', () => {
     await waitFor(() => {
       expect(client.listChats).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'open' }),
+      );
+    });
+  });
+
+  it('Mine and Unassigned views pass the assignee filter', async () => {
+    vi.mocked(client.listChats).mockResolvedValue({ chats: [], total: 0 });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText(/No conversations yet/);
+    await user.click(screen.getByRole('tab', { name: 'Mine' }));
+    await waitFor(() => {
+      expect(client.listChats).toHaveBeenCalledWith(
+        expect.objectContaining({ assignee: 'me' }),
+      );
+    });
+    await user.click(screen.getByRole('tab', { name: 'Unassigned' }));
+    await waitFor(() => {
+      expect(client.listChats).toHaveBeenCalledWith(
+        expect.objectContaining({ assignee: 'unassigned' }),
       );
     });
   });
