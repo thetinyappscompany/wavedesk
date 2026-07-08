@@ -4,6 +4,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import type { WdChat } from '@wavedesk/api-client';
 import { client } from '@/lib/client';
 import ConversationPane from '@/components/ConversationPane';
+import { useWorkspaceEvents } from '@/lib/realtime';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
@@ -72,6 +73,7 @@ function ChatRow({ chat, selected, onSelect }: {
 }
 
 export default function InboxPage(): React.JSX.Element {
+  useWorkspaceEvents(); // socket-driven cache invalidation — polling is a fallback
   const [status, setStatus] = useState<string>('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -95,7 +97,7 @@ export default function InboxPage(): React.JSX.Element {
         limit: PAGE_SIZE,
       }),
     placeholderData: keepPreviousData,
-    refetchInterval: 5000, // polling until the realtime epic (P1.6)
+    refetchInterval: 30_000, // fallback only — realtime events drive updates
   });
 
   const rows = chats.data?.chats ?? [];

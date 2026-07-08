@@ -115,7 +115,7 @@ export default function ConversationPane({
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.next_before : null),
     placeholderData: keepPreviousData,
-    refetchInterval: 5000, // polling until the realtime epic (P1.6)
+    refetchInterval: 30_000, // fallback only — realtime events drive updates
   });
 
   const [draft, setDraft] = useState('');

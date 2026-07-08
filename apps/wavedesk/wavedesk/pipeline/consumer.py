@@ -151,6 +151,10 @@ def apply_event(event: dict) -> None:
     )
     message.insert(ignore_permissions=True)
 
+    from wavedesk.realtime import emit_message
+
+    emit_message(workspace, chat, message.name, direction)
+
     frappe.db.set_value(
         "WD Chat", chat, "last_message_at", frappe.utils.now_datetime(), update_modified=False
     )

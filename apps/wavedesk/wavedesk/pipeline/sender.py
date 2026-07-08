@@ -61,6 +61,10 @@ def queue_send(chat_name: str, body: str, agent: str) -> dict:
         update_modified=False,
     )
 
+    from wavedesk.realtime import emit_message
+
+    emit_message(chat.workspace, chat.name, message.name, "out")
+
     _enqueue_delivery(message.name)
     return {
         "name": message.name,
@@ -126,6 +130,9 @@ def deliver_message(message: str, attempt: int = 0) -> None:
         {"status": "sent", "wa_message_id": result.get("wa_message_id")},
         update_modified=False,
     )
+    from wavedesk.realtime import emit_message_status
+
+    emit_message_status(doc.workspace, doc.chat, doc.name, "sent")
     frappe.db.commit()
 
 
@@ -146,6 +153,10 @@ def _mark_failed(message_name: str, reason: str) -> None:
         {"status": "failed", "flag_reason": reason},
         update_modified=False,
     )
+    from wavedesk.realtime import emit_message_status
+
+    workspace, chat = frappe.db.get_value("WD Message", message_name, ["workspace", "chat"])
+    emit_message_status(workspace, chat, message_name, "failed")
     frappe.db.commit()
     frappe.logger("wavedesk.sender").warning(
         {"event": "send_failed", "message_id": message_name, "reason": reason}

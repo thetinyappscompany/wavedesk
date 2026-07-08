@@ -10,24 +10,31 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 0
-Current epic: Phase 1 — epic 3 (Conversation pane) DONE
-P1.3: api/messages.py (cursor pagination for upward scroll, quoted bodies, mark_chat_read),
-ConversationPane (bubbles in/out, status ticks, quotes, media placeholders, load-earlier,
-unread reset, 5s polling). Consumer hardened from REAL traffic: WhatsApp protocolMessage/
-sync noise skipped, fromMe → direction out (no unread bump), media types + captions,
-ephemeral/viewOnce unwrapping. Composer is next (P1.4).
-Previous: Phase 1 — epic 2 (Chat-list pane) DONE
-Last completed: P1.2 — api/chats.py list_chats (filters, search by name/phone, pagination),
-consumer bumps unread_count, /inbox 3-pane shell with @tanstack/react-virtual chat list,
-status tabs, debounced search, AppShell sidebar nav. REAL WhatsApp number paired via the
-product UI (Phase 0 exit item ✓) after two live-run fixes: fetchLatestBaileysVersion +
-515 auto-restart on close (see docs/reference/baileys-pairing-notes.md). Real inbound
-chats visible in the inbox.
-Before: P1.1 numbers mgmt (QR pairing panel, Cloud API form) · Phase 0 complete.
-Suites: 63 Frappe + 42 gateway + 15 frontend + 4 api-client + ruff, all green; CI green.
+Phase: 1
+Current epic: Phase 1 — epic 6 (Realtime) DONE
+P1.6: wavedesk/realtime.py fans out frappe.publish_realtime to workspace-member user
+rooms (after_commit, ids-only payloads — never message text/phones). Consumer emits
+wd:message on inbound insert; sender emits wd:message on queue + wd:message_status on
+sent/failed. Frontend: socket.io-client singleton via /socket.io proxy (vite → 9002),
+useWorkspaceEvents hook invalidates react-query caches; polling cut 5s → 30s fallback.
+VERIFIED LIVE: injected committed inbound appeared in the open conversation in <1s,
+twice, no refresh (30s poll can't explain it).
+Next: P1 epic 7 assignment/teams (chat status, assignee, collision presence).
+Previous: Phase 1 — epic 4 (Composer + send pipeline) DONE
+P1.4: pipeline/sender.py PROTECTED (queued RQ delivery, 20/min per-number rate limit,
+retry ×3 → failed → UI retry, idempotent sending-flip before gateway call), api/send.py,
+consumer links chats→receiving number, gateway slow-lane restarts (sessions never die
+permanently). VERIFIED LIVE both directions incl. failed→retry→sent on a real message.
+Previous: Phase 1 — epic 3 (Conversation pane) DONE
+P1.3: api/messages.py (cursor pagination, quoted bodies, mark_chat_read), ConversationPane
+(bubbles, ticks, quotes, media placeholders, load-earlier). Consumer hardened from REAL
+traffic: protocolMessage noise skipped, fromMe → out, media types, ephemeral/viewOnce.
+Before: P1.2 chat-list pane + REAL WhatsApp number paired through the product UI
+(fetchLatestBaileysVersion + 515 auto-restart — docs/reference/baileys-pairing-notes.md)
+· P1.1 numbers mgmt (QR panel, Cloud API form) · Phase 0 complete.
+Suites: 81 Frappe + 42 gateway + 23 frontend + 4 api-client + ruff, all green; CI green.
 Founder items open: Meta Business Verification, staging VM, Sentry DSNs.
-Next code epic: Phase 1 — 3. Conversation pane (history, media, ticks, quotes).
+Next code epic: Phase 1 — 7. Assignment & teams.
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

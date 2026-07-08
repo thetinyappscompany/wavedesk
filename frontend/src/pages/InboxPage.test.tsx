@@ -9,6 +9,9 @@ import { client } from '@/lib/client';
 vi.mock('@/lib/client', () => ({
   client: { listChats: vi.fn(), listMessages: vi.fn(), markChatRead: vi.fn() },
 }));
+vi.mock('@/lib/realtime', () => ({
+  useWorkspaceEvents: vi.fn(),
+}));
 
 function chat(overrides: Partial<WdChat>): WdChat {
   return {
