@@ -13,9 +13,11 @@ import {
   Clock,
   RotateCcw,
   SendHorizontal,
+  Tag,
   UserRound,
 } from 'lucide-react';
-import type { WdChat, WdMessage } from '@wavedesk/api-client';
+import type { WdCannedResponse, WdChat, WdMessage } from '@wavedesk/api-client';
+import { substituteVariables } from '@/lib/canned';
 import { client } from '@/lib/client';
 import { useChatPresence } from '@/lib/realtime';
 import { Button } from '@/components/ui/button';
@@ -125,6 +127,86 @@ function Bubble({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function LabelPicker({
+  chatName,
+  chat,
+}: {
+  chatName: string;
+  chat: WdChat | undefined;
+}): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const labels = useQuery({
+    queryKey: ['labels'],
+    queryFn: () => client.listLabels(),
+    enabled: open,
+  });
+  const applied = (chat?.labels ?? []).map((chip) => chip.label);
+  const setLabels = useMutation({
+    mutationFn: (next: string[]) => client.setChatLabels(chatName, next),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+  const toggle = (name: string): void => {
+    const next = applied.includes(name)
+      ? applied.filter((item) => item !== name)
+      : [...applied, name];
+    setLabels.mutate(next);
+  };
+
+  return (
+    <div className="relative">
+      <Button
+        aria-label="Labels"
+        variant="outline"
+        size="icon"
+        className="h-8 w-8"
+        onClick={() => {
+          setOpen((value) => !value);
+        }}
+      >
+        <Tag className="h-4 w-4" />
+      </Button>
+      {open && (
+        <div
+          role="menu"
+          aria-label="Chat labels"
+          className="absolute right-0 top-9 z-20 w-52 rounded-md border bg-background p-1 shadow-md"
+        >
+          {labels.isLoading && (
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">Loading labels…</p>
+          )}
+          {labels.data?.length === 0 && (
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+              No labels yet — create them in Settings.
+            </p>
+          )}
+          {(labels.data ?? []).map((label) => (
+            <label
+              key={label.name}
+              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
+            >
+              <input
+                type="checkbox"
+                checked={applied.includes(label.name)}
+                onChange={() => {
+                  toggle(label.name);
+                }}
+              />
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: label.color }}
+              />
+              <span className="truncate">{label.title}</span>
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -258,6 +340,37 @@ export default function ConversationPane({
   });
 
   const [draft, setDraft] = useState('');
+
+  // --- canned responses: `/` opens the menu instantly (minChars 0) ---
+  const cannedOpen = draft.startsWith('/');
+  const cannedTerm = cannedOpen ? draft.slice(1).trim() : '';
+  const canned = useQuery({
+    queryKey: ['canned-search', cannedTerm],
+    queryFn: () => client.searchCanned(cannedTerm),
+    enabled: cannedOpen,
+    placeholderData: keepPreviousData,
+  });
+  const cannedItems = cannedOpen ? (canned.data ?? []) : [];
+  const [cannedIndex, setCannedIndex] = useState(0);
+  useEffect(() => {
+    setCannedIndex(0);
+  }, [cannedTerm, cannedOpen]);
+  const members = useQuery({ queryKey: ['members'], queryFn: () => client.listMembers() });
+  const insertCanned = (item: WdCannedResponse): void => {
+    const meMember = members.data?.find((member) => member.user === me.data);
+    const agentName = meMember?.full_name ?? me.data ?? '';
+    setDraft(
+      substituteVariables(item.content, {
+        'contact.name': chat?.contact_name,
+        'contact.first_name': chat?.contact_name?.split(' ')[0],
+        'contact.phone': chat?.contact_phone,
+        'agent.name': agentName,
+        'agent.first_name': agentName.split(' ')[0],
+        'agent.email': me.data,
+      }),
+    );
+  };
+
   const refresh = (): void => {
     void queryClient.invalidateQueries({ queryKey: ['messages', chatName] });
     void queryClient.invalidateQueries({ queryKey: ['chats'] });
@@ -316,6 +429,7 @@ export default function ConversationPane({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <HeaderControls chatName={chatName} chat={chat} />
+          <LabelPicker chatName={chatName} chat={chat} />
           {chat?.contact && onToggleContact && (
             <Button
               aria-label="Contact details"
@@ -358,10 +472,36 @@ export default function ConversationPane({
       </div>
 
       <footer className="border-t p-3">
+        {cannedOpen && cannedItems.length > 0 && (
+          <div
+            data-testid="canned-menu"
+            className="mb-2 max-h-48 overflow-y-auto rounded-md border bg-background shadow-md"
+          >
+            {cannedItems.map((item, index) => (
+              <button
+                key={item.name}
+                type="button"
+                data-testid="canned-item"
+                className={cn(
+                  'flex w-full items-baseline gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent',
+                  index === cannedIndex && 'bg-accent',
+                )}
+                // mousedown (not click) so the textarea never loses focus
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  insertCanned(item);
+                }}
+              >
+                <span className="shrink-0 font-mono text-xs text-primary">/{item.shortcode}</span>
+                <span className="truncate text-xs text-muted-foreground">{item.content}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="flex items-end gap-2">
           <textarea
             aria-label="Message"
-            placeholder="Type a message… (Enter to send, Shift+Enter for a new line)"
+            placeholder="Type a message… ( / for canned responses, Enter to send )"
             value={draft}
             rows={Math.min(draft.split('\n').length, 5)}
             onChange={(e) => {
@@ -371,6 +511,32 @@ export default function ConversationPane({
               }
             }}
             onKeyDown={(e) => {
+              if (cannedOpen && cannedItems.length > 0) {
+                // menu owns the keyboard: Enter selects instead of sending
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setCannedIndex((i) => (i + 1) % cannedItems.length);
+                  return;
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setCannedIndex((i) => (i - 1 + cannedItems.length) % cannedItems.length);
+                  return;
+                }
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  const item = cannedItems[cannedIndex] ?? cannedItems[0];
+                  if (item) {
+                    insertCanned(item);
+                  }
+                  return;
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setDraft('');
+                  return;
+                }
+              }
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 submit();

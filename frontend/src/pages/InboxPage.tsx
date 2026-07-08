@@ -42,6 +42,7 @@ function ChatRow({ chat, selected, onSelect }: {
   onSelect: (name: string) => void;
 }): React.JSX.Element {
   const title = chat.contact_name ?? chat.contact_phone ?? chat.wa_chat_id;
+  const chips = chat.labels.slice(0, 2);
   return (
     <button
       type="button"
@@ -58,6 +59,21 @@ function ChatRow({ chat, selected, onSelect }: {
           <span className="truncate font-medium">{title}</span>
           {chat.chat_type === 'group' && (
             <span className="rounded border px-1 text-xs text-muted-foreground">group</span>
+          )}
+          {chips.map((chip) => (
+            <span
+              key={chip.label}
+              data-testid="label-chip"
+              className="shrink-0 rounded px-1 text-[10px] font-medium"
+              style={{ backgroundColor: `${chip.color}22`, color: chip.color }}
+            >
+              {chip.title}
+            </span>
+          ))}
+          {chat.labels.length > 2 && (
+            <span className="shrink-0 text-[10px] text-muted-foreground">
+              +{chat.labels.length - 2}
+            </span>
           )}
         </div>
         <div className="truncate text-sm text-muted-foreground">
@@ -83,6 +99,7 @@ export default function InboxPage(): React.JSX.Element {
   useWorkspaceEvents(); // socket-driven cache invalidation — polling is a fallback
   const [status, setStatus] = useState<string>('');
   const [assignee, setAssignee] = useState<string>('');
+  const [label, setLabel] = useState<string>('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
@@ -97,12 +114,15 @@ export default function InboxPage(): React.JSX.Element {
     };
   }, [search]);
 
+  const labels = useQuery({ queryKey: ['labels'], queryFn: () => client.listLabels() });
+
   const chats = useQuery({
-    queryKey: ['chats', status, assignee, debouncedSearch],
+    queryKey: ['chats', status, assignee, label, debouncedSearch],
     queryFn: () =>
       client.listChats({
         status: status || undefined,
         assignee: assignee || undefined,
+        label: label || undefined,
         search: debouncedSearch || undefined,
         limit: PAGE_SIZE,
       }),
@@ -172,6 +192,23 @@ export default function InboxPage(): React.JSX.Element {
               </button>
             ))}
           </div>
+          {(labels.data?.length ?? 0) > 0 && (
+            <select
+              aria-label="Label filter"
+              value={label}
+              onChange={(e) => {
+                setLabel(e.target.value);
+              }}
+              className="h-7 w-full rounded-md border border-input bg-transparent px-2 text-xs"
+            >
+              <option value="">All labels</option>
+              {(labels.data ?? []).map((row) => (
+                <option key={row.name} value={row.name}>
+                  {row.title}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" data-testid="chat-scroll">

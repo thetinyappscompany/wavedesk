@@ -27,6 +27,8 @@ TENANT_DOCTYPES: tuple[str, ...] = (
     "WD Message",
     "WD Team",
     "WD Contact Import",
+    "WD Label",
+    "WD Canned Response",
     "WD Subscription",
     "WD Wallet",
     "WD Wallet Transaction",

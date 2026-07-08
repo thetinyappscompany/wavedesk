@@ -48,6 +48,13 @@ export interface NumberStatus {
   qr: string | null;
 }
 
+/** A label as applied to a chat (denormalized for chip rendering). */
+export interface WdChatLabelChip {
+  label: string;
+  title: string;
+  color: string;
+}
+
 export interface WdChat {
   name: string;
   chat_type: 'dm' | 'group';
@@ -62,6 +69,7 @@ export interface WdChat {
   wa_chat_id: string;
   contact_name: string | null;
   contact_phone: string | null;
+  labels: WdChatLabelChip[];
 }
 
 export interface ChatListParams {
@@ -70,8 +78,31 @@ export interface ChatListParams {
   search?: string;
   /** 'me' | 'unassigned' | a member's user id */
   assignee?: string;
+  /** a WD Label id — filters to chats carrying that label */
+  label?: string;
   limit?: number;
   offset?: number;
+}
+
+export interface WdLabel {
+  name: string;
+  title: string;
+  color: string;
+  description: string | null;
+}
+
+export interface WdCannedResponse {
+  name: string;
+  shortcode: string;
+  content: string;
+}
+
+export interface WdWorkspaceSettings {
+  workspace: string;
+  workspace_name: string | null;
+  /** the caller's role in the active workspace (null for system users) */
+  role: 'Owner' | 'Admin' | 'Agent' | null;
+  mask_numbers: boolean;
 }
 
 export interface WdContact {
@@ -321,6 +352,71 @@ export class WaveDeskClient {
 
   deleteTeam(team: string): Promise<{ deleted: string }> {
     return this.call('wavedesk.api.teams.delete_team', { team });
+  }
+
+  // --- labels (Phase 1 feature 5) ---
+  listLabels(): Promise<WdLabel[]> {
+    return this.call('wavedesk.api.labels.list_labels');
+  }
+
+  createLabel(title: string, color?: string, description?: string): Promise<WdLabel> {
+    return this.call('wavedesk.api.labels.create_label', {
+      title,
+      ...(color ? { color } : {}),
+      ...(description ? { description } : {}),
+    });
+  }
+
+  updateLabel(
+    label: string,
+    changes: { title?: string; color?: string; description?: string },
+  ): Promise<WdLabel> {
+    return this.call('wavedesk.api.labels.update_label', { label, ...changes });
+  }
+
+  deleteLabel(label: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.labels.delete_label', { label });
+  }
+
+  /** Replaces the chat's whole label list (the picker always sends the full selection). */
+  setChatLabels(
+    chat: string,
+    labels: string[],
+  ): Promise<{ chat: string; labels: WdChatLabelChip[] }> {
+    return this.call('wavedesk.api.labels.set_chat_labels', { chat, labels });
+  }
+
+  // --- canned responses (Phase 1 feature 5) ---
+  listCanned(): Promise<WdCannedResponse[]> {
+    return this.call('wavedesk.api.canned.list_canned');
+  }
+
+  searchCanned(term: string): Promise<WdCannedResponse[]> {
+    return this.call('wavedesk.api.canned.search_canned', { term });
+  }
+
+  createCanned(shortcode: string, content: string): Promise<WdCannedResponse> {
+    return this.call('wavedesk.api.canned.create_canned', { shortcode, content });
+  }
+
+  updateCanned(
+    canned: string,
+    changes: { shortcode?: string; content?: string },
+  ): Promise<WdCannedResponse> {
+    return this.call('wavedesk.api.canned.update_canned', { canned, ...changes });
+  }
+
+  deleteCanned(canned: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.canned.delete_canned', { canned });
+  }
+
+  // --- workspace settings (Phase 1 feature 6 — number masking) ---
+  getWorkspaceSettings(): Promise<WdWorkspaceSettings> {
+    return this.call('wavedesk.api.workspace.get_workspace_settings');
+  }
+
+  updateWorkspaceSettings(changes: { mask_numbers?: boolean }): Promise<WdWorkspaceSettings> {
+    return this.call('wavedesk.api.workspace.update_workspace_settings', { ...changes });
   }
 
   // --- sending (Phase 1 feature 7 — queued pipeline) ---

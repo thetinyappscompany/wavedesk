@@ -18,6 +18,9 @@ vi.mock('@/lib/client', () => ({
     setChatStatus: vi.fn(),
     presencePing: vi.fn(),
     getLoggedUser: vi.fn(),
+    searchCanned: vi.fn(),
+    listLabels: vi.fn(),
+    setChatLabels: vi.fn(),
   },
 }));
 vi.mock('@/lib/realtime', () => ({
@@ -56,6 +59,7 @@ function chatRow(overrides: Partial<WdChat> = {}): WdChat {
     wa_chat_id: '9199@s.whatsapp.net',
     contact_name: 'Asha Traders',
     contact_phone: '+919111100001',
+    labels: [],
     ...overrides,
   };
 }
@@ -78,6 +82,8 @@ describe('ConversationPane', () => {
     ]);
     vi.mocked(client.presencePing).mockResolvedValue({ ok: true });
     vi.mocked(client.getLoggedUser).mockResolvedValue('me@x.test');
+    vi.mocked(client.searchCanned).mockResolvedValue([]);
+    vi.mocked(client.listLabels).mockResolvedValue([]);
     vi.mocked(useChatPresence).mockReturnValue([]);
   });
 
@@ -265,5 +271,75 @@ describe('ConversationPane', () => {
     await waitFor(() => {
       expect(client.presencePing).toHaveBeenCalledWith('CHAT-1', 'typing');
     });
+  });
+
+  // --- P1.9: canned responses + labels ---
+
+  it('/ opens the canned menu and Enter inserts with variables substituted', async () => {
+    emptyThread();
+    vi.mocked(client.searchCanned).mockResolvedValue([
+      { name: 'CANNED-1', shortcode: 'greet', content: 'Namaste {{contact.name}}!' },
+      { name: 'CANNED-2', shortcode: 'closing', content: 'Anything else?' },
+    ]);
+    const user = userEvent.setup();
+    renderPane();
+    const box = await screen.findByLabelText('Message');
+    await user.type(box, '/gr');
+    expect(await screen.findByTestId('canned-menu')).toBeInTheDocument();
+    expect(screen.getAllByTestId('canned-item')).toHaveLength(2);
+    await waitFor(() => {
+      expect(client.searchCanned).toHaveBeenCalledWith('gr');
+    });
+
+    await user.keyboard('{Enter}');
+    // Enter selects — it must NOT send while the menu is open
+    expect(client.sendMessage).not.toHaveBeenCalled();
+    expect(box).toHaveValue('Namaste Asha Traders!');
+    expect(screen.queryByTestId('canned-menu')).not.toBeInTheDocument();
+  });
+
+  it('arrow keys move the canned selection before Enter picks it', async () => {
+    emptyThread();
+    vi.mocked(client.searchCanned).mockResolvedValue([
+      { name: 'CANNED-1', shortcode: 'greet', content: 'Namaste!' },
+      { name: 'CANNED-2', shortcode: 'closing', content: 'Anything else?' },
+    ]);
+    const user = userEvent.setup();
+    renderPane();
+    const box = await screen.findByLabelText('Message');
+    await user.type(box, '/');
+    await screen.findByTestId('canned-menu');
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(box).toHaveValue('Anything else?');
+  });
+
+  it('unresolved variables stay literal', async () => {
+    emptyThread();
+    vi.mocked(client.searchCanned).mockResolvedValue([
+      { name: 'CANNED-1', shortcode: 'order', content: 'Order {{order.id}} shipped' },
+    ]);
+    const user = userEvent.setup();
+    renderPane();
+    const box = await screen.findByLabelText('Message');
+    await user.type(box, '/order');
+    await screen.findByTestId('canned-menu');
+    await user.keyboard('{Enter}');
+    expect(box).toHaveValue('Order {{order.id}} shipped');
+  });
+
+  it('label picker applies the full selection to the chat', async () => {
+    emptyThread();
+    vi.mocked(client.listLabels).mockResolvedValue([
+      { name: 'LBL-1', title: 'vip', color: '#ff5533', description: null },
+      { name: 'LBL-2', title: 'billing', color: '#1f93ff', description: null },
+    ]);
+    vi.mocked(client.setChatLabels).mockResolvedValue({ chat: 'CHAT-1', labels: [] });
+    const user = userEvent.setup();
+    renderPane(chatRow({ labels: [{ label: 'LBL-1', title: 'vip', color: '#ff5533' }] }));
+    await user.click(await screen.findByLabelText('Labels'));
+    const billing = await screen.findByRole('checkbox', { name: /billing/ });
+    expect(screen.getByRole('checkbox', { name: /vip/ })).toBeChecked();
+    await user.click(billing);
+    expect(client.setChatLabels).toHaveBeenCalledWith('CHAT-1', ['LBL-1', 'LBL-2']);
   });
 });

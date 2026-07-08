@@ -16,6 +16,9 @@ vi.mock('@/lib/client', () => ({
     setChatStatus: vi.fn(),
     presencePing: vi.fn(),
     getLoggedUser: vi.fn(),
+    listLabels: vi.fn(),
+    searchCanned: vi.fn(),
+    setChatLabels: vi.fn(),
   },
 }));
 vi.mock('@/lib/realtime', () => ({
@@ -41,6 +44,7 @@ function chat(overrides: Partial<WdChat>): WdChat {
     wa_chat_id: '9199@s.whatsapp.net',
     contact_name: 'Asha Traders',
     contact_phone: '+919111100001',
+    labels: [],
     ...overrides,
   };
 }
@@ -60,6 +64,8 @@ describe('InboxPage', () => {
     vi.mocked(client.listMembers).mockResolvedValue([]);
     vi.mocked(client.presencePing).mockResolvedValue({ ok: true });
     vi.mocked(client.getLoggedUser).mockResolvedValue('me@x.test');
+    vi.mocked(client.listLabels).mockResolvedValue([]);
+    vi.mocked(client.searchCanned).mockResolvedValue([]);
   });
 
   it('renders chats with unread badges', async () => {
@@ -105,6 +111,32 @@ describe('InboxPage', () => {
     await waitFor(() => {
       expect(client.listChats).toHaveBeenCalledWith(
         expect.objectContaining({ assignee: 'unassigned' }),
+      );
+    });
+  });
+
+  it('label filter passes the label to the API and rows render chips', async () => {
+    vi.mocked(client.listLabels).mockResolvedValue([
+      { name: 'LBL-1', title: 'vip', color: '#ff5533', description: null },
+    ]);
+    vi.mocked(client.listChats).mockResolvedValue({
+      chats: [
+        chat({
+          name: 'CHAT-1',
+          labels: [{ label: 'LBL-1', title: 'vip', color: '#ff5533' }],
+        }),
+      ],
+      total: 1,
+    });
+    const user = userEvent.setup();
+    renderPage();
+    const chip = await screen.findByTestId('label-chip');
+    expect(chip).toHaveTextContent('vip');
+
+    await user.selectOptions(await screen.findByLabelText('Label filter'), 'LBL-1');
+    await waitFor(() => {
+      expect(client.listChats).toHaveBeenCalledWith(
+        expect.objectContaining({ label: 'LBL-1' }),
       );
     });
   });

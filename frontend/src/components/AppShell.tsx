@@ -1,11 +1,12 @@
 import { NavLink, Outlet } from 'react-router';
-import { Inbox, Phone, UsersRound } from 'lucide-react';
+import { Inbox, Phone, Settings, UsersRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const NAV = [
   { to: '/inbox', label: 'Inbox', icon: Inbox },
   { to: '/contacts', label: 'Contacts', icon: UsersRound },
   { to: '/numbers', label: 'Numbers', icon: Phone },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
 /** Sidebar navigation shell — grows per master doc Phase 1 UI spec

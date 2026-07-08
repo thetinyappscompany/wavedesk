@@ -4,6 +4,7 @@ import ContactsPage from '@/pages/ContactsPage';
 import InboxPage from '@/pages/InboxPage';
 import LoginPage from '@/pages/LoginPage';
 import NumbersPage from '@/pages/NumbersPage';
+import SettingsPage from '@/pages/SettingsPage';
 
 export default function App(): React.JSX.Element {
   return (
@@ -13,6 +14,7 @@ export default function App(): React.JSX.Element {
         <Route path="/inbox" element={<InboxPage />} />
         <Route path="/contacts" element={<ContactsPage />} />
         <Route path="/numbers" element={<NumbersPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

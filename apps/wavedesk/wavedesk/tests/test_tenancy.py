@@ -68,6 +68,8 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
     meta-test fails otherwise.
     """
     suffix = uuid.uuid4().hex[:8]
+    # WD Contact.phone is options=Phone since P1.9 — its value must stay numeric
+    digits = str(uuid.uuid4().int)[:8]
     docs: dict[str, str] = {}
 
     def insert(doctype: str, **fields) -> str:
@@ -78,7 +80,7 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         return doc.name
 
     insert("WD WhatsApp Number", phone=f"+9177{suffix}", connection_type="baileys")
-    insert("WD Contact", phone=f"+9178{suffix}", full_name=f"Contact {suffix}")
+    insert("WD Contact", phone=f"+9178{digits}", full_name=f"Contact {suffix}")
     chat = insert("WD Chat", chat_type="dm", wa_chat_id=f"wa-{suffix}")
     insert(
         "WD Message",
@@ -104,6 +106,8 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
     insert("WD Audit Log", action="tenancy.fixture", entity=workspace)
     insert("WD Team", team_name=f"Team {suffix}")
     insert("WD Contact Import", file_name=f"import-{suffix}.csv")
+    insert("WD Label", title=f"label-{suffix}")
+    insert("WD Canned Response", shortcode=f"canned-{suffix}", content="Namaste!")
     return docs
 
 

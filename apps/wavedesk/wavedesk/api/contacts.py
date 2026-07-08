@@ -12,6 +12,7 @@ from frappe.query_builder import Order
 from frappe.query_builder.functions import Count
 
 from wavedesk import contacts as contacts_core
+from wavedesk.masking import mask_name, mask_phone, should_mask
 from wavedesk.tenancy import get_active_workspace, get_workspace_role
 
 PAGE_SIZE_MAX = 100
@@ -42,10 +43,11 @@ def _serialize(doc) -> dict:
             attrs = json.loads(doc.custom_attributes) or {}
         except ValueError:
             attrs = {}
+    masked = should_mask(doc.workspace)
     return {
         "name": doc.name,
-        "phone": doc.phone,
-        "full_name": doc.full_name,
+        "phone": mask_phone(doc.phone) if masked else doc.phone,
+        "full_name": mask_name(doc.full_name, doc.phone) if masked else doc.full_name,
         "email": doc.email,
         "custom_attributes": attrs,
         "opt_out": bool(doc.opt_out),
@@ -75,6 +77,10 @@ def list_contacts(search: str | None = None, limit: int = 50, offset: int = 0) -
         .limit(limit)
         .offset(offset)
     ).run(as_dict=True)
+    if should_mask(workspace):
+        for row in rows:
+            row["full_name"] = mask_name(row["full_name"], row["phone"])
+            row["phone"] = mask_phone(row["phone"])
     return {"contacts": rows, "total": total}
 
 

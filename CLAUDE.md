@@ -11,20 +11,34 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 1
-Current epic: Phase 1 — epic 8 (Contacts drawer + CSV import) DONE
-P1.8: WD Contact gains email (lowercased, blank→NULL, dup-checked per workspace);
-new WD Contact Import DocType (status/counters/error_csv lifecycle, tenancy-registered).
-wavedesk/contacts.py = import engine per Chatwoot patterns (docs/reference/
-chatwoot-patterns.md): BOM-safe CSV, phone normalized to digits (WhatsApp identity),
-dedup by phone → merge (CSV wins), unknown columns → custom_attributes, rejected rows
-→ downloadable error CSV, RQ job (long queue, CSV parked in Redis 1h). api/contacts.py:
-list/search, get_contact (profile + chats across ALL numbers), update_contact,
-import_contacts (Owner/Admin) + import_status. Frontend: /contacts page (search, table,
-CSV import with live progress + rejected-rows download), ContactDrawer in inbox
-(editable name/email, custom-attribute editor, cross-number conversation list that
-switches chats). VERIFIED LIVE: real CSV import through RQ (2 new + 1 rejected with
-error CSV), drawer edit propagated to pane title + chat list instantly.
-Next: P1 epic 9 labels/canned responses + number masking.
+Current epic: Phase 1 — epic 9 (Labels & canned responses + number masking) DONE
+P1.9: WD Label (lowercase-slug titles, hex color, unique per workspace) + WD Chat Label
+child (Table MultiSelect on WD Chat) + WD Canned Response (shortcode + content).
+api/labels.py (CRUD Owner/Admin, set_chat_labels replaces whole list per Chatwoot,
+delete cascades strip from chats, chat_labels_map avoids N+1), api/canned.py (ranked
+search: shortcode prefix 1.0 > substring 0.5 > content 0.2), api/workspace.py
+(get/update settings — mask_numbers lives in WD Workspace.settings JSON).
+Masking = two layers: DocField mask:1 on WD Contact.phone (options Phone; DocPerm
+mask right for SM/Owner/Admin — WD Agent framework-masked on desk//api/resource/
+get_all unconditionally) + wavedesk/masking.py helpers applied in qb-based SPA APIs
+when setting on AND caller role is Agent (mask_phone '91••••••1234', mask_name only
+when the name IS the number, mask_wa_chat_id). Sockets already ids-only.
+list_chats: label filter + labels[] chips per row. Frontend: /settings page (labels
+CRUD, canned CRUD, masking toggle; agents read-only), LabelPicker in pane header,
+label chips + label filter in chat list, composer `/` canned menu (minChars 0,
+↑/↓/Enter, Enter swallowed while open, {{contact.name}}/{{agent.first_name}} etc.
+substituted client-side at insert — lib/canned.ts). VERIFIED LIVE: label created →
+applied to real chat → chip + filter (18→1 chats); /gr menu → Enter inserted
+"Namaste Founder Test Number! …" with variables filled, did not send; mask toggle
+round-trip, Administrator unmasked (role-permitted).
+Note: WD Contact.phone now validates as Phone (digits/+ only) — test fixtures must
+use numeric phones.
+Next: P1 epic 10 onboarding/invites, then 11 Playwright E2E.
+Previous: Phase 1 — epic 8 (Contacts drawer + CSV import) DONE
+P1.8: WD Contact email; WD Contact Import lifecycle; wavedesk/contacts.py import
+engine per docs/reference/chatwoot-patterns.md (BOM-safe CSV, phone-digit dedup,
+merge CSV-wins, error CSV, RQ long queue); api/contacts.py; /contacts page +
+ContactDrawer (cross-number history, inline edits). Verified live incl. real RQ import.
 Previous: Phase 1 — epic 7 (Assignment & teams) DONE
 P1.7: WD Team/WD Team Member, chat assigned_team + snoozed_until, wavedesk/inbox.py
 rules + minutely unsnooze cron, api/assign.py + api/teams.py, events wd:chat +
@@ -33,13 +47,11 @@ CRITICAL FIX shipped in P1.7: Frappe realtime namespaces sockets BY SITE — cli
 connects to /<site> (localhost → VITE_FRAPPE_SITE ?? dev.localhost) and
 developer_mode=1 must be in COMMON site config (socketio auth callback). VERIFIED
 LIVE post-fix: wd:presence/wd:message/wd:chat all on the socket, sub-second.
-Previous: Phase 1 — epic 6 (Realtime) DONE — pipeline emits were correct; only the
-client namespace was wrong (see P1.7 note). Epic 4 (send pipeline) + epic 3
-(conversation pane) + P1.2 chat list + P1.1 numbers + Phase 0: DONE, live-verified
-on a REAL paired WhatsApp number (baileys-pairing-notes.md).
-Suites: 105 Frappe + 42 gateway + 40 frontend + 4 api-client + ruff, all green; CI green.
+Earlier epics (P1.1–1.6 + Phase 0): DONE, live-verified on a REAL paired WhatsApp
+number (baileys-pairing-notes.md).
+Suites: 118 Frappe + 42 gateway + 51 frontend + 4 api-client + ruff, all green; CI green.
 Founder items open: Meta Business Verification, staging VM, Sentry DSNs.
-Next code epic: Phase 1 — 9. Labels & canned responses + number masking.
+Next code epic: Phase 1 — 10. Onboarding flow (workspace → number → invites).
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

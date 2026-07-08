@@ -1,18 +1,14 @@
 {
  "actions": [],
  "allow_rename": 0,
- "creation": "2026-07-07 12:00:00.000000",
+ "creation": "2026-07-08 22:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "workspace",
-  "phone",
-  "full_name",
-  "email",
-  "avatar",
-  "custom_attributes",
-  "tags",
-  "opt_out"
+  "title",
+  "color",
+  "description"
  ],
  "fields": [
   {
@@ -26,45 +22,24 @@
    "in_standard_filter": 1
   },
   {
-   "fieldname": "phone",
+   "fieldname": "title",
    "fieldtype": "Data",
-   "label": "Phone",
-   "options": "Phone",
-   "mask": 1,
-   "reqd": 1
+   "label": "Title",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Lowercase slug: letters, digits, - and _ only. Unique per workspace."
   },
   {
-   "fieldname": "full_name",
+   "fieldname": "color",
    "fieldtype": "Data",
-   "label": "Full Name",
-   "in_list_view": 1
+   "label": "Color",
+   "default": "#1f93ff",
+   "description": "Hex color shown on label chips."
   },
   {
-   "fieldname": "email",
-   "fieldtype": "Data",
-   "label": "Email",
-   "options": "Email"
-  },
-  {
-   "fieldname": "avatar",
-   "fieldtype": "Attach Image",
-   "label": "Avatar"
-  },
-  {
-   "fieldname": "custom_attributes",
-   "fieldtype": "JSON",
-   "label": "Custom Attributes"
-  },
-  {
-   "fieldname": "tags",
+   "fieldname": "description",
    "fieldtype": "Small Text",
-   "label": "Tags"
-  },
-  {
-   "fieldname": "opt_out",
-   "fieldtype": "Check",
-   "label": "Opted Out",
-   "default": "0"
+   "label": "Description"
   }
  ],
  "index_web_pages_for_search": 0,
@@ -72,7 +47,7 @@
  "modified": "2026-07-08 22:00:00.000000",
  "modified_by": "Administrator",
  "module": "WaveDesk Core",
- "name": "WD Contact",
+ "name": "WD Label",
  "owner": "Administrator",
  "permissions": [
   {
@@ -80,7 +55,6 @@
    "delete": 1,
    "email": 1,
    "export": 1,
-   "mask": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -96,7 +70,6 @@
    "delete": 1,
    "email": 1,
    "export": 1,
-   "mask": 1,
    "print": 1,
    "report": 1
   },
@@ -108,15 +81,12 @@
    "delete": 1,
    "email": 1,
    "export": 1,
-   "mask": 1,
    "print": 1,
    "report": 1
   },
   {
    "role": "WD Agent",
    "read": 1,
-   "write": 1,
-   "create": 1,
    "email": 1,
    "export": 1,
    "print": 1,
@@ -126,6 +96,6 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
- "autoname": "format:CONT-{########}",
+ "autoname": "format:LBL-{#####}",
  "naming_rule": "Expression"
 }

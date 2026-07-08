@@ -7,6 +7,8 @@ import frappe
 from frappe.query_builder import Order
 from frappe.query_builder.functions import Count
 
+from wavedesk.api.labels import chat_labels_map
+from wavedesk.masking import mask_name, mask_phone, mask_wa_chat_id, should_mask
 from wavedesk.tenancy import get_active_workspace
 
 PAGE_SIZE_MAX = 100
@@ -20,6 +22,7 @@ def list_chats(
     number: str | None = None,
     search: str | None = None,
     assignee: str | None = None,
+    label: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> dict:
@@ -27,6 +30,7 @@ def list_chats(
 
     search matches the contact's name or phone (and the chat id for groups).
     assignee: "me" | "unassigned" | a member's user id (Mine/Unassigned views).
+    label filters to chats carrying that WD Label.
     Returns {chats: [...], total: int} for virtualized pagination.
     """
     workspace = get_active_workspace()
@@ -62,6 +66,16 @@ def list_chats(
             | contact.phone.like(needle)
             | chat.wa_chat_id.like(needle)
         )
+    if label:
+        chat_label = frappe.qb.DocType("WD Chat Label")
+        labelled = (
+            frappe.qb.from_(chat_label)
+            .select(chat_label.parent)
+            .where((chat_label.label == label) & (chat_label.parenttype == "WD Chat"))
+        ).run(pluck=True)
+        if not labelled:
+            return {"chats": [], "total": 0}
+        query = query.where(chat.name.isin(labelled))
 
     total = query.select(Count(chat.name).as_("n")).run(as_dict=True)[0]["n"]
 
@@ -87,8 +101,15 @@ def list_chats(
         .offset(offset)
     ).run(as_dict=True)
 
+    labels_by_chat = chat_labels_map([row["name"] for row in rows])
+    masked = should_mask(workspace)
     for row in rows:
         row["last_message_at"] = str(row["last_message_at"]) if row["last_message_at"] else None
         row["snoozed_until"] = str(row["snoozed_until"]) if row["snoozed_until"] else None
+        row["labels"] = labels_by_chat.get(row["name"], [])
+        if masked:
+            row["contact_name"] = mask_name(row["contact_name"], row["contact_phone"])
+            row["contact_phone"] = mask_phone(row["contact_phone"])
+            row["wa_chat_id"] = mask_wa_chat_id(row["wa_chat_id"])
 
     return {"chats": rows, "total": total}
