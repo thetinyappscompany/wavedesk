@@ -145,11 +145,17 @@ def apply_event(event: dict) -> None:
     extracted = _extract(transport, wa_chat_id, payload)
     if extracted is None:
         return  # protocol/sync noise — never a user-visible message
-    phone, body, message_type, chat_type, direction = extracted
+    phone, body, message_type, chat_type, direction, sender_jid, sender_name = extracted
 
-    contact = _upsert_contact(workspace, phone) if phone else None
+    contact = _upsert_contact(workspace, phone, sender_name) if phone else None
     number = _resolve_number(workspace, transport, payload)
     chat = _upsert_chat(workspace, wa_chat_id, chat_type, contact, number)
+
+    # Group sender identity (P2.2): link a contact only when one exists —
+    # group members never auto-create contacts.
+    sender_contact = contact if direction == "in" else None
+    if chat_type == "group" and direction == "in" and sender_jid:
+        sender_contact = _match_existing_contact(workspace, sender_jid)
 
     message = frappe.new_doc("WD Message")
     message.update(
@@ -159,7 +165,9 @@ def apply_event(event: dict) -> None:
             "direction": direction,
             "status": "sent" if direction == "out" else None,
             "wa_message_id": wa_message_id,
-            "sender_contact": contact if direction == "in" else None,
+            "sender_contact": sender_contact,
+            "sender_jid": sender_jid if direction == "in" else None,
+            "sender_name": sender_name if direction == "in" else None,
             "message_type": message_type,
             "body": body,
             "sent_via": transport,
@@ -174,6 +182,8 @@ def apply_event(event: dict) -> None:
     frappe.db.set_value(
         "WD Chat", chat, "last_message_at", frappe.utils.now_datetime(), update_modified=False
     )
+    from wavedesk import inbox
+
     if direction == "in":
         # Unread badge for the inbox list; reset happens on conversation open.
         frappe.db.sql(
@@ -181,6 +191,12 @@ def apply_event(event: dict) -> None:
             (chat,),
         )
         _auto_reopen(workspace, chat)
+        if chat_type == "group":
+            # Needs Reply queue (P2.2): question-looking messages start the clock
+            inbox.flag_pending_query(workspace, chat, body)
+    else:
+        # a reply from the phone itself also answers the pending question
+        inbox.clear_pending_query(workspace, chat)
 
 
 def _auto_reopen(workspace: str, chat: str) -> None:
@@ -227,16 +243,20 @@ _BAILEYS_CONTENT: dict[str, tuple[str, Any]] = {
 
 def _extract(
     transport: str | None, wa_chat_id: str, payload: dict
-) -> tuple[str | None, str | None, str, str, str] | None:
-    """Returns (phone, body, message_type, chat_type, direction), or None when
-    the event is protocol noise that must not become a WD Message."""
+) -> tuple[str | None, str | None, str, str, str, str | None, str | None] | None:
+    """Returns (phone, body, message_type, chat_type, direction, sender_jid,
+    sender_name), or None when the event is protocol noise that must not
+    become a WD Message."""
     if transport == "cloud_api":
+        sender = payload.get("from")
         return (
-            payload.get("from"),
+            sender,
             payload.get("text"),
             payload.get("message_type") or "text",
             "dm",  # Cloud API is DM-only in Phase 0
             "in",  # outbound Cloud API messages surface via statuses, not webhooks
+            f"{sender}@s.whatsapp.net" if sender else None,
+            payload.get("profile_name") or None,
         )
 
     # baileys: wa_chat_id is a jid — DMs end @s.whatsapp.net, groups @g.us
@@ -260,7 +280,11 @@ def _extract(
 
     chat_type = "group" if wa_chat_id.endswith("@g.us") else "dm"
     phone = wa_chat_id.split("@")[0] if chat_type == "dm" and "@" in wa_chat_id else None
-    return phone, body, message_type, chat_type, direction
+    # group messages carry the sender in key.participant; DMs imply the peer
+    participant = (raw.get("key") or {}).get("participant")
+    sender_jid = participant or (f"{phone}@s.whatsapp.net" if phone else None)
+    sender_name = (raw.get("pushName") or "").strip() or None
+    return phone, body, message_type, chat_type, direction, sender_jid, sender_name
 
 
 def _unwrap_baileys_content(content: Any) -> dict | None:
@@ -273,14 +297,25 @@ def _unwrap_baileys_content(content: Any) -> dict | None:
     return content
 
 
-def _upsert_contact(workspace: str, phone: str) -> str:
+def _upsert_contact(workspace: str, phone: str, push_name: str | None = None) -> str:
     existing = frappe.db.get_value("WD Contact", {"workspace": workspace, "phone": phone})
     if existing:
         return existing
     contact = frappe.new_doc("WD Contact")
-    contact.update({"workspace": workspace, "phone": phone})
+    # pushName gives new contacts a human name instead of a bare number (P2.2)
+    contact.update({"workspace": workspace, "phone": phone, "full_name": push_name or None})
     contact.insert(ignore_permissions=True)
     return contact.name
+
+
+def _match_existing_contact(workspace: str, sender_jid: str) -> str | None:
+    """Group sender → contact link, only when the contact already exists."""
+    if not sender_jid.endswith("@s.whatsapp.net"):
+        return None
+    digits = sender_jid.split("@")[0].split(":")[0]
+    if not digits.isdigit():
+        return None
+    return frappe.db.get_value("WD Contact", {"workspace": workspace, "phone": digits})
 
 
 def _resolve_number(workspace: str, transport: str | None, payload: dict) -> str | None:

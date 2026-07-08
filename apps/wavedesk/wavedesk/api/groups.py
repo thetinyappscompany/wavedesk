@@ -8,6 +8,7 @@ from frappe.query_builder import Order
 from frappe.query_builder.functions import Count
 from frappe.utils import now_datetime
 
+from wavedesk.inbox import needs_reply_threshold
 from wavedesk.tenancy import get_active_workspace
 
 PAGE_SIZE_MAX = 100
@@ -55,6 +56,7 @@ def list_groups(search: str | None = None, limit: int = 50, offset: int = 0) -> 
             chat.name.as_("chat"),
             chat.last_message_at,
             chat.unread_count,
+            chat.pending_query_since,
         )
         .orderby(chat.last_message_at, order=Order.desc)
         .orderby(group.creation, order=Order.desc)
@@ -63,11 +65,14 @@ def list_groups(search: str | None = None, limit: int = 50, offset: int = 0) -> 
     ).run(as_dict=True)
 
     msgs_today = _messages_today({row["chat"] for row in rows if row["chat"]})
+    reply_cutoff = needs_reply_threshold(workspace)
     for row in rows:
         row["last_message_at"] = str(row["last_message_at"]) if row["last_message_at"] else None
         row["owned_by_us"] = bool(row["owned_by_us"])
         row["unread_count"] = row["unread_count"] or 0
         row["msgs_today"] = msgs_today.get(row["chat"], 0)
+        pending = row.pop("pending_query_since", None)
+        row["needs_reply"] = bool(pending and pending <= reply_cutoff)
 
     return {"groups": rows, "total": total}
 

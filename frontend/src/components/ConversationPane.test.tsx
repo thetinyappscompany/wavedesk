@@ -36,6 +36,9 @@ function message(overrides: Partial<WdMessage>): WdMessage {
     status: null,
     sender_agent: null,
     sender_contact: null,
+    sender_jid: null,
+    sender_name: null,
+    sender_display: null,
     wa_message_id: null,
     quoted_message: null,
     quoted_body: null,
@@ -61,6 +64,8 @@ function chatRow(overrides: Partial<WdChat> = {}): WdChat {
     contact_phone: '+919111100001',
     group: null,
     group_subject: null,
+    needs_reply: false,
+    pending_query_since: null,
     labels: [],
     ...overrides,
   };
@@ -106,6 +111,32 @@ describe('ConversationPane', () => {
     expect(bubbles[1]).toHaveAttribute('data-direction', 'out');
     expect(screen.getByLabelText('read')).toBeInTheDocument();
     expect(client.markChatRead).toHaveBeenCalledWith('CHAT-1');
+  });
+
+  it('group chats show the sender on inbound bubbles', async () => {
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [
+        message({ name: 'M1', body: 'price kya hai?', sender_display: 'Riya S' }),
+        message({ name: 'M2', body: 'checking ji', direction: 'out', sender_display: null }),
+      ],
+      has_more: false,
+      next_before: null,
+    });
+    renderPane(chatRow({ chat_type: 'group' }));
+    expect(await screen.findByTestId('sender-name')).toHaveTextContent('Riya S');
+    // exactly one: the outbound bubble never shows a sender
+    expect(screen.getAllByTestId('sender-name')).toHaveLength(1);
+  });
+
+  it('dm chats never show sender names', async () => {
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [message({ name: 'M1', body: 'hello', sender_display: 'Asha' })],
+      has_more: false,
+      next_before: null,
+    });
+    renderPane(chatRow({ chat_type: 'dm' }));
+    expect(await screen.findByText('hello')).toBeInTheDocument();
+    expect(screen.queryByTestId('sender-name')).not.toBeInTheDocument();
   });
 
   it('renders quoted snippets and media placeholders', async () => {

@@ -31,6 +31,7 @@ function settings(overrides: Partial<WdWorkspaceSettings> = {}): WdWorkspaceSett
     workspace_name: 'Asha & Co',
     role: 'Owner',
     mask_numbers: false,
+    needs_reply_minutes: 10,
     ...overrides,
   };
 }
@@ -78,6 +79,24 @@ describe('SettingsPage', () => {
     renderPage();
     await user.click(await screen.findByLabelText('Mask customer numbers for agents'));
     expect(client.updateWorkspaceSettings).toHaveBeenCalledWith({ mask_numbers: true });
+  });
+
+  it('saving the needs-reply threshold calls the settings API', async () => {
+    vi.mocked(client.updateWorkspaceSettings).mockResolvedValue(
+      settings({ needs_reply_minutes: 30 }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('Asha & Co'); // settings loaded → input mounted enabled
+    const input = screen.getByLabelText(/Needs Reply after/);
+    await user.clear(input);
+    await user.type(input, '30');
+    await user.tab(); // blur commits
+    await waitFor(() => {
+      expect(client.updateWorkspaceSettings).toHaveBeenCalledWith({
+        needs_reply_minutes: 30,
+      });
+    });
   });
 
   it('creates a label from the form', async () => {

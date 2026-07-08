@@ -61,9 +61,11 @@ def queue_send(chat_name: str, body: str, agent: str) -> dict:
         update_modified=False,
     )
 
+    from wavedesk import inbox
     from wavedesk.realtime import emit_message
 
     emit_message(chat.workspace, chat.name, message.name, "out")
+    inbox.clear_pending_query(chat.workspace, chat.name)  # team replied (P2.2)
 
     _enqueue_delivery(message.name)
     return {

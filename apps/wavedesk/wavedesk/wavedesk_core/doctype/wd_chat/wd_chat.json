@@ -16,6 +16,7 @@
   "assigned_agent",
   "assigned_team",
   "labels",
+  "pending_query_since",
   "last_message_at",
   "unread_count"
  ],
@@ -97,6 +98,12 @@
    "options": "WD Chat Label"
   },
   {
+   "fieldname": "pending_query_since",
+   "fieldtype": "Datetime",
+   "label": "Pending Query Since",
+   "description": "Set when an inbound group message looks like a question; cleared on team reply. Needs Reply = older than the workspace threshold."
+  },
+  {
    "fieldname": "last_message_at",
    "fieldtype": "Datetime",
    "label": "Last Message At"
@@ -110,7 +117,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-09 01:00:00.000000",
+ "modified": "2026-07-09 02:00:00.000000",
  "modified_by": "Administrator",
  "module": "WaveDesk Core",
  "name": "WD Chat",

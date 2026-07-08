@@ -72,6 +72,9 @@ export interface WdChat {
   /** Group registry link + denormalized subject (group chats only). */
   group: string | null;
   group_subject: string | null;
+  /** Needs Reply queue (P2.2): a question has waited past the threshold. */
+  needs_reply: boolean;
+  pending_query_since: string | null;
   labels: WdChatLabelChip[];
 }
 
@@ -89,6 +92,7 @@ export interface WdGroup {
   last_message_at: string | null;
   unread_count: number;
   msgs_today: number;
+  needs_reply: boolean;
 }
 
 export interface ChatListParams {
@@ -99,6 +103,8 @@ export interface ChatListParams {
   assignee?: string;
   /** a WD Label id — filters to chats carrying that label */
   label?: string;
+  /** true → only the Needs Reply queue (unanswered group questions) */
+  needs_reply?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -122,6 +128,8 @@ export interface WdWorkspaceSettings {
   /** the caller's role in the active workspace (null for system users) */
   role: 'Owner' | 'Admin' | 'Agent' | null;
   mask_numbers: boolean;
+  /** minutes an unanswered group question waits before entering Needs Reply */
+  needs_reply_minutes: number;
 }
 
 export interface WdContact {
@@ -218,6 +226,10 @@ export interface WdMessage {
   status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | null;
   sender_agent: string | null;
   sender_contact: string | null;
+  /** Group sender identity (P2.2) — masked for agents when the workspace says so. */
+  sender_jid: string | null;
+  sender_name: string | null;
+  sender_display: string | null;
   wa_message_id: string | null;
   quoted_message: string | null;
   quoted_body: string | null;
@@ -500,7 +512,10 @@ export class WaveDeskClient {
     return this.call('wavedesk.api.workspace.get_workspace_settings');
   }
 
-  updateWorkspaceSettings(changes: { mask_numbers?: boolean }): Promise<WdWorkspaceSettings> {
+  updateWorkspaceSettings(changes: {
+    mask_numbers?: boolean;
+    needs_reply_minutes?: number;
+  }): Promise<WdWorkspaceSettings> {
     return this.call('wavedesk.api.workspace.update_workspace_settings', { ...changes });
   }
 

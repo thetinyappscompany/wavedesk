@@ -6,8 +6,10 @@ permission layer. Client-safe fields only."""
 import frappe
 from frappe.query_builder import Order
 from frappe.query_builder.functions import Count
+from frappe.utils import sbool
 
 from wavedesk.api.labels import chat_labels_map
+from wavedesk.inbox import needs_reply_threshold
 from wavedesk.masking import mask_name, mask_phone, mask_wa_chat_id, should_mask
 from wavedesk.tenancy import get_active_workspace
 
@@ -23,6 +25,7 @@ def list_chats(
     search: str | None = None,
     assignee: str | None = None,
     label: str | None = None,
+    needs_reply: bool | str | int | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> dict:
@@ -31,11 +34,14 @@ def list_chats(
     search matches the contact's name or phone (and the chat id for groups).
     assignee: "me" | "unassigned" | a member's user id (Mine/Unassigned views).
     label filters to chats carrying that WD Label.
+    needs_reply filters to the Needs Reply queue (P2.2): group chats with a
+    question pending longer than the workspace threshold.
     Returns {chats: [...], total: int} for virtualized pagination.
     """
     workspace = get_active_workspace()
     limit = min(int(limit), PAGE_SIZE_MAX)
     offset = max(int(offset), 0)
+    reply_cutoff = needs_reply_threshold(workspace)
 
     chat = frappe.qb.DocType("WD Chat")
     contact = frappe.qb.DocType("WD Contact")
@@ -70,6 +76,10 @@ def list_chats(
             | group.subject.like(needle)
             | chat.wa_chat_id.like(needle)
         )
+    if needs_reply is not None and sbool(needs_reply):
+        query = query.where(
+            chat.pending_query_since.isnotnull() & (chat.pending_query_since <= reply_cutoff)
+        )
     if label:
         chat_label = frappe.qb.DocType("WD Chat Label")
         labelled = (
@@ -94,6 +104,7 @@ def list_chats(
             chat.assigned_agent,
             chat.assigned_team,
             chat.snoozed_until,
+            chat.pending_query_since,
             chat.last_message_at,
             chat.unread_count,
             chat.wa_chat_id,
@@ -112,6 +123,9 @@ def list_chats(
     for row in rows:
         row["last_message_at"] = str(row["last_message_at"]) if row["last_message_at"] else None
         row["snoozed_until"] = str(row["snoozed_until"]) if row["snoozed_until"] else None
+        pending = row.pop("pending_query_since", None)
+        row["needs_reply"] = bool(pending and pending <= reply_cutoff)
+        row["pending_query_since"] = str(pending) if pending else None
         row["labels"] = labels_by_chat.get(row["name"], [])
         if masked:
             row["contact_name"] = mask_name(row["contact_name"], row["contact_phone"])

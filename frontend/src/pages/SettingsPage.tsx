@@ -303,6 +303,15 @@ export default function SettingsPage(): React.JSX.Element {
       void queryClient.invalidateQueries({ queryKey: ['contacts'] });
     },
   });
+  const saveThreshold = useMutation({
+    mutationFn: (minutes: number) =>
+      client.updateWorkspaceSettings({ needs_reply_minutes: minutes }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['workspace-settings'] });
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+      void queryClient.invalidateQueries({ queryKey: ['groups'] });
+    },
+  });
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 p-6">
@@ -337,6 +346,45 @@ export default function SettingsPage(): React.JSX.Element {
         {toggleMask.isError && (
           <p role="alert" className="mt-2 text-xs text-destructive">
             {errorText(toggleMask.error)}
+          </p>
+        )}
+      </section>
+
+      <section aria-label="Inbox rules" className="rounded-lg border p-4">
+        <h2 className="font-semibold">Inbox rules</h2>
+        <label className="mt-2 block text-sm" htmlFor="needs-reply-minutes">
+          Needs Reply after (minutes)
+          <span className="block text-xs text-muted-foreground">
+            An unanswered question in a group enters the Needs Reply queue after this long.
+          </span>
+        </label>
+        <div className="mt-2 flex items-center gap-2">
+          <Input
+            id="needs-reply-minutes"
+            type="number"
+            min={1}
+            max={1440}
+            className="w-24"
+            key={settings.data?.needs_reply_minutes}
+            defaultValue={settings.data?.needs_reply_minutes ?? 10}
+            disabled={!canManage}
+            onBlur={(e) => {
+              const minutes = Number(e.target.value);
+              if (
+                canManage &&
+                minutes >= 1 &&
+                minutes <= 1440 &&
+                minutes !== settings.data?.needs_reply_minutes
+              ) {
+                saveThreshold.mutate(minutes);
+              }
+            }}
+          />
+          <span className="text-xs text-muted-foreground">minutes</span>
+        </div>
+        {saveThreshold.isError && (
+          <p role="alert" className="mt-2 text-xs text-destructive">
+            {errorText(saveThreshold.error)}
           </p>
         )}
       </section>

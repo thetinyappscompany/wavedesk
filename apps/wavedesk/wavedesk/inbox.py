@@ -1,9 +1,12 @@
 """Chat workflow logic (Phase 1 feature 3 — team collaboration).
 
-Assignment, status transitions, snooze/unsnooze, and agent presence.
-API wrappers live in wavedesk/api/assign.py; this module owns the rules
-so the scheduler and future automation (Phase 3 rules engine) reuse them.
+Assignment, status transitions, snooze/unsnooze, agent presence, and the
+Needs Reply queue (Phase 2 feature 2). API wrappers live in wavedesk/api/;
+this module owns the rules so the scheduler and future automation
+(Phase 3 rules engine) reuse them.
 """
+
+import re
 
 import frappe
 from frappe.utils import get_datetime, now_datetime
@@ -14,6 +17,61 @@ from wavedesk.tenancy import is_member
 CHAT_STATUSES = ("open", "pending", "resolved", "snoozed")
 PRESENCE_STATES = ("viewing", "typing")
 PRESENCE_TTL_SECONDS = 15
+
+# Unanswered-query heuristic v1 (guide P2 feature 2): a '?' or common
+# question words — English + Hinglish, our first market. Tune with partner
+# data; v2 is a classifier.
+QUERY_KEYWORD_RE = re.compile(
+    r"\b(how|what|when|where|why|which|who|price|cost|rate|available|availability"
+    r"|help|anyone|can you|could you|kya|kab|kaise|kitna|kitne|kaha|kahan|kaun"
+    r"|milega|hoga|bata|batao)\b",
+    re.IGNORECASE,
+)
+DEFAULT_NEEDS_REPLY_MINUTES = 10
+
+
+def looks_like_query(body: str | None) -> bool:
+    if not body:
+        return False
+    return "?" in body or bool(QUERY_KEYWORD_RE.search(body))
+
+
+def flag_pending_query(workspace: str, chat_name: str, body: str | None) -> None:
+    """Inbound group message that reads like a question starts the clock —
+    the first unanswered question wins (don't reset on follow-ups)."""
+    if not looks_like_query(body):
+        return
+    if frappe.db.get_value("WD Chat", chat_name, "pending_query_since"):
+        return
+    frappe.db.set_value(
+        "WD Chat", chat_name, "pending_query_since", now_datetime(), update_modified=False
+    )
+    emit_chat_updated(workspace, chat_name)
+
+
+def clear_pending_query(workspace: str, chat_name: str) -> None:
+    """Any team reply answers the pending question."""
+    if not frappe.db.get_value("WD Chat", chat_name, "pending_query_since"):
+        return
+    frappe.db.set_value(
+        "WD Chat", chat_name, "pending_query_since", None, update_modified=False
+    )
+    emit_chat_updated(workspace, chat_name)
+
+
+def needs_reply_threshold(workspace: str):
+    """Cutoff datetime: pending queries older than this are 'Needs Reply'."""
+    from frappe.utils import add_to_date
+
+    from wavedesk.masking import workspace_settings
+
+    try:
+        minutes = int(workspace_settings(workspace).get("needs_reply_minutes") or 0)
+    except (TypeError, ValueError):
+        minutes = 0
+    if minutes <= 0:
+        minutes = DEFAULT_NEEDS_REPLY_MINUTES
+    return add_to_date(now_datetime(), minutes=-minutes)
 
 
 def assign_chat(chat_doc, agent: str | None, team: str | None) -> None:

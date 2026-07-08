@@ -79,9 +79,12 @@ function timeLabel(creation: string): string {
 
 function Bubble({
   message,
+  showSender,
   onRetry,
 }: {
   message: WdMessage;
+  /** Group chats show who sent each inbound message (P2.2). */
+  showSender?: boolean;
   onRetry: (name: string) => void;
 }): React.JSX.Element {
   const outbound = message.direction === 'out';
@@ -97,6 +100,11 @@ function Bubble({
           outbound ? 'bg-primary/15' : 'bg-muted',
         )}
       >
+        {showSender && !outbound && message.sender_display && (
+          <p data-testid="sender-name" className="mb-0.5 text-xs font-medium text-primary">
+            {message.sender_display}
+          </p>
+        )}
         {message.quoted_body && (
           <div className="mb-1 rounded border-l-2 border-primary/60 bg-background/60 px-2 py-1 text-xs text-muted-foreground">
             {message.quoted_body}
@@ -483,7 +491,12 @@ export default function ConversationPane({
           </p>
         )}
         {ordered.map((message) => (
-          <Bubble key={message.name} message={message} onRetry={(name) => retry.mutate(name)} />
+          <Bubble
+            key={message.name}
+            message={message}
+            showSender={chat?.chat_type === 'group'}
+            onRetry={(name) => retry.mutate(name)}
+          />
         ))}
         <div ref={bottomRef} />
       </div>

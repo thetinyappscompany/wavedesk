@@ -11,6 +11,8 @@
   "wa_message_id",
   "sender_contact",
   "sender_agent",
+  "sender_jid",
+  "sender_name",
   "message_type",
   "body",
   "media_ref",
@@ -65,6 +67,18 @@
    "options": "User"
   },
   {
+   "fieldname": "sender_jid",
+   "fieldtype": "Data",
+   "label": "Sender JID",
+   "description": "Raw WhatsApp sender id — group sender identity (P2.2)."
+  },
+  {
+   "fieldname": "sender_name",
+   "fieldtype": "Data",
+   "label": "Sender Name",
+   "description": "WhatsApp push name at receive time."
+  },
+  {
    "fieldname": "message_type",
    "fieldtype": "Select",
    "label": "Message Type",
@@ -112,7 +126,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-07 15:00:00.000000",
+ "modified": "2026-07-09 02:00:00.000000",
  "modified_by": "Administrator",
  "module": "WaveDesk Core",
  "name": "WD Message",

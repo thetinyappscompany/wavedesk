@@ -28,6 +28,7 @@ function group(overrides: Partial<WdGroup>): WdGroup {
     last_message_at: '2026-07-09 09:00:00',
     unread_count: 3,
     msgs_today: 42,
+    needs_reply: false,
     ...overrides,
   };
 }
@@ -49,7 +50,7 @@ describe('GroupsPage', () => {
   it('renders the registry table with stats and admin badge', async () => {
     vi.mocked(client.listGroups).mockResolvedValue({
       groups: [
-        group({ name: 'GRP-1', subject: 'Surat Traders', owned_by_us: true }),
+        group({ name: 'GRP-1', subject: 'Surat Traders', owned_by_us: true, needs_reply: true }),
         group({
           name: 'GRP-2',
           subject: 'Quiet Corner',
@@ -62,6 +63,7 @@ describe('GroupsPage', () => {
     });
     renderPage();
     expect(await screen.findByText('Surat Traders')).toBeInTheDocument();
+    expect(screen.getAllByTestId('group-needs-reply')).toHaveLength(1);
     expect(screen.getByText('Quiet Corner')).toBeInTheDocument();
     expect(screen.getAllByTestId('group-row')).toHaveLength(2);
     expect(screen.getByText('128')).toBeInTheDocument();

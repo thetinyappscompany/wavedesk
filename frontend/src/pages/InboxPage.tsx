@@ -20,6 +20,7 @@ const VIEW_TABS = [
   { key: '', label: 'All' },
   { key: 'me', label: 'Mine' },
   { key: 'unassigned', label: 'Unassigned' },
+  { key: 'needs_reply', label: 'Needs Reply' },
 ] as const;
 
 const ROW_HEIGHT = 72;
@@ -83,6 +84,15 @@ function ChatRow({ chat, selected, onSelect }: {
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
         <span className="text-xs text-muted-foreground">{timeLabel(chat.last_message_at)}</span>
+        {chat.needs_reply && (
+          <span
+            data-testid="needs-reply-badge"
+            title="Unanswered question waiting"
+            className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600"
+          >
+            needs reply
+          </span>
+        )}
         {chat.unread_count > 0 && (
           <span
             data-testid="unread-badge"
@@ -117,12 +127,15 @@ export default function InboxPage(): React.JSX.Element {
 
   const labels = useQuery({ queryKey: ['labels'], queryFn: () => client.listLabels() });
 
+  // the 4th view tab is a queue, not an assignee — split the param here
+  const needsReplyView = assignee === 'needs_reply';
   const chats = useQuery({
     queryKey: ['chats', status, assignee, label, debouncedSearch],
     queryFn: () =>
       client.listChats({
         status: status || undefined,
-        assignee: assignee || undefined,
+        assignee: needsReplyView || !assignee ? undefined : assignee,
+        needs_reply: needsReplyView || undefined,
         label: label || undefined,
         search: debouncedSearch || undefined,
         limit: PAGE_SIZE,

@@ -11,7 +11,26 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 2
-Current epic: Phase 2 — epic 1 (Group sync & registry) DONE
+Current epic: Phase 2 — epic 2 (Group inbox) DONE
+P2.2: sender identity — WD Message gains sender_jid/sender_name (Baileys
+key.participant + pushName; cloud from/profile_name); group senders link
+existing contacts but never auto-create; DM contacts created from inbound now
+get full_name from pushName; messages API returns sender_display (masked for
+agents per P1.9 rules when the workspace masks). Needs Reply queue —
+WD Chat.pending_query_since set by inbox.looks_like_query ('?' or EN+Hinglish
+keyword regex; group chats only), first question wins, cleared by ANY team
+reply (send pipeline hook + fromMe echo in consumer); the queue = pending
+older than settings.needs_reply_minutes (default 10, validated 1–1440, UI in
+Settings → Inbox rules); list_chats needs_reply filter + per-row flag,
+list_groups needs_reply column, threshold computed at query time (no cron).
+Frontend: sender names on inbound group bubbles, Needs Reply as 4th inbox
+view tab + amber row badge, Groups page Unanswered column. VERIFIED LIVE via
+real wa:events pipeline: Hinglish question ('bhai stock available hai kya?')
+→ pending set → aged 15min → Needs Reply tab showed exactly it (group subject
+title + badge), bubble showed 'Riya Probe', groups API needs_reply true →
+fromMe reply echo cleared it; probe cleaned up. Deferred to P2.3+: outbound
+reply-to/quote + @mentions in group sends.
+Previous: Phase 2 — epic 1 (Group sync & registry) DONE
 P2.1: gateway GatewaySocket grew group APIs (fetchAllGroups via
 groupFetchAllParticipating, groups.upsert/update/group-participants listeners,
 groupInviteCode best-effort, ownJid); SessionManager syncs the full registry on
@@ -112,12 +131,12 @@ developer_mode=1 must be in COMMON site config (socketio auth callback). VERIFIE
 LIVE post-fix: wd:presence/wd:message/wd:chat all on the socket, sub-second.
 Earlier epics (P1.1–1.6 + Phase 0): DONE, live-verified on a REAL paired WhatsApp
 number (baileys-pairing-notes.md).
-Suites: 138 Frappe + 44 gateway + 63 frontend + 4 api-client + 12 e2e + ruff,
+Suites: 146 Frappe + 44 gateway + 67 frontend + 4 api-client + 12 e2e + ruff,
 all green; CI green (incl. e2e job).
-Founder items open: re-pair the real number (QR), Meta Business Verification,
-staging VM, Sentry DSNs.
-Next code epic: Phase 2 — 2. Group inbox (sender identity, unanswered-query
-detection / Needs Reply queue).
+Founder items open: re-pair the real number (QR — see P2.1 note), Meta
+Business Verification, staging VM, Sentry DSNs.
+Next code epic: Phase 2 — 3. Group actions (bulk message w/ jitter,
+participant management, subject/icon, invite links — full audit logging).
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

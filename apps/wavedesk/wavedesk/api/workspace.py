@@ -23,6 +23,9 @@ def _require_manager_role(workspace: str) -> None:
         )
 
 
+NEEDS_REPLY_MINUTES_MAX = 1440
+
+
 @frappe.whitelist()
 def get_workspace_settings() -> dict:
     workspace = get_active_workspace()
@@ -32,17 +35,34 @@ def get_workspace_settings() -> dict:
         "workspace_name": frappe.db.get_value("WD Workspace", workspace, "workspace_name"),
         "role": get_workspace_role(workspace),
         "mask_numbers": bool(settings.get("mask_numbers")),
+        "needs_reply_minutes": int(settings.get("needs_reply_minutes") or 10),
     }
 
 
 @frappe.whitelist()
-def update_workspace_settings(mask_numbers: bool | str | int | None = None) -> dict:
+def update_workspace_settings(
+    mask_numbers: bool | str | int | None = None,
+    needs_reply_minutes: int | str | None = None,
+) -> dict:
     workspace = get_active_workspace()
     _require_manager_role(workspace)
     doc = frappe.get_doc("WD Workspace", workspace)
     settings = workspace_settings(workspace)
     if mask_numbers is not None:
         settings["mask_numbers"] = bool(sbool(mask_numbers))
+    if needs_reply_minutes is not None:
+        try:
+            minutes = int(needs_reply_minutes)
+        except (TypeError, ValueError):
+            frappe.throw(_("needs_reply_minutes must be a number"), frappe.ValidationError)
+        if not 1 <= minutes <= NEEDS_REPLY_MINUTES_MAX:
+            frappe.throw(
+                _("needs_reply_minutes must be between 1 and {0}").format(
+                    NEEDS_REPLY_MINUTES_MAX
+                ),
+                frappe.ValidationError,
+            )
+        settings["needs_reply_minutes"] = minutes
     doc.settings = json.dumps(settings)
     doc.save(ignore_permissions=True)
     return get_workspace_settings()

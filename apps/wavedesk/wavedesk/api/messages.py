@@ -5,6 +5,7 @@ upward: fetch newest page, then pass `before=<oldest creation seen>`."""
 
 import frappe
 
+from wavedesk.masking import mask_name, mask_phone, should_mask
 from wavedesk.tenancy import get_active_workspace
 
 PAGE_SIZE_MAX = 100
@@ -17,10 +18,25 @@ CLIENT_FIELDS = [
     "status",
     "sender_agent",
     "sender_contact",
+    "sender_jid",
+    "sender_name",
     "wa_message_id",
     "quoted_message",
     "creation",
 ]
+
+
+def _sender_display(row, masked: bool) -> None:
+    """sender_jid → display digits; masked for agents when the workspace says
+    so (group sender identity is still a customer number)."""
+    digits = None
+    if row.sender_jid:
+        digits = row.sender_jid.split("@")[0].split(":")[0]
+    if masked:
+        row["sender_name"] = mask_name(row.sender_name, digits)
+        digits = mask_phone(digits)
+    row["sender_display"] = row.sender_name or digits
+    row["sender_jid"] = digits
 
 
 def _get_chat_checked(chat: str, ptype: str = "read"):
@@ -37,7 +53,8 @@ def list_messages(chat: str, before: str | None = None, limit: int = 50) -> dict
 
     Returns {messages, has_more, next_before}; pass next_before back to load
     the previous page (older messages) for upward infinite scroll."""
-    _get_chat_checked(chat)
+    chat_doc = _get_chat_checked(chat)
+    masked = should_mask(chat_doc.workspace)
     limit = min(int(limit), PAGE_SIZE_MAX)
 
     filters: dict = {"chat": chat}
@@ -70,6 +87,7 @@ def list_messages(chat: str, before: str | None = None, limit: int = 50) -> dict
     for row in rows:
         row["creation"] = str(row["creation"])
         row["quoted_body"] = quoted_bodies.get(row.quoted_message) if row.quoted_message else None
+        _sender_display(row, masked)
 
     rows.reverse()  # ascending for rendering
     return {

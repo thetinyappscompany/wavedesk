@@ -46,6 +46,8 @@ function chat(overrides: Partial<WdChat>): WdChat {
     contact_phone: '+919111100001',
     group: null,
     group_subject: null,
+    needs_reply: false,
+    pending_query_since: null,
     labels: [],
     ...overrides,
   };
@@ -115,6 +117,24 @@ describe('InboxPage', () => {
         expect.objectContaining({ assignee: 'unassigned' }),
       );
     });
+  });
+
+  it('Needs Reply tab passes the queue filter and rows show the badge', async () => {
+    vi.mocked(client.listChats).mockResolvedValue({
+      chats: [chat({ name: 'CHAT-9', needs_reply: true })],
+      total: 1,
+    });
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByTestId('needs-reply-badge')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Needs Reply' }));
+    await waitFor(() => {
+      expect(client.listChats).toHaveBeenCalledWith(
+        expect.objectContaining({ needs_reply: true }),
+      );
+    });
+    const lastCall = vi.mocked(client.listChats).mock.calls.at(-1)?.[0];
+    expect(lastCall?.assignee).toBeUndefined();
   });
 
   it('label filter passes the label to the API and rows render chips', async () => {

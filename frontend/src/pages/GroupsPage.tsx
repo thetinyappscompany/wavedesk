@@ -118,6 +118,7 @@ export default function GroupsPage(): React.JSX.Element {
                 <th className="px-3 py-2">Number</th>
                 <th className="px-3 py-2 text-right">Members</th>
                 <th className="px-3 py-2 text-right">Msgs today</th>
+                <th className="px-3 py-2">Unanswered</th>
                 <th className="px-3 py-2 text-right">Unread</th>
                 <th className="px-3 py-2">Last activity</th>
               </tr>
@@ -156,6 +157,18 @@ export default function GroupsPage(): React.JSX.Element {
                   </td>
                   <td className="px-3 py-2 text-right">{group.member_count}</td>
                   <td className="px-3 py-2 text-right">{group.msgs_today}</td>
+                  <td className="px-3 py-2">
+                    {group.needs_reply ? (
+                      <span
+                        data-testid="group-needs-reply"
+                        className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-xs font-medium text-amber-600"
+                      >
+                        needs reply
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right">
                     {group.unread_count > 0 ? (
                       <span className="rounded-full bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
