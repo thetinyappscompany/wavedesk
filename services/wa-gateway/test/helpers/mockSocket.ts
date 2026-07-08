@@ -21,6 +21,9 @@ export interface MockSocket extends GatewaySocket {
   /** Groups returned by fetchAllGroups() during the on-connect sync. */
   groupsToReturn: GroupMetadataLite[];
   readonly inviteCodeCalls: string[];
+  readonly participantActions: { jid: string; participants: string[]; action: string }[];
+  readonly metaUpdates: { jid: string; subject?: string; description?: string | null }[];
+  readonly revokedInvites: string[];
   readonly sent: { jid: string; content: { text: string } }[];
   readonly hadCredsAtCreation: boolean;
   ended: boolean;
@@ -51,6 +54,9 @@ export function makeMockSocketFactory(): {
       loggedOut: false,
       groupsToReturn: [],
       inviteCodeCalls: [],
+      participantActions: [],
+      metaUpdates: [],
+      revokedInvites: [],
       onConnectionUpdate(cb) {
         em.on('connection.update', cb);
       },
@@ -78,6 +84,22 @@ export function makeMockSocketFactory(): {
       },
       ownJid() {
         return '919999900000:1@s.whatsapp.net';
+      },
+      groupParticipantsAction(jid, participants, action) {
+        this.participantActions.push({ jid, participants, action });
+        return Promise.resolve();
+      },
+      groupUpdateSubject(jid, subject) {
+        this.metaUpdates.push({ jid, subject });
+        return Promise.resolve();
+      },
+      groupUpdateDescription(jid, description) {
+        this.metaUpdates.push({ jid, description });
+        return Promise.resolve();
+      },
+      groupRevokeInvite(jid) {
+        this.revokedInvites.push(jid);
+        return Promise.resolve(`NEW-CODE-${jid.slice(0, 6)}`);
       },
       sendMessage(jid, content) {
         this.sent.push({ jid, content });

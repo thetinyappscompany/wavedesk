@@ -96,6 +96,18 @@ export const realSocketFactory: SocketFactory = async ({ state }) => {
     ownJid() {
       return sock.user?.id ?? null;
     },
+    async groupParticipantsAction(jid, participants, action) {
+      await sock.groupParticipantsUpdate(jid, participants, action);
+    },
+    async groupUpdateSubject(jid, subject) {
+      await sock.groupUpdateSubject(jid, subject);
+    },
+    async groupUpdateDescription(jid, description) {
+      await sock.groupUpdateDescription(jid, description ?? undefined);
+    },
+    async groupRevokeInvite(jid) {
+      return (await sock.groupRevokeInvite(jid)) ?? null;
+    },
     async sendMessage(jid, content) {
       const result = await sock.sendMessage(jid, content);
       return result ?? undefined;

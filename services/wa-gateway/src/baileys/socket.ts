@@ -52,6 +52,16 @@ export interface GatewaySocket {
   fetchAllGroups(): Promise<GroupMetadataLite[]>;
   /** Invite code — null when the server refuses (we are not an admin). */
   groupInviteCode(jid: string): Promise<string | null>;
+  /** Group actions (P2.3) — require admin; the server rejects otherwise. */
+  groupParticipantsAction(
+    jid: string,
+    participants: string[],
+    action: GroupParticipantsUpdate['action'],
+  ): Promise<void>;
+  groupUpdateSubject(jid: string, subject: string): Promise<void>;
+  groupUpdateDescription(jid: string, description: string | null): Promise<void>;
+  /** Revoke the current invite link; resolves to the NEW code. */
+  groupRevokeInvite(jid: string): Promise<string | null>;
   /** Our own jid once paired (device suffix included), else null. */
   ownJid(): string | null;
   sendMessage(

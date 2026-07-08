@@ -18,6 +18,19 @@ interface SendMessageBody {
   text: string;
 }
 
+interface GroupParticipantsBody {
+  participants: string[];
+  action: 'add' | 'remove' | 'promote' | 'demote';
+}
+
+interface GroupMetaBody {
+  subject?: string;
+  description?: string | null;
+}
+
+const PARTICIPANT_ACTIONS = new Set(['add', 'remove', 'promote', 'demote']);
+const SUBJECT_MAX = 100;
+
 function sseWrite(reply: FastifyReply, data: unknown): void {
   reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
 }
@@ -135,6 +148,69 @@ export function registerSessionRoutes(app: FastifyInstance, manager: SessionMana
     }
     return reply.code(204).send();
   });
+
+  // --- group actions (P2.3) — called by Frappe's audited action layer only.
+  app.post<{ Params: { id: string; jid: string }; Body: GroupParticipantsBody }>(
+    '/sessions/:id/groups/:jid/participants',
+    async (request, reply) => {
+      const { participants, action } = request.body;
+      if (!Array.isArray(participants) || participants.length === 0) {
+        return reply.code(422).send({ error: 'participants must be a non-empty array' });
+      }
+      if (!PARTICIPANT_ACTIONS.has(action)) {
+        return reply.code(422).send({ error: 'invalid participant action' });
+      }
+      try {
+        await manager.groupParticipants(request.params.id, request.params.jid, participants, action);
+        return { ok: true };
+      } catch (err) {
+        if (err instanceof SessionNotFoundError) {
+          return reply.code(404).send({ error: 'session not found' });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.patch<{ Params: { id: string; jid: string }; Body: GroupMetaBody }>(
+    '/sessions/:id/groups/:jid',
+    async (request, reply) => {
+      const { subject, description } = request.body;
+      if (subject === undefined && description === undefined) {
+        return reply.code(422).send({ error: 'subject or description is required' });
+      }
+      if (subject !== undefined && (!subject.trim() || subject.length > SUBJECT_MAX)) {
+        return reply.code(422).send({ error: `subject must be 1-${String(SUBJECT_MAX)} chars` });
+      }
+      try {
+        await manager.groupUpdateMeta(request.params.id, request.params.jid, {
+          ...(subject !== undefined ? { subject: subject.trim() } : {}),
+          ...(description !== undefined ? { description } : {}),
+        });
+        return { ok: true };
+      } catch (err) {
+        if (err instanceof SessionNotFoundError) {
+          return reply.code(404).send({ error: 'session not found' });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string; jid: string } }>(
+    '/sessions/:id/groups/:jid/revoke-invite',
+    async (request, reply) => {
+      try {
+        const code = await manager.groupRevokeInvite(request.params.id, request.params.jid);
+        return { invite_code: code };
+      } catch (err) {
+        if (err instanceof SessionNotFoundError) {
+          return reply.code(404).send({ error: 'session not found' });
+        }
+        throw err;
+      }
+    },
+  );
 
   // Stub-level send (Session 0.6). The production path is Frappe's queued,
   // rate-limited pipeline (Phase 1) — root non-negotiable #7.

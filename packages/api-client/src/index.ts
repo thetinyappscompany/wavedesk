@@ -95,6 +95,30 @@ export interface WdGroup {
   needs_reply: boolean;
 }
 
+export interface WdGroupMember {
+  name: string;
+  /** Phone digits — masked for agents when the workspace masks numbers. */
+  display: string;
+  contact: string | null;
+  contact_name: string | null;
+  role: 'member' | 'admin';
+  joined_at: string | null;
+}
+
+export interface WdGroupDetail {
+  name: string;
+  wa_group_id: string;
+  subject: string;
+  description: string | null;
+  member_count: number;
+  invite_link: string | null;
+  owned_by_us: boolean;
+  number: string | null;
+  members: WdGroupMember[];
+}
+
+export type WdParticipantAction = 'add' | 'remove' | 'promote' | 'demote';
+
 export interface ChatListParams {
   status?: string;
   number?: string;
@@ -419,6 +443,34 @@ export class WaveDeskClient {
     total: number;
   }> {
     return this.call('wavedesk.api.groups.list_groups', { ...params });
+  }
+
+  getGroup(group: string): Promise<WdGroupDetail> {
+    return this.call('wavedesk.api.groups.get_group', { group });
+  }
+
+  updateGroup(
+    group: string,
+    changes: { subject?: string; description?: string },
+  ): Promise<{ group: string }> {
+    return this.call('wavedesk.api.groups.update_group', { group, ...changes });
+  }
+
+  groupParticipants(
+    group: string,
+    participants: string[],
+    action: WdParticipantAction,
+  ): Promise<{ group: string; action: WdParticipantAction; count: number }> {
+    return this.call('wavedesk.api.groups.group_participants', { group, participants, action });
+  }
+
+  revokeGroupInvite(group: string): Promise<{ group: string; invite_link: string | null }> {
+    return this.call('wavedesk.api.groups.revoke_group_invite', { group });
+  }
+
+  /** Bulk message N groups — queued + jittered server-side. */
+  sendToGroups(groups: string[], body: string): Promise<{ queued_groups: number }> {
+    return this.call('wavedesk.api.groups.send_to_groups', { groups, body });
   }
 
   // --- onboarding + invites (Phase 1 feature 8) ---

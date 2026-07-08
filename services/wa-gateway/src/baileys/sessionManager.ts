@@ -414,6 +414,45 @@ export class SessionManager {
     return { wa_message_id: result?.key.id ?? null };
   }
 
+  // --- group actions (P2.3) — thin session-scoped wrappers; Baileys emits
+  // groups.update / group-participants.update afterwards, which the live
+  // listeners publish, so the registry heals itself without extra plumbing.
+
+  private requireSocket(id: string): GatewaySocket {
+    const session = this.sessions.get(id);
+    if (!session) {
+      throw new SessionNotFoundError(id);
+    }
+    return session.socket;
+  }
+
+  async groupParticipants(
+    id: string,
+    jid: string,
+    participants: string[],
+    action: 'add' | 'remove' | 'promote' | 'demote',
+  ): Promise<void> {
+    await this.requireSocket(id).groupParticipantsAction(jid, participants, action);
+  }
+
+  async groupUpdateMeta(
+    id: string,
+    jid: string,
+    changes: { subject?: string; description?: string | null },
+  ): Promise<void> {
+    const socket = this.requireSocket(id);
+    if (changes.subject !== undefined) {
+      await socket.groupUpdateSubject(jid, changes.subject);
+    }
+    if (changes.description !== undefined) {
+      await socket.groupUpdateDescription(jid, changes.description);
+    }
+  }
+
+  async groupRevokeInvite(id: string, jid: string): Promise<string | null> {
+    return this.requireSocket(id).groupRevokeInvite(jid);
+  }
+
   /** DELETE = disconnect AND forget: auth state + snapshot removed. */
   async destroy(id: string): Promise<boolean> {
     const session = this.sessions.get(id);

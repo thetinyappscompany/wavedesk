@@ -11,7 +11,29 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 2
-Current epic: Phase 2 — epic 2 (Group inbox) DONE
+Current epic: Phase 2 — epic 3 (Group actions) DONE
+P2.3: gateway grew session-scoped group action endpoints — POST
+/sessions/:id/groups/:jid/participants (add/remove/promote/demote), PATCH
+…/:jid (subject/description), POST …/:jid/revoke-invite (returns fresh code);
+Baileys emits groups.update/participants events afterwards so the P2.1
+listeners heal the registry. Frappe wavedesk/groups.py = audited action rules
+(EVERY action → WD Audit Log row w/ actor+payload; Owner/Admin only via API;
+Baileys-number required); gateway_client group calls; api/groups.py grew
+get_group (detail + active members, masked for agents), update_group,
+group_participants (digits→jid normalize), revoke_group_invite (stores fresh
+link), send_to_groups. Bulk send: validates workspace/number, creates missing
+group chats, one audit row, RQ long job queues per-group messages through
+pipeline/sender.queue_send with randomized 3–8s gaps (guide exit criterion;
+skipped in tests), per-target failures logged and skipped. Frontend: bulk bar
+gained Message-N-groups dialog (manager-only), group subject opens GroupDrawer
+(subject/description edit, invite link copy + revoke&regenerate, member list
+w/ promote/demote/remove + add-participant; read-only for agents/non-owned).
+Icon change deferred until the media pipeline exists; outbound quote/@mentions
+still deferred. VERIFIED LIVE (real pipeline, synthetic group — real number
+still unpaired): drawer rendered registry data (members+roles+invite),
+bulk dialog queued 1 message via the real API (audit row group.bulk_send
+written; delivery correctly failed pending re-pair); probe cleaned up.
+Previous: Phase 2 — epic 2 (Group inbox) DONE
 P2.2: sender identity — WD Message gains sender_jid/sender_name (Baileys
 key.participant + pushName; cloud from/profile_name); group senders link
 existing contacts but never auto-create; DM contacts created from inbound now
@@ -131,12 +153,12 @@ developer_mode=1 must be in COMMON site config (socketio auth callback). VERIFIE
 LIVE post-fix: wd:presence/wd:message/wd:chat all on the socket, sub-second.
 Earlier epics (P1.1–1.6 + Phase 0): DONE, live-verified on a REAL paired WhatsApp
 number (baileys-pairing-notes.md).
-Suites: 146 Frappe + 44 gateway + 67 frontend + 4 api-client + 12 e2e + ruff,
+Suites: 153 Frappe + 47 gateway + 75 frontend + 4 api-client + 12 e2e + ruff,
 all green; CI green (incl. e2e job).
 Founder items open: re-pair the real number (QR — see P2.1 note), Meta
 Business Verification, staging VM, Sentry DSNs.
-Next code epic: Phase 2 — 3. Group actions (bulk message w/ jitter,
-participant management, subject/icon, invite links — full audit logging).
+Next code epic: Phase 2 — 4. Monitoring rules per group (keyword/link/member
+alerts → agent/Slack/webhook).
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

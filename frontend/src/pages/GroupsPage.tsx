@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Crown } from 'lucide-react';
+import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
+import { Crown, Send } from 'lucide-react';
 import { client } from '@/lib/client';
+import GroupDrawer from '@/components/GroupDrawer';
 import { useWorkspaceEvents } from '@/lib/realtime';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 const PAGE_SIZE = 100;
@@ -26,6 +28,26 @@ export default function GroupsPage(): React.JSX.Element {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkBody, setBulkBody] = useState('');
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
+
+  const settings = useQuery({
+    queryKey: ['workspace-settings'],
+    queryFn: () => client.getWorkspaceSettings(),
+  });
+  const canManage = settings.data ? settings.data.role !== 'Agent' : false;
+
+  const bulkSend = useMutation({
+    mutationFn: () => client.sendToGroups([...selected], bulkBody.trim()),
+    onSuccess: (result) => {
+      setBulkResult(`Queued for ${String(result.queued_groups)} groups — sends are paced 3–8s apart.`);
+      setBulkOpen(false);
+      setBulkBody('');
+      setSelected(new Set());
+    },
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -81,12 +103,76 @@ export default function GroupsPage(): React.JSX.Element {
         {selected.size > 0 && (
           <span
             data-testid="bulk-bar"
-            className="rounded-md bg-primary/10 px-2 py-1 text-sm font-medium text-primary"
+            className="flex items-center gap-2 rounded-md bg-primary/10 px-2 py-1 text-sm font-medium text-primary"
           >
-            {selected.size} selected — bulk actions arrive with bulk messaging
+            {selected.size} selected
+            {canManage && (
+              <Button
+                size="sm"
+                className="h-7"
+                onClick={() => {
+                  setBulkOpen(true);
+                  setBulkResult(null);
+                }}
+              >
+                <Send className="mr-1 h-3.5 w-3.5" />
+                Message {selected.size} group{selected.size === 1 ? '' : 's'}
+              </Button>
+            )}
+          </span>
+        )}
+        {bulkResult && (
+          <span data-testid="bulk-result" className="text-sm text-primary">
+            {bulkResult}
           </span>
         )}
       </div>
+
+      {bulkOpen && (
+        <div className="mb-3 rounded-lg border p-3" data-testid="bulk-dialog">
+          <label className="block text-sm font-medium" htmlFor="bulk-body">
+            Message to {selected.size} selected group{selected.size === 1 ? '' : 's'}
+          </label>
+          <textarea
+            id="bulk-body"
+            value={bulkBody}
+            rows={3}
+            placeholder="Namaste! …"
+            onChange={(e) => {
+              setBulkBody(e.target.value);
+            }}
+            className="mt-1 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          <div className="mt-2 flex items-center gap-2">
+            <Button
+              size="sm"
+              disabled={!bulkBody.trim() || bulkSend.isPending}
+              onClick={() => {
+                bulkSend.mutate();
+              }}
+            >
+              Send
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setBulkOpen(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Queued through the rate-limited pipeline with randomized 3–8s gaps.
+            </span>
+          </div>
+          {bulkSend.isError && (
+            <p role="alert" className="mt-1 text-xs text-destructive">
+              {bulkSend.error.message}
+            </p>
+          )}
+        </div>
+      )}
 
       {groups.isLoading && <p className="text-sm text-muted-foreground">Loading groups…</p>}
       {groups.isError && (
@@ -102,7 +188,8 @@ export default function GroupsPage(): React.JSX.Element {
       )}
 
       {rows.length > 0 && (
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+        <div className="flex min-h-0 flex-1 gap-0 overflow-hidden rounded-lg border">
+        <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-muted/60 text-left text-xs text-muted-foreground">
               <tr>
@@ -137,20 +224,31 @@ export default function GroupsPage(): React.JSX.Element {
                     />
                   </td>
                   <td className="max-w-64 px-3 py-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate font-medium">{group.subject}</span>
-                      {group.owned_by_us && (
-                        <Crown
-                          aria-label="We are admin"
-                          className="h-3.5 w-3.5 shrink-0 text-amber-500"
-                        />
+                    <button
+                      type="button"
+                      data-testid="group-open"
+                      className="block w-full text-left"
+                      onClick={() => {
+                        setOpenGroup(group.name);
+                      }}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span className="truncate font-medium hover:underline">
+                          {group.subject}
+                        </span>
+                        {group.owned_by_us && (
+                          <Crown
+                            aria-label="We are admin"
+                            className="h-3.5 w-3.5 shrink-0 text-amber-500"
+                          />
+                        )}
+                      </span>
+                      {group.description && (
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {group.description}
+                        </span>
                       )}
-                    </div>
-                    {group.description && (
-                      <div className="truncate text-xs text-muted-foreground">
-                        {group.description}
-                      </div>
-                    )}
+                    </button>
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">
                     {group.number_name ?? '—'}
@@ -185,6 +283,16 @@ export default function GroupsPage(): React.JSX.Element {
               ))}
             </tbody>
           </table>
+        </div>
+        {openGroup && (
+          <GroupDrawer
+            groupName={openGroup}
+            canManage={canManage}
+            onClose={() => {
+              setOpenGroup(null);
+            }}
+          />
+        )}
         </div>
       )}
     </div>

@@ -7,10 +7,19 @@ import GroupsPage from './GroupsPage';
 import { client } from '@/lib/client';
 
 vi.mock('@/lib/client', () => ({
-  client: { listGroups: vi.fn() },
+  client: {
+    listGroups: vi.fn(),
+    getWorkspaceSettings: vi.fn(),
+    sendToGroups: vi.fn(),
+  },
 }));
 vi.mock('@/lib/realtime', () => ({
   useWorkspaceEvents: vi.fn(),
+}));
+vi.mock('@/components/GroupDrawer', () => ({
+  default: ({ groupName }: { groupName: string }) => (
+    <div data-testid="group-drawer">{groupName}</div>
+  ),
 }));
 
 function group(overrides: Partial<WdGroup>): WdGroup {
@@ -45,6 +54,13 @@ function renderPage() {
 describe('GroupsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(client.getWorkspaceSettings).mockResolvedValue({
+      workspace: 'WS-1',
+      workspace_name: 'Asha & Co',
+      role: 'Owner',
+      mask_numbers: false,
+      needs_reply_minutes: 10,
+    });
   });
 
   it('renders the registry table with stats and admin badge', async () => {
@@ -99,6 +115,58 @@ describe('GroupsPage', () => {
 
     await user.click(screen.getByLabelText('Select all groups'));
     expect(screen.queryByTestId('bulk-bar')).not.toBeInTheDocument();
+  });
+
+  it('bulk message dialog sends to the selected groups', async () => {
+    vi.mocked(client.listGroups).mockResolvedValue({
+      groups: [group({ name: 'GRP-1' }), group({ name: 'GRP-2', subject: 'Second' })],
+      total: 2,
+    });
+    vi.mocked(client.sendToGroups).mockResolvedValue({ queued_groups: 2 });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByLabelText('Select all groups'));
+    await user.click(screen.getByRole('button', { name: /Message 2 groups/ }));
+    await user.type(screen.getByLabelText(/Message to 2 selected/), 'diwali offer 10% off');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => {
+      expect(client.sendToGroups).toHaveBeenCalledWith(
+        ['GRP-1', 'GRP-2'],
+        'diwali offer 10% off',
+      );
+    });
+    expect(await screen.findByTestId('bulk-result')).toHaveTextContent('Queued for 2 groups');
+    expect(screen.queryByTestId('bulk-dialog')).not.toBeInTheDocument();
+  });
+
+  it('agents see no bulk message button', async () => {
+    vi.mocked(client.getWorkspaceSettings).mockResolvedValue({
+      workspace: 'WS-1',
+      workspace_name: 'Asha & Co',
+      role: 'Agent',
+      mask_numbers: false,
+      needs_reply_minutes: 10,
+    });
+    vi.mocked(client.listGroups).mockResolvedValue({
+      groups: [group({ name: 'GRP-1' })],
+      total: 1,
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByLabelText('Select Surat Traders'));
+    expect(screen.getByTestId('bulk-bar')).toHaveTextContent('1 selected');
+    expect(screen.queryByRole('button', { name: /Message 1 group/ })).not.toBeInTheDocument();
+  });
+
+  it('clicking a group subject opens the drawer', async () => {
+    vi.mocked(client.listGroups).mockResolvedValue({
+      groups: [group({ name: 'GRP-1' })],
+      total: 1,
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByTestId('group-open'));
+    expect(screen.getByTestId('group-drawer')).toHaveTextContent('GRP-1');
   });
 
   it('shows the empty state', async () => {
