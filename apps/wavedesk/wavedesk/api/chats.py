@@ -71,6 +71,7 @@ def list_chats(
             chat.chat_type,
             chat.status,
             chat.number,
+            chat.contact,
             chat.assigned_agent,
             chat.assigned_team,
             chat.snoozed_until,

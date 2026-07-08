@@ -11,39 +11,35 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 1
-Current epic: Phase 1 — epic 7 (Assignment & teams) DONE
-P1.7: WD Team + WD Team Member DocTypes (tenancy-registered), WD Chat gains
-assigned_team + snoozed_until. wavedesk/inbox.py owns assign/status/snooze rules +
-minutely unsnooze cron; api/assign.py (list_members, assign_chat, set_chat_status,
-presence_ping) + api/teams.py CRUD (Owner/Admin gate). New events wd:chat (assignment/
-status → chat-list refetch) and wd:presence (viewing/typing, Redis 15s TTL, emitted
-immediately — no transaction). Frontend: Mine/Unassigned/All view tabs, header
-assignee/status/snooze controls, presence heartbeat + "Riya is typing…" indicator.
-CRITICAL FIX shipped here: Frappe's realtime node namespaces sockets BY SITE — the
-P1.6 client connected to "/" and received NOTHING (P1.6 "socket proof" was actually
-the 30s poll). getSocket now connects to /<site> (localhost → VITE_FRAPPE_SITE ??
-dev.localhost); socketio auth also needs developer_mode=1 in COMMON site config or
-the node server calls back on the browser origin and fails. VERIFIED LIVE post-fix:
-wd:presence indicator, wd:message bubble, wd:chat all arrived on the socket (probe
-logged events; assignment → wd:chat sub-second).
-Next: P1 epic 8 contacts drawer + CSV import.
-Previous: Phase 1 — epic 6 (Realtime) DONE — see fix note above; pipeline emits from
-consumer/sender were correct, only the client namespace was wrong.
-Previous: Phase 1 — epic 4 (Composer + send pipeline) DONE
-P1.4: pipeline/sender.py PROTECTED (queued RQ delivery, 20/min per-number rate limit,
-retry ×3 → failed → UI retry, idempotent sending-flip before gateway call), api/send.py,
-consumer links chats→receiving number, gateway slow-lane restarts (sessions never die
-permanently). VERIFIED LIVE both directions incl. failed→retry→sent on a real message.
-Previous: Phase 1 — epic 3 (Conversation pane) DONE
-P1.3: api/messages.py (cursor pagination, quoted bodies, mark_chat_read), ConversationPane
-(bubbles, ticks, quotes, media placeholders, load-earlier). Consumer hardened from REAL
-traffic: protocolMessage noise skipped, fromMe → out, media types, ephemeral/viewOnce.
-Before: P1.2 chat-list pane + REAL WhatsApp number paired through the product UI
-(fetchLatestBaileysVersion + 515 auto-restart — docs/reference/baileys-pairing-notes.md)
-· P1.1 numbers mgmt (QR panel, Cloud API form) · Phase 0 complete.
-Suites: 94 Frappe + 42 gateway + 32 frontend + 4 api-client + ruff, all green; CI green.
+Current epic: Phase 1 — epic 8 (Contacts drawer + CSV import) DONE
+P1.8: WD Contact gains email (lowercased, blank→NULL, dup-checked per workspace);
+new WD Contact Import DocType (status/counters/error_csv lifecycle, tenancy-registered).
+wavedesk/contacts.py = import engine per Chatwoot patterns (docs/reference/
+chatwoot-patterns.md): BOM-safe CSV, phone normalized to digits (WhatsApp identity),
+dedup by phone → merge (CSV wins), unknown columns → custom_attributes, rejected rows
+→ downloadable error CSV, RQ job (long queue, CSV parked in Redis 1h). api/contacts.py:
+list/search, get_contact (profile + chats across ALL numbers), update_contact,
+import_contacts (Owner/Admin) + import_status. Frontend: /contacts page (search, table,
+CSV import with live progress + rejected-rows download), ContactDrawer in inbox
+(editable name/email, custom-attribute editor, cross-number conversation list that
+switches chats). VERIFIED LIVE: real CSV import through RQ (2 new + 1 rejected with
+error CSV), drawer edit propagated to pane title + chat list instantly.
+Next: P1 epic 9 labels/canned responses + number masking.
+Previous: Phase 1 — epic 7 (Assignment & teams) DONE
+P1.7: WD Team/WD Team Member, chat assigned_team + snoozed_until, wavedesk/inbox.py
+rules + minutely unsnooze cron, api/assign.py + api/teams.py, events wd:chat +
+wd:presence, Mine/Unassigned/All tabs, header controls, "Riya is typing…" indicator.
+CRITICAL FIX shipped in P1.7: Frappe realtime namespaces sockets BY SITE — client now
+connects to /<site> (localhost → VITE_FRAPPE_SITE ?? dev.localhost) and
+developer_mode=1 must be in COMMON site config (socketio auth callback). VERIFIED
+LIVE post-fix: wd:presence/wd:message/wd:chat all on the socket, sub-second.
+Previous: Phase 1 — epic 6 (Realtime) DONE — pipeline emits were correct; only the
+client namespace was wrong (see P1.7 note). Epic 4 (send pipeline) + epic 3
+(conversation pane) + P1.2 chat list + P1.1 numbers + Phase 0: DONE, live-verified
+on a REAL paired WhatsApp number (baileys-pairing-notes.md).
+Suites: 105 Frappe + 42 gateway + 40 frontend + 4 api-client + ruff, all green; CI green.
 Founder items open: Meta Business Verification, staging VM, Sentry DSNs.
-Next code epic: Phase 1 — 8. Contacts drawer + CSV import.
+Next code epic: Phase 1 — 9. Labels & canned responses + number masking.
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

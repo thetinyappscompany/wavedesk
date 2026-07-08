@@ -1,18 +1,19 @@
 {
  "actions": [],
  "allow_rename": 0,
- "creation": "2026-07-07 12:00:00.000000",
+ "creation": "2026-07-08 18:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "workspace",
-  "phone",
-  "full_name",
-  "email",
-  "avatar",
-  "custom_attributes",
-  "tags",
-  "opt_out"
+  "file_name",
+  "status",
+  "total_rows",
+  "imported_rows",
+  "merged_rows",
+  "rejected_rows",
+  "error_csv",
+  "failure_reason"
  ],
  "fields": [
   {
@@ -26,43 +27,52 @@
    "in_standard_filter": 1
   },
   {
-   "fieldname": "phone",
+   "fieldname": "file_name",
    "fieldtype": "Data",
-   "label": "Phone",
-   "reqd": 1
+   "label": "File Name"
   },
   {
-   "fieldname": "full_name",
-   "fieldtype": "Data",
-   "label": "Full Name",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "pending\nprocessing\ncompleted\nfailed",
+   "default": "pending",
    "in_list_view": 1
   },
   {
-   "fieldname": "email",
-   "fieldtype": "Data",
-   "label": "Email",
-   "options": "Email"
-  },
-  {
-   "fieldname": "avatar",
-   "fieldtype": "Attach Image",
-   "label": "Avatar"
-  },
-  {
-   "fieldname": "custom_attributes",
-   "fieldtype": "JSON",
-   "label": "Custom Attributes"
-  },
-  {
-   "fieldname": "tags",
-   "fieldtype": "Small Text",
-   "label": "Tags"
-  },
-  {
-   "fieldname": "opt_out",
-   "fieldtype": "Check",
-   "label": "Opted Out",
+   "fieldname": "total_rows",
+   "fieldtype": "Int",
+   "label": "Total Rows",
    "default": "0"
+  },
+  {
+   "fieldname": "imported_rows",
+   "fieldtype": "Int",
+   "label": "Imported Rows",
+   "default": "0"
+  },
+  {
+   "fieldname": "merged_rows",
+   "fieldtype": "Int",
+   "label": "Merged Rows",
+   "default": "0"
+  },
+  {
+   "fieldname": "rejected_rows",
+   "fieldtype": "Int",
+   "label": "Rejected Rows",
+   "default": "0"
+  },
+  {
+   "fieldname": "error_csv",
+   "fieldtype": "Long Text",
+   "label": "Error CSV",
+   "description": "Rejected rows with an appended errors column - downloadable from the UI"
+  },
+  {
+   "fieldname": "failure_reason",
+   "fieldtype": "Small Text",
+   "label": "Failure Reason"
   }
  ],
  "index_web_pages_for_search": 0,
@@ -70,7 +80,7 @@
  "modified": "2026-07-08 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "WaveDesk Core",
- "name": "WD Contact",
+ "name": "WD Contact Import",
  "owner": "Administrator",
  "permissions": [
   {
@@ -110,8 +120,6 @@
   {
    "role": "WD Agent",
    "read": 1,
-   "write": 1,
-   "create": 1,
    "email": 1,
    "export": 1,
    "print": 1,
@@ -121,6 +129,6 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
- "autoname": "format:CONT-{########}",
+ "autoname": "format:CIMP-{#####}",
  "naming_rule": "Expression"
 }

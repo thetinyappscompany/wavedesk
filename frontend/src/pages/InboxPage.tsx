@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { WdChat } from '@wavedesk/api-client';
 import { client } from '@/lib/client';
+import ContactDrawer from '@/components/ContactDrawer';
 import ConversationPane from '@/components/ConversationPane';
 import { useWorkspaceEvents } from '@/lib/realtime';
 import { Input } from '@/components/ui/input';
@@ -85,6 +86,7 @@ export default function InboxPage(): React.JSX.Element {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
+  const [contactOpen, setContactOpen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -210,11 +212,26 @@ export default function InboxPage(): React.JSX.Element {
         (() => {
           const chat = rows.find((row) => row.name === selected);
           return (
-            <ConversationPane
-              chatName={selected}
-              title={chat?.contact_name ?? chat?.contact_phone ?? chat?.wa_chat_id ?? selected}
-              chat={chat}
-            />
+            <>
+              <ConversationPane
+                chatName={selected}
+                title={chat?.contact_name ?? chat?.contact_phone ?? chat?.wa_chat_id ?? selected}
+                chat={chat}
+                onToggleContact={() => {
+                  setContactOpen((open) => !open);
+                }}
+              />
+              {contactOpen && chat?.contact && (
+                <ContactDrawer
+                  contactName={chat.contact}
+                  activeChat={selected}
+                  onOpenChat={setSelected}
+                  onClose={() => {
+                    setContactOpen(false);
+                  }}
+                />
+              )}
+            </>
           );
         })()
       ) : (

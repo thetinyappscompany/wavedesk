@@ -53,6 +53,7 @@ export interface WdChat {
   chat_type: 'dm' | 'group';
   status: 'open' | 'pending' | 'resolved' | 'snoozed';
   number: string | null;
+  contact: string | null;
   assigned_agent: string | null;
   assigned_team: string | null;
   snoozed_until: string | null;
@@ -71,6 +72,47 @@ export interface ChatListParams {
   assignee?: string;
   limit?: number;
   offset?: number;
+}
+
+export interface WdContact {
+  name: string;
+  phone: string;
+  full_name: string | null;
+  email: string | null;
+  custom_attributes: Record<string, string>;
+  opt_out: boolean;
+}
+
+export interface WdContactListRow {
+  name: string;
+  phone: string;
+  full_name: string | null;
+  email: string | null;
+}
+
+export interface WdContactChat {
+  name: string;
+  status: WdChat['status'];
+  last_message_at: string | null;
+  unread_count: number;
+  number_name: string | null;
+  number_phone: string | null;
+}
+
+export interface WdContactProfile extends WdContact {
+  chats: WdContactChat[];
+}
+
+export interface WdContactImportStatus {
+  import: string;
+  file_name: string | null;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  total_rows: number;
+  imported_rows: number;
+  merged_rows: number;
+  rejected_rows: number;
+  error_csv: string | null;
+  failure_reason: string | null;
 }
 
 export interface WdMember {
@@ -184,6 +226,40 @@ export class WaveDeskClient {
 
   markChatRead(chat: string): Promise<{ chat: string; unread_count: number }> {
     return this.call('wavedesk.api.messages.mark_chat_read', { chat });
+  }
+
+  // --- contacts (Phase 1 feature 4) ---
+  listContacts(params: { search?: string; limit?: number; offset?: number } = {}): Promise<{
+    contacts: WdContactListRow[];
+    total: number;
+  }> {
+    return this.call('wavedesk.api.contacts.list_contacts', { ...params });
+  }
+
+  getContact(contact: string): Promise<WdContactProfile> {
+    return this.call('wavedesk.api.contacts.get_contact', { contact });
+  }
+
+  updateContact(
+    contact: string,
+    changes: {
+      full_name?: string;
+      email?: string;
+      custom_attributes?: Record<string, string>;
+    },
+  ): Promise<WdContact> {
+    return this.call('wavedesk.api.contacts.update_contact', { contact, ...changes });
+  }
+
+  importContacts(csvContent: string, fileName?: string): Promise<{ import: string; status: string }> {
+    return this.call('wavedesk.api.contacts.import_contacts', {
+      csv_content: csvContent,
+      ...(fileName ? { file_name: fileName } : {}),
+    });
+  }
+
+  importStatus(importName: string): Promise<WdContactImportStatus> {
+    return this.call('wavedesk.api.contacts.import_status', { import_name: importName });
   }
 
   // --- assignment / status / presence (Phase 1 feature 3) ---

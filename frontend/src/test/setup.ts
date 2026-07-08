@@ -37,3 +37,20 @@ class ResizeObserverStub {
 globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
 Element.prototype.getBoundingClientRect = () => rect;
 Element.prototype.scrollIntoView = () => {};
+
+// jsdom's Blob/File lack .text() (standard in every real browser) — back-fill
+// via FileReader so CSV-upload flows are testable.
+if (typeof Blob.prototype.text !== 'function') {
+  Blob.prototype.text = function text(this: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = () => {
+        reject(new Error('FileReader failed'));
+      };
+      reader.readAsText(this);
+    });
+  };
+}

@@ -47,6 +47,7 @@ function chatRow(overrides: Partial<WdChat> = {}): WdChat {
     chat_type: 'dm',
     status: 'open',
     number: null,
+    contact: null,
     assigned_agent: null,
     assigned_team: null,
     snoozed_until: null,

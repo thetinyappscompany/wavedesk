@@ -103,6 +103,7 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
     )
     insert("WD Audit Log", action="tenancy.fixture", entity=workspace)
     insert("WD Team", team_name=f"Team {suffix}")
+    insert("WD Contact Import", file_name=f"import-{suffix}.csv")
     return docs
 
 

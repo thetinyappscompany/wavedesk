@@ -6,7 +6,15 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { AlertCircle, Check, CheckCheck, Clock, RotateCcw, SendHorizontal } from 'lucide-react';
+import {
+  AlertCircle,
+  Check,
+  CheckCheck,
+  Clock,
+  RotateCcw,
+  SendHorizontal,
+  UserRound,
+} from 'lucide-react';
 import type { WdChat, WdMessage } from '@wavedesk/api-client';
 import { client } from '@/lib/client';
 import { useChatPresence } from '@/lib/realtime';
@@ -208,10 +216,12 @@ export default function ConversationPane({
   chatName,
   title,
   chat,
+  onToggleContact,
 }: {
   chatName: string;
   title: string;
   chat?: WdChat;
+  onToggleContact?: () => void;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
 
@@ -304,7 +314,20 @@ export default function ConversationPane({
             </p>
           )}
         </div>
-        <HeaderControls chatName={chatName} chat={chat} />
+        <div className="flex shrink-0 items-center gap-2">
+          <HeaderControls chatName={chatName} chat={chat} />
+          {chat?.contact && onToggleContact && (
+            <Button
+              aria-label="Contact details"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onToggleContact}
+            >
+              <UserRound className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </header>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4" data-testid="message-scroll">

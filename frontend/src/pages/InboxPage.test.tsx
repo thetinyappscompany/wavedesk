@@ -22,6 +22,9 @@ vi.mock('@/lib/realtime', () => ({
   useWorkspaceEvents: vi.fn(),
   useChatPresence: vi.fn(() => []),
 }));
+vi.mock('@/components/ContactDrawer', () => ({
+  default: () => <div data-testid="contact-drawer" />,
+}));
 
 function chat(overrides: Partial<WdChat>): WdChat {
   return {
@@ -29,6 +32,7 @@ function chat(overrides: Partial<WdChat>): WdChat {
     chat_type: 'dm',
     status: 'open',
     number: null,
+    contact: null,
     assigned_agent: null,
     assigned_team: null,
     snoozed_until: null,
@@ -115,6 +119,25 @@ describe('InboxPage', () => {
         expect.objectContaining({ search: 'Asha' }),
       );
     });
+  });
+
+  it('toggles the contact drawer from the conversation header', async () => {
+    vi.mocked(client.listChats).mockResolvedValue({
+      chats: [chat({ name: 'CHAT-77', contact: 'CONT-9', contact_name: 'Asha Traders' })],
+      total: 1,
+    });
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [],
+      has_more: false,
+      next_before: null,
+    });
+    vi.mocked(client.markChatRead).mockResolvedValue({ chat: 'CHAT-77', unread_count: 0 });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByTestId('chat-row'));
+    expect(screen.queryByTestId('contact-drawer')).not.toBeInTheDocument();
+    await user.click(await screen.findByLabelText('Contact details'));
+    expect(screen.getByTestId('contact-drawer')).toBeInTheDocument();
   });
 
   it('selecting a chat opens the conversation pane', async () => {
