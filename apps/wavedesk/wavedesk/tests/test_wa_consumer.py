@@ -6,8 +6,10 @@ test stream so the production `wa:events` stream is untouched."""
 
 import json
 import uuid
+from unittest.mock import patch
 
 import frappe
+from frappe.utils import add_to_date, now_datetime
 
 try:
     from frappe.tests import IntegrationTestCase
@@ -158,6 +160,67 @@ class TestCrashRecovery(WaConsumerTestBase):
         self.assertEqual(
             frappe.db.count("WD Message", {"workspace": ws}), 40, "idempotent re-apply"
         )
+
+
+class TestInboxRules(WaConsumerTestBase):
+    """P1.11: WhatsApp statuses/channels never become chats; inbound wakes
+    snoozed/resolved conversations (Chatwoot auto-reopen rule)."""
+
+    def test_status_broadcast_and_channels_are_skipped(self):
+        ws = self._ws = _make_workspace()
+        status_event = _baileys_event(ws, "SKIP-1", "919000000001", "story junk")
+        status_event["wa_chat_id"] = "status@broadcast"
+        channel_event = _baileys_event(ws, "SKIP-2", "919000000002", "channel junk")
+        channel_event["wa_chat_id"] = "120363000000@newsletter"
+
+        apply_event(status_event)
+        apply_event(channel_event)
+
+        self.assertFalse(frappe.db.exists("WD Chat", {"workspace": ws}))
+        self.assertFalse(frappe.db.exists("WD Message", {"workspace": ws}))
+        self.assertFalse(frappe.db.exists("WD Contact", {"workspace": ws}))
+
+    def test_inbound_reopens_snoozed_and_resolved_chats(self):
+        ws = self._ws = _make_workspace()
+        # emits fan out to member user rooms — the fixture needs a member
+        ws_doc = frappe.get_doc("WD Workspace", ws)
+        ws_doc.append("members", {"user": "Administrator", "role": "Owner"})
+        ws_doc.save(ignore_permissions=True)
+
+        apply_event(_baileys_event(ws, "RO-1", "919000011111", "first"))
+        chat = frappe.db.get_value("WD Chat", {"workspace": ws}, "name")
+
+        frappe.db.set_value("WD Chat", chat, "status", "resolved")
+        with patch.object(frappe, "publish_realtime") as publish:
+            apply_event(_baileys_event(ws, "RO-2", "919000011111", "second"))
+        self.assertEqual(frappe.db.get_value("WD Chat", chat, "status"), "open")
+        chat_events = [
+            c.kwargs["message"]
+            for c in publish.call_args_list
+            if c.kwargs.get("event") == "wd:chat"
+        ]
+        self.assertTrue(chat_events, "reopen must emit wd:chat")
+        self.assertTrue(all(e == {"chat": chat} for e in chat_events))
+
+        frappe.db.set_value(
+            "WD Chat",
+            chat,
+            {"status": "snoozed", "snoozed_until": add_to_date(now_datetime(), hours=4)},
+        )
+        apply_event(_baileys_event(ws, "RO-3", "919000011111", "third"))
+        self.assertEqual(frappe.db.get_value("WD Chat", chat, "status"), "open")
+        self.assertFalse(frappe.db.get_value("WD Chat", chat, "snoozed_until"))
+
+    def test_outbound_does_not_reopen(self):
+        ws = self._ws = _make_workspace()
+        apply_event(_baileys_event(ws, "RO-4", "919000022222", "inbound"))
+        chat = frappe.db.get_value("WD Chat", {"workspace": ws}, "name")
+        frappe.db.set_value("WD Chat", chat, "status", "resolved")
+
+        out = _baileys_event(ws, "RO-5", "919000022222", "sent from the phone itself")
+        out["payload"]["message"]["key"] = {"fromMe": True}
+        apply_event(out)
+        self.assertEqual(frappe.db.get_value("WD Chat", chat, "status"), "resolved")
 
 
 class TestBaileysExtraction(WaConsumerTestBase):

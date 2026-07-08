@@ -11,7 +11,25 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 1
-Current epic: Phase 1 — epic 10 (Onboarding flow) DONE
+Current epic: Phase 1 — epic 11 (E2E + consumer polish) DONE — **Phase 1 feature
+list (1–8) is code-complete**; remaining P1 exit items are operational (3 real
+numbers × 7 days, 2-agent concurrent test, 10k backfill, design partner).
+P1.11: consumer skips status@broadcast + @newsletter (their pseudo-ids would
+also fail P1.9 phone validation and poison the stream) and auto-reopens
+snoozed/resolved chats on inbound (Chatwoot rule, emits wd:chat; outbound/fromMe
+never reopens). First Frappe patch shipped (patches.txt →
+wavedesk.patches.remove_status_broadcast_chats) — purged the junk 'status' chat
++ pseudo-contact from live data during migrate. Playwright E2E
+(frontend/e2e/inbox-flow.spec.ts): route-mocked Frappe API, real browser —
+connect (number badge), receive → reply → resolve loop, canned `/` insert,
+onboarding redirect; 12 pass on chromium + mobile-chrome; CI gained an `e2e` job
+(chromium). Mobile-responsive inbox landed with it: master–detail chat
+list/pane switch + back button (<md), icon-only nav rail, wrapping pane header.
+Dev-site note: heavy test runs trip Frappe's 60/hr User-creation throttle —
+`bench set-config throttle_user_limit 10000 -p` (-p! else it writes a string).
+Next: Phase 2 — group sync & registry (needs founder go; Meta verification
+still gates Phase 3).
+Previous: Phase 1 — epic 10 (Onboarding flow) DONE
 P1.10: api/onboarding.py (create_workspace — caller becomes Owner, trial+wallet
 auto-provision via existing after_insert hook, WD Owner Frappe role granted,
 active ws set; onboarding_status drives the wizard + post-login routing) and
@@ -69,9 +87,10 @@ developer_mode=1 must be in COMMON site config (socketio auth callback). VERIFIE
 LIVE post-fix: wd:presence/wd:message/wd:chat all on the socket, sub-second.
 Earlier epics (P1.1–1.6 + Phase 0): DONE, live-verified on a REAL paired WhatsApp
 number (baileys-pairing-notes.md).
-Suites: 127 Frappe + 42 gateway + 59 frontend + 4 api-client + ruff, all green; CI green.
+Suites: 130 Frappe + 42 gateway + 59 frontend + 4 api-client + 12 e2e + ruff,
+all green; CI green (now incl. e2e job).
 Founder items open: Meta Business Verification, staging VM, Sentry DSNs.
-Next code epic: Phase 1 — 11. Playwright E2E + consumer polish.
+Next code epic: Phase 2 — 1. Group sync & registry (await founder go).
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

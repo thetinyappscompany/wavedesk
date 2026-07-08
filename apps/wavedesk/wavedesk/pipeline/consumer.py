@@ -27,6 +27,12 @@ CONSUMER_NAME = "frappe-worker"
 POISON_SUFFIX = ":poison"
 MAX_DELIVERIES = 3
 
+# WhatsApp plumbing that must never become an inbox conversation: status
+# updates (stories) and channels. Their pseudo-ids ("status", channel ids)
+# would also fail WD Contact's phone validation and poison the stream.
+IGNORED_CHAT_IDS = {"status@broadcast"}
+IGNORED_CHAT_SUFFIXES = ("@newsletter",)
+
 
 def get_redis() -> "redis_lib.Redis":
     url = frappe.conf.get("wa_events_redis_url") or "redis://localhost:6379"
@@ -126,6 +132,8 @@ def apply_event(event: dict) -> None:
     transport = event.get("transport")
     payload = event.get("payload") or {}
     wa_chat_id = event.get("wa_chat_id") or ""
+    if wa_chat_id in IGNORED_CHAT_IDS or wa_chat_id.endswith(IGNORED_CHAT_SUFFIXES):
+        return
     extracted = _extract(transport, wa_chat_id, payload)
     if extracted is None:
         return  # protocol/sync noise — never a user-visible message
@@ -164,6 +172,22 @@ def apply_event(event: dict) -> None:
             "update `tabWD Chat` set unread_count = unread_count + 1 where name = %s",
             (chat,),
         )
+        _auto_reopen(workspace, chat)
+
+
+def _auto_reopen(workspace: str, chat: str) -> None:
+    """Chatwoot rule: a new inbound message wakes the conversation — snoozed
+    and resolved chats reopen so nothing sits answered-looking while a
+    customer is actually waiting."""
+    status = frappe.db.get_value("WD Chat", chat, "status")
+    if status not in ("snoozed", "resolved"):
+        return
+    frappe.db.set_value(
+        "WD Chat", chat, {"status": "open", "snoozed_until": None}, update_modified=False
+    )
+    from wavedesk.realtime import emit_chat_updated
+
+    emit_chat_updated(workspace, chat)
 
 
 # Wrappers whose real content sits one level deeper (message.<wrapper>.message).

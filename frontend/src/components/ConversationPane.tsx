@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query';
 import {
   AlertCircle,
+  ArrowLeft,
   Check,
   CheckCheck,
   Clock,
@@ -299,11 +300,14 @@ export default function ConversationPane({
   title,
   chat,
   onToggleContact,
+  onBack,
 }: {
   chatName: string;
   title: string;
   chat?: WdChat;
   onToggleContact?: () => void;
+  /** Mobile master-detail: return to the chat list (hidden on md+). */
+  onBack?: () => void;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
 
@@ -416,8 +420,21 @@ export default function ConversationPane({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
-      <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
-        <div className="min-w-0">
+      {/* flex-wrap: on narrow screens the controls drop to a second row
+          instead of crushing the title to zero width */}
+      <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+        {onBack && (
+          <Button
+            aria-label="Back to chat list"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 md:hidden"
+            onClick={onBack}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        )}
+        <div className="min-w-0 flex-1 basis-32">
           <h2 className="truncate font-semibold">{title}</h2>
           {others.length > 0 && (
             <p data-testid="presence-indicator" className="truncate text-xs text-muted-foreground">

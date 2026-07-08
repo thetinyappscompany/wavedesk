@@ -14,12 +14,16 @@ const NAV = [
 export default function AppShell(): React.JSX.Element {
   return (
     <div className="flex h-screen">
-      <nav className="flex w-48 shrink-0 flex-col border-r bg-muted/30 p-3">
-        <div className="mb-6 px-2 text-lg font-semibold">WaveDesk</div>
+      <nav className="flex w-14 shrink-0 flex-col border-r bg-muted/30 p-3 md:w-48">
+        <div className="mb-6 px-2 text-lg font-semibold">
+          <span className="md:hidden">W</span>
+          <span className="hidden md:inline">WaveDesk</span>
+        </div>
         {NAV.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
+            aria-label={label}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm',
@@ -29,8 +33,8 @@ export default function AppShell(): React.JSX.Element {
               )
             }
           >
-            <Icon className="h-4 w-4" />
-            {label}
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="hidden md:inline">{label}</span>
           </NavLink>
         ))}
       </nav>

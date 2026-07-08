@@ -141,8 +141,13 @@ export default function InboxPage(): React.JSX.Element {
 
   return (
     <div className="flex h-full">
-      {/* Chat list pane */}
-      <section className="flex w-80 shrink-0 flex-col border-r">
+      {/* Chat list pane — on small screens list and conversation alternate */}
+      <section
+        className={cn(
+          'w-full flex-col border-r md:flex md:w-80 md:shrink-0',
+          selected ? 'hidden' : 'flex',
+        )}
+      >
         <div className="space-y-2 border-b p-3">
           <h1 className="text-lg font-semibold">Inbox</h1>
           <Input
@@ -256,6 +261,9 @@ export default function InboxPage(): React.JSX.Element {
                 chat={chat}
                 onToggleContact={() => {
                   setContactOpen((open) => !open);
+                }}
+                onBack={() => {
+                  setSelected(null);
                 }}
               />
               {contactOpen && chat?.contact && (
