@@ -51,3 +51,28 @@ cd frontend && npm install && npm run dev              # :5173, proxies /api →
 ## 4. Secrets
 
 Copy `.env.example` files (as they appear per service) — never commit real secrets.
+
+## 5. Realtime (socket.io) requirements — learned the hard way
+
+- Frappe's realtime node server namespaces sockets **by site**: the SPA must connect
+  to `/<site>` (see `frontend/src/lib/realtime.ts` — localhost maps to
+  `VITE_FRAPPE_SITE` ?? `dev.localhost`). A root-namespace connection handshakes
+  fine but silently receives **zero** events.
+- `developer_mode: 1` must be in the **common** site config
+  (`bench set-config -g developer_mode 1`). The node server authenticates each
+  socket by calling back to Frappe; in developer mode it swaps the browser origin's
+  port for `webserver_port` — without it the callback goes to the vite origin
+  (Windows-side :5173), which WSL can't reach → every socket is rejected as
+  `Unauthorized: fetch failed`.
+- Restart `bench start` after changing common config — the node server caches it.
+
+## 6. Known machine issues
+
+- **Docker Desktop crash-loop** ("Inference manager … The file cannot be accessed
+  by the system"): stale AF_UNIX socket files survive an unclean shutdown and
+  Windows can't delete them individually. Fix: quit Docker, rename
+  `%LOCALAPPDATA%\Docker\run` and `%LOCALAPPDATA%\docker-secrets-engine` to
+  `*_stale_<n>` (rename works where delete fails), recreate the empty dirs, start
+  Docker Desktop again.
+- WSL2 terminates background processes when their launching `wsl.exe` session
+  exits — keep `bench start` attached to a live session/task, not `nohup`.
