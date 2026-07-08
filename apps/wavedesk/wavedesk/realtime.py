@@ -13,6 +13,7 @@ API which enforces permissions):
   wd:message_status  {chat, message, status}               outbound status change
   wd:chat            {chat}                                assignment/status changed
   wd:presence        {chat, user, full_name, state}        agent viewing/typing
+  wd:group           {group}                               registry entry changed
 """
 
 import frappe
@@ -58,6 +59,11 @@ def emit_message_status(workspace: str, chat: str, message: str, status: str) ->
 def emit_chat_updated(workspace: str, chat: str) -> None:
     """Assignment or status changed — clients refetch the chat list."""
     emit_workspace_event(workspace, "wd:chat", {"chat": chat})
+
+
+def emit_group_updated(workspace: str, group: str) -> None:
+    """Registry entry changed — clients refetch the groups table."""
+    emit_workspace_event(workspace, "wd:group", {"group": group})
 
 
 def emit_presence(workspace: str, chat: str, user: str, full_name: str, state: str) -> None:

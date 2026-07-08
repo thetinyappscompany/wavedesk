@@ -6,7 +6,7 @@ import { makeEvent } from '../events/envelope.js';
 import type { EventPublisher } from '../events/publisher.js';
 import { logFields } from '../logger.js';
 import { RedisAuthStore } from './authStore.js';
-import type { GatewaySocket, SocketFactory } from './socket.js';
+import type { GatewaySocket, GroupMetadataLite, SocketFactory } from './socket.js';
 
 export type SessionStatus = 'connecting' | 'connected' | 'disconnected';
 
@@ -45,6 +45,12 @@ const DISCONNECT_LOGGED_OUT = 401; // device unlinked — creds are dead
 const MAX_AUTO_RESTARTS = 5;
 const FAST_RESTART_DELAY_MS = 2_000;
 export const SLOW_RESTART_DELAY_MS = 60_000;
+
+/** '9199…:12@s.whatsapp.net' → '9199…' — device suffix and domain stripped so
+ * our own jid can be matched against group participant ids. */
+function bareJid(jid: string | null | undefined): string {
+  return jid?.split('@')[0]?.split(':')[0] ?? '';
+}
 
 function disconnectCode(update: { lastDisconnect?: { error?: unknown } }): number | undefined {
   const error = update.lastDisconnect?.error as
@@ -169,6 +175,9 @@ export class SessionManager {
         if (info.status === 'connected') {
           session.lastQr = null; // paired — QR is spent
           session.restartCount = 0;
+          // Phase 2: refresh the group registry on every (re)connect — the
+          // consumer upserts idempotently, so re-syncs only heal drift.
+          void this.syncGroups(session);
         }
         if (update.connection === 'close') {
           this.handleClose(session, disconnectCode(update));
@@ -201,6 +210,91 @@ export class SessionManager {
         );
       }
     });
+
+    // Group registry (Phase 2): live metadata + membership updates.
+    socket.onGroupsUpsert((groups) => {
+      for (const group of groups) {
+        void this.publishGroupUpsert(session, group);
+      }
+    });
+    socket.onGroupsUpdate((updates) => {
+      for (const update of updates) {
+        if (!update.id) {
+          continue;
+        }
+        void this.deps.publisher.publish(
+          makeEvent({
+            transport: 'baileys',
+            type: 'group.update',
+            workspace_hint: info.workspace,
+            wa_chat_id: update.id,
+            wa_message_id: null,
+            payload: { session_id: info.id, update },
+          }),
+        );
+      }
+    });
+    socket.onGroupParticipantsUpdate((update) => {
+      void this.deps.publisher.publish(
+        makeEvent({
+          transport: 'baileys',
+          type: 'group.participants',
+          workspace_hint: info.workspace,
+          wa_chat_id: update.id,
+          wa_message_id: null,
+          payload: { session_id: info.id, ...update },
+        }),
+      );
+    });
+  }
+
+  /** Full registry sync — one groupFetchAllParticipating call covers subject,
+   * description, owner, and participants for every group (exit target: 200
+   * groups < 60s). Invite links are fetched only where we hold admin (the
+   * server refuses otherwise); avatars are deferred to a later epic. */
+  private async syncGroups(session: ManagedSession): Promise<void> {
+    const { socket, info } = session;
+    try {
+      const groups = await socket.fetchAllGroups();
+      for (const group of groups) {
+        await this.publishGroupUpsert(session, group);
+      }
+      this.deps.logger.info(
+        logFields({ session_id: info.id, group_count: groups.length }),
+        'group registry synced',
+      );
+    } catch (err: unknown) {
+      this.deps.logger.warn(
+        logFields({ session_id: info.id, err_type: String(err) }),
+        'group sync failed — will retry on next reconnect',
+      );
+    }
+  }
+
+  private async publishGroupUpsert(
+    session: ManagedSession,
+    group: GroupMetadataLite,
+  ): Promise<void> {
+    const { socket, info } = session;
+    const me = bareJid(socket.ownJid());
+    const weAreAdmin =
+      me !== '' && group.participants.some((p) => bareJid(p.id) === me && p.admin);
+    const inviteCode = weAreAdmin ? await socket.groupInviteCode(group.id) : null;
+    await this.deps.publisher.publish(
+      makeEvent({
+        transport: 'baileys',
+        type: 'group.upsert',
+        workspace_hint: info.workspace,
+        wa_chat_id: group.id,
+        wa_message_id: null,
+        payload: {
+          session_id: info.id,
+          group,
+          owned_by_us: weAreAdmin,
+          invite_code: inviteCode,
+        },
+      }),
+    );
   }
 
   /** Baileys closes the stream mid-flow by design: after QR pairing succeeds the

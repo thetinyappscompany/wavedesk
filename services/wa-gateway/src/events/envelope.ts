@@ -3,7 +3,13 @@
 
 export type WaTransport = 'baileys' | 'cloud_api';
 
-export type WaEventType = 'message.received' | 'message.status' | 'session.status';
+export type WaEventType =
+  | 'message.received'
+  | 'message.status'
+  | 'session.status'
+  | 'group.upsert'
+  | 'group.update'
+  | 'group.participants';
 
 export interface WaEvent {
   transport: WaTransport;

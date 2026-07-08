@@ -41,7 +41,8 @@ function ChatRow({ chat, selected, onSelect }: {
   selected: boolean;
   onSelect: (name: string) => void;
 }): React.JSX.Element {
-  const title = chat.contact_name ?? chat.contact_phone ?? chat.wa_chat_id;
+  const title =
+    chat.contact_name ?? chat.group_subject ?? chat.contact_phone ?? chat.wa_chat_id;
   const chips = chat.labels.slice(0, 2);
   return (
     <button
@@ -257,7 +258,13 @@ export default function InboxPage(): React.JSX.Element {
             <>
               <ConversationPane
                 chatName={selected}
-                title={chat?.contact_name ?? chat?.contact_phone ?? chat?.wa_chat_id ?? selected}
+                title={
+                  chat?.contact_name ??
+                  chat?.group_subject ??
+                  chat?.contact_phone ??
+                  chat?.wa_chat_id ??
+                  selected
+                }
                 chat={chat}
                 onToggleContact={() => {
                   setContactOpen((open) => !open);

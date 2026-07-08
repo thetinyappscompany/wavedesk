@@ -1,9 +1,10 @@
 import { NavLink, Outlet } from 'react-router';
-import { Inbox, Phone, Settings, UsersRound } from 'lucide-react';
+import { Inbox, MessagesSquare, Phone, Settings, UsersRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const NAV = [
   { to: '/inbox', label: 'Inbox', icon: Inbox },
+  { to: '/groups', label: 'Groups', icon: MessagesSquare },
   { to: '/contacts', label: 'Contacts', icon: UsersRound },
   { to: '/numbers', label: 'Numbers', icon: Phone },
   { to: '/settings', label: 'Settings', icon: Settings },

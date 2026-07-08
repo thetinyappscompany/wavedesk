@@ -1,7 +1,7 @@
 /** Real Baileys socket factory. Version PINNED at 6.7.23 (root guide pitfall #3):
  * bumps happen deliberately, tested on canary numbers — never via semver range. */
 import makeWASocket, { fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
-import type { GatewaySocket, SocketFactory } from './socket.js';
+import type { GatewaySocket, GroupMetadataLite, SocketFactory } from './socket.js';
 
 type WaVersion = [number, number, number];
 
@@ -15,6 +15,27 @@ function currentWaVersion(): Promise<WaVersion | undefined> {
     .then((result): WaVersion => result.version)
     .catch(() => undefined);
   return versionPromise;
+}
+
+interface BaileysGroupMetadata {
+  id: string;
+  subject: string;
+  desc?: string | null | undefined;
+  owner?: string | null | undefined;
+  participants?: { id: string; admin?: 'admin' | 'superadmin' | null | undefined }[];
+}
+
+function toGroupLite(group: BaileysGroupMetadata): GroupMetadataLite {
+  return {
+    id: group.id,
+    subject: group.subject,
+    desc: group.desc ?? null,
+    owner: group.owner ?? null,
+    participants: (group.participants ?? []).map((p) => ({
+      id: p.id,
+      admin: p.admin ?? null,
+    })),
+  };
 }
 
 export const realSocketFactory: SocketFactory = async ({ state }) => {
@@ -39,6 +60,41 @@ export const realSocketFactory: SocketFactory = async ({ state }) => {
       sock.ev.on('messages.upsert', (upsert) => {
         cb(upsert as unknown as Parameters<typeof cb>[0]);
       });
+    },
+    onGroupsUpsert(cb) {
+      sock.ev.on('groups.upsert', (groups) => {
+        cb(groups.map(toGroupLite));
+      });
+    },
+    onGroupsUpdate(cb) {
+      sock.ev.on('groups.update', (updates) => {
+        cb(
+          updates.map((u) => ({
+            ...(u.id !== undefined ? { id: u.id } : {}),
+            ...(u.subject !== undefined ? { subject: u.subject } : {}),
+            ...(u.desc !== undefined ? { desc: u.desc ?? null } : {}),
+          })),
+        );
+      });
+    },
+    onGroupParticipantsUpdate(cb) {
+      sock.ev.on('group-participants.update', (update) => {
+        cb(update as unknown as Parameters<typeof cb>[0]);
+      });
+    },
+    async fetchAllGroups() {
+      const groups = await sock.groupFetchAllParticipating();
+      return Object.values(groups).map(toGroupLite);
+    },
+    async groupInviteCode(jid) {
+      try {
+        return (await sock.groupInviteCode(jid)) ?? null;
+      } catch {
+        return null; // not an admin of this group — the server refuses
+      }
+    },
+    ownJid() {
+      return sock.user?.id ?? null;
     },
     async sendMessage(jid, content) {
       const result = await sock.sendMessage(jid, content);

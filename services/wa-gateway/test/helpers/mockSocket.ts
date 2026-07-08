@@ -3,6 +3,9 @@ import type { AuthenticationState } from '@whiskeysockets/baileys';
 import type {
   ConnectionUpdate,
   GatewaySocket,
+  GroupMetadataLite,
+  GroupParticipantsUpdate,
+  GroupUpdateEntry,
   InboundMessage,
   SocketFactory,
 } from '../../src/baileys/socket.js';
@@ -12,6 +15,12 @@ export interface MockSocket extends GatewaySocket {
   emitConnection(update: ConnectionUpdate): void;
   emitMessages(messages: InboundMessage[]): void;
   emitCreds(): void;
+  emitGroupsUpsert(groups: GroupMetadataLite[]): void;
+  emitGroupsUpdate(updates: GroupUpdateEntry[]): void;
+  emitGroupParticipants(update: GroupParticipantsUpdate): void;
+  /** Groups returned by fetchAllGroups() during the on-connect sync. */
+  groupsToReturn: GroupMetadataLite[];
+  readonly inviteCodeCalls: string[];
   readonly sent: { jid: string; content: { text: string } }[];
   readonly hadCredsAtCreation: boolean;
   ended: boolean;
@@ -40,6 +49,8 @@ export function makeMockSocketFactory(): {
       sent: [],
       ended: false,
       loggedOut: false,
+      groupsToReturn: [],
+      inviteCodeCalls: [],
       onConnectionUpdate(cb) {
         em.on('connection.update', cb);
       },
@@ -48,6 +59,25 @@ export function makeMockSocketFactory(): {
       },
       onMessagesUpsert(cb) {
         em.on('messages.upsert', cb);
+      },
+      onGroupsUpsert(cb) {
+        em.on('groups.upsert', cb);
+      },
+      onGroupsUpdate(cb) {
+        em.on('groups.update', cb);
+      },
+      onGroupParticipantsUpdate(cb) {
+        em.on('group-participants.update', cb);
+      },
+      fetchAllGroups() {
+        return Promise.resolve(this.groupsToReturn);
+      },
+      groupInviteCode(jid) {
+        this.inviteCodeCalls.push(jid);
+        return Promise.resolve(`MOCK-INVITE-${jid.slice(0, 6)}`);
+      },
+      ownJid() {
+        return '919999900000:1@s.whatsapp.net';
       },
       sendMessage(jid, content) {
         this.sent.push({ jid, content });
@@ -68,6 +98,15 @@ export function makeMockSocketFactory(): {
       },
       emitCreds() {
         em.emit('creds.update');
+      },
+      emitGroupsUpsert(groups) {
+        em.emit('groups.upsert', groups);
+      },
+      emitGroupsUpdate(updates) {
+        em.emit('groups.update', updates);
+      },
+      emitGroupParticipants(update) {
+        em.emit('group-participants.update', update);
       },
     };
 

@@ -69,7 +69,26 @@ export interface WdChat {
   wa_chat_id: string;
   contact_name: string | null;
   contact_phone: string | null;
+  /** Group registry link + denormalized subject (group chats only). */
+  group: string | null;
+  group_subject: string | null;
   labels: WdChatLabelChip[];
+}
+
+export interface WdGroup {
+  name: string;
+  wa_group_id: string;
+  subject: string;
+  description: string | null;
+  member_count: number;
+  invite_link: string | null;
+  owned_by_us: boolean;
+  number: string | null;
+  number_name: string | null;
+  chat: string | null;
+  last_message_at: string | null;
+  unread_count: number;
+  msgs_today: number;
 }
 
 export interface ChatListParams {
@@ -380,6 +399,14 @@ export class WaveDeskClient {
 
   deleteTeam(team: string): Promise<{ deleted: string }> {
     return this.call('wavedesk.api.teams.delete_team', { team });
+  }
+
+  // --- groups (Phase 2 feature 1 — registry; bulk actions land in P2.3) ---
+  listGroups(params: { search?: string; limit?: number; offset?: number } = {}): Promise<{
+    groups: WdGroup[];
+    total: number;
+  }> {
+    return this.call('wavedesk.api.groups.list_groups', { ...params });
   }
 
   // --- onboarding + invites (Phase 1 feature 8) ---

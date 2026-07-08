@@ -39,11 +39,14 @@ def list_chats(
 
     chat = frappe.qb.DocType("WD Chat")
     contact = frappe.qb.DocType("WD Contact")
+    group = frappe.qb.DocType("WD Group")
 
     query = (
         frappe.qb.from_(chat)
         .left_join(contact)
         .on(chat.contact == contact.name)
+        .left_join(group)
+        .on(chat.group == group.name)
         .where(chat.workspace == workspace)
     )
     if status:
@@ -64,6 +67,7 @@ def list_chats(
         query = query.where(
             contact.full_name.like(needle)
             | contact.phone.like(needle)
+            | group.subject.like(needle)
             | chat.wa_chat_id.like(needle)
         )
     if label:
@@ -86,6 +90,7 @@ def list_chats(
             chat.status,
             chat.number,
             chat.contact,
+            chat.group,
             chat.assigned_agent,
             chat.assigned_team,
             chat.snoozed_until,
@@ -94,6 +99,7 @@ def list_chats(
             chat.wa_chat_id,
             contact.full_name.as_("contact_name"),
             contact.phone.as_("contact_phone"),
+            group.subject.as_("group_subject"),
         )
         .orderby(chat.last_message_at, order=Order.desc)
         .orderby(chat.creation, order=Order.desc)

@@ -113,7 +113,15 @@ def _handle_entries(r: "redis_lib.Redis", stream: str, entries: list) -> int:
 # Event application (idempotent upserts)
 # ---------------------------------------------------------------------------
 
+GROUP_EVENT_TYPES = ("group.upsert", "group.update", "group.participants")
+
+
 def apply_event(event: dict) -> None:
+    if event.get("type") in GROUP_EVENT_TYPES:
+        from wavedesk.pipeline import group_sync
+
+        group_sync.apply_group_event(event)
+        return
     if event.get("type") != "message.received":
         return  # session.status / message.status handling lands in Phase 1
     workspace = event.get("workspace_hint")
@@ -321,6 +329,12 @@ def _upsert_chat(
             "contact": contact,
             "number": number,
             "status": "open",
+            # registry link (Phase 2) — group_sync back-links pre-existing chats
+            "group": frappe.db.get_value(
+                "WD Group", {"workspace": workspace, "wa_group_id": wa_chat_id}
+            )
+            if chat_type == "group"
+            else None,
         }
     )
     chat.insert(ignore_permissions=True)

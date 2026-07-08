@@ -10,8 +10,33 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 1
-Current epic: Phase 1 — epic 11 (E2E + consumer polish) DONE — **Phase 1 feature
+Phase: 2
+Current epic: Phase 2 — epic 1 (Group sync & registry) DONE
+P2.1: gateway GatewaySocket grew group APIs (fetchAllGroups via
+groupFetchAllParticipating, groups.upsert/update/group-participants listeners,
+groupInviteCode best-effort, ownJid); SessionManager syncs the full registry on
+every (re)connect and streams live updates as wa:events types group.upsert/
+group.update/group.participants (invite links fetched only where we hold admin;
+avatars deferred). Frappe: WD Group + WD Group Member DocTypes (tenancy-
+registered; unique (workspace,wa_group_id) and (`group`,participant_id) — raw
+DDL for the latter, `group` is an SQL reserved word); pipeline/group_sync.py
+(idempotent upserts, membership history via left_at set/cleared, contacts
+LINKED never auto-created, chat back-linking); WD Chat gains `group` Link;
+list_chats returns group_subject (inbox finally shows group NAMES) + search by
+subject; api/groups.py list_groups (search, member_count, msgs_today, unread,
+last activity); wd:group realtime event. Frontend: /groups page (search,
+sortable-by-activity table, bulk-select scaffold for P2.3, admin crown,
+empty state), Groups nav. VERIFIED LIVE through the REAL pipeline: synthetic
+group.upsert injected into wa:events → RQ consumer → registry row with number
+resolved to WNUM-04900 → /groups rendered it with member count + crown; search
++ bulk bar live; probe cleaned up.
+⚠ FOUNDER ACTION: the real paired session's auth state was LOST in yesterday's
+Docker crash (Redis+MinIO wiped; the old gateway held it only in memory until
+the P2.1 rebuild restarted it). Numbers page → reconnect → re-scan QR with the
+spare SIM. Group sync then fires automatically and fills /groups with real
+groups. Also: 4 stale never-paired sessions QR-loop in the gateway registry —
+delete their pending numbers via the UI when convenient.
+Previous: Phase 1 — epic 11 (E2E + consumer polish) DONE — **Phase 1 feature
 list (1–8) is code-complete**; remaining P1 exit items are operational (3 real
 numbers × 7 days, 2-agent concurrent test, 10k backfill, design partner).
 P1.11: consumer skips status@broadcast + @newsletter (their pseudo-ids would
@@ -87,10 +112,12 @@ developer_mode=1 must be in COMMON site config (socketio auth callback). VERIFIE
 LIVE post-fix: wd:presence/wd:message/wd:chat all on the socket, sub-second.
 Earlier epics (P1.1–1.6 + Phase 0): DONE, live-verified on a REAL paired WhatsApp
 number (baileys-pairing-notes.md).
-Suites: 130 Frappe + 42 gateway + 59 frontend + 4 api-client + 12 e2e + ruff,
-all green; CI green (now incl. e2e job).
-Founder items open: Meta Business Verification, staging VM, Sentry DSNs.
-Next code epic: Phase 2 — 1. Group sync & registry (await founder go).
+Suites: 138 Frappe + 44 gateway + 63 frontend + 4 api-client + 12 e2e + ruff,
+all green; CI green (incl. e2e job).
+Founder items open: re-pair the real number (QR), Meta Business Verification,
+staging VM, Sentry DSNs.
+Next code epic: Phase 2 — 2. Group inbox (sender identity, unanswered-query
+detection / Needs Reply queue).
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

@@ -44,6 +44,8 @@ function chat(overrides: Partial<WdChat>): WdChat {
     wa_chat_id: '9199@s.whatsapp.net',
     contact_name: 'Asha Traders',
     contact_phone: '+919111100001',
+    group: null,
+    group_subject: null,
     labels: [],
     ...overrides,
   };

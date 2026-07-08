@@ -10,6 +10,7 @@
   "wa_chat_id",
   "number",
   "contact",
+  "group",
   "status",
   "snoozed_until",
   "assigned_agent",
@@ -55,6 +56,12 @@
    "fieldtype": "Link",
    "label": "Contact",
    "options": "WD Contact"
+  },
+  {
+   "fieldname": "group",
+   "fieldtype": "Link",
+   "label": "Group",
+   "options": "WD Group"
   },
   {
    "fieldname": "status",
@@ -103,7 +110,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-08 22:00:00.000000",
+ "modified": "2026-07-09 01:00:00.000000",
  "modified_by": "Administrator",
  "module": "WaveDesk Core",
  "name": "WD Chat",

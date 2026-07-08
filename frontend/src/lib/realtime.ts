@@ -68,13 +68,20 @@ export function useWorkspaceEvents(): void {
       void event;
       void queryClient.invalidateQueries({ queryKey: ['chats'] });
     };
+    const onGroup = (): void => {
+      // registry changed — subjects surface in the chat list too
+      void queryClient.invalidateQueries({ queryKey: ['groups'] });
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+    };
     sock.on('wd:message', onMessage);
     sock.on('wd:message_status', onStatus);
     sock.on('wd:chat', onChat);
+    sock.on('wd:group', onGroup);
     return () => {
       sock.off('wd:message', onMessage);
       sock.off('wd:message_status', onStatus);
       sock.off('wd:chat', onChat);
+      sock.off('wd:group', onGroup);
     };
   }, [queryClient]);
 }

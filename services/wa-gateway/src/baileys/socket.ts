@@ -15,10 +15,45 @@ export interface InboundMessage {
   messageTimestamp?: number | bigint | null;
 }
 
+export interface GroupParticipant {
+  id: string;
+  admin?: 'admin' | 'superadmin' | null;
+}
+
+export interface GroupMetadataLite {
+  id: string;
+  subject: string;
+  desc?: string | null;
+  owner?: string | null;
+  participants: GroupParticipant[];
+}
+
+/** Baileys `groups.update` delivers partial metadata patches. */
+export interface GroupUpdateEntry {
+  id?: string;
+  subject?: string;
+  desc?: string | null;
+}
+
+export interface GroupParticipantsUpdate {
+  id: string;
+  participants: string[];
+  action: 'add' | 'remove' | 'promote' | 'demote';
+}
+
 export interface GatewaySocket {
   onConnectionUpdate(cb: (update: ConnectionUpdate) => void): void;
   onCredsUpdate(cb: () => void): void;
   onMessagesUpsert(cb: (upsert: { messages: InboundMessage[]; type: string }) => void): void;
+  onGroupsUpsert(cb: (groups: GroupMetadataLite[]) => void): void;
+  onGroupsUpdate(cb: (updates: GroupUpdateEntry[]) => void): void;
+  onGroupParticipantsUpdate(cb: (update: GroupParticipantsUpdate) => void): void;
+  /** One-call snapshot of every group this number participates in. */
+  fetchAllGroups(): Promise<GroupMetadataLite[]>;
+  /** Invite code — null when the server refuses (we are not an admin). */
+  groupInviteCode(jid: string): Promise<string | null>;
+  /** Our own jid once paired (device suffix included), else null. */
+  ownJid(): string | null;
   sendMessage(
     jid: string,
     content: { text: string },

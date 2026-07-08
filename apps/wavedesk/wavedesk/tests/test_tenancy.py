@@ -109,6 +109,13 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
     insert("WD Label", title=f"label-{suffix}")
     insert("WD Canned Response", shortcode=f"canned-{suffix}", content="Namaste!")
     insert("WD Invite", email=f"invite-{suffix}@wavedesk.test")
+    group = insert("WD Group", wa_group_id=f"grp{digits}@g.us", subject=f"Group {suffix}")
+    insert(
+        "WD Group Member",
+        group=group,
+        participant_id=f"9179{digits}@s.whatsapp.net",
+        role="member",
+    )
     return docs
 
 
