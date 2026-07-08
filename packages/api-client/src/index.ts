@@ -152,6 +152,34 @@ export interface WdMember {
   full_name: string | null;
 }
 
+export interface WdOnboardingStatus {
+  has_workspace: boolean;
+  workspace?: string;
+  workspace_name?: string | null;
+  role?: 'Owner' | 'Admin' | 'Agent' | null;
+  connected_numbers?: number;
+  total_numbers?: number;
+  members?: number;
+  pending_invites?: number;
+}
+
+export interface WdInvite {
+  name: string;
+  email: string;
+  role: 'Admin' | 'Agent';
+  status: 'pending' | 'accepted' | 'revoked' | 'expired';
+  expires_at: string | null;
+  /** Copyable accept link (managers only — the link is the credential). */
+  invite_url: string;
+}
+
+export interface WdInviteAcceptResult {
+  workspace: string;
+  workspace_name: string | null;
+  user: string;
+  new_user: boolean;
+}
+
 export interface WdTeam {
   name: string;
   team_name: string;
@@ -352,6 +380,36 @@ export class WaveDeskClient {
 
   deleteTeam(team: string): Promise<{ deleted: string }> {
     return this.call('wavedesk.api.teams.delete_team', { team });
+  }
+
+  // --- onboarding + invites (Phase 1 feature 8) ---
+  createWorkspace(workspaceName: string): Promise<{ workspace: string; workspace_name: string }> {
+    return this.call('wavedesk.api.onboarding.create_workspace', {
+      workspace_name: workspaceName,
+    });
+  }
+
+  onboardingStatus(): Promise<WdOnboardingStatus> {
+    return this.call('wavedesk.api.onboarding.onboarding_status');
+  }
+
+  inviteMember(email: string, role: WdInvite['role'] = 'Agent'): Promise<WdInvite> {
+    return this.call('wavedesk.api.invites.invite_member', { email, role });
+  }
+
+  listInvites(): Promise<WdInvite[]> {
+    return this.call('wavedesk.api.invites.list_invites');
+  }
+
+  revokeInvite(invite: string): Promise<{ invite: string; status: string }> {
+    return this.call('wavedesk.api.invites.revoke_invite', { invite });
+  }
+
+  acceptInvite(
+    token: string,
+    details: { full_name?: string; password?: string } = {},
+  ): Promise<WdInviteAcceptResult> {
+    return this.call('wavedesk.api.invites.accept_invite', { token, ...details });
   }
 
   // --- labels (Phase 1 feature 5) ---

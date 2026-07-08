@@ -2,14 +2,18 @@ import { Navigate, Route, Routes } from 'react-router';
 import AppShell from '@/components/AppShell';
 import ContactsPage from '@/pages/ContactsPage';
 import InboxPage from '@/pages/InboxPage';
+import InvitePage from '@/pages/InvitePage';
 import LoginPage from '@/pages/LoginPage';
 import NumbersPage from '@/pages/NumbersPage';
+import OnboardingPage from '@/pages/OnboardingPage';
 import SettingsPage from '@/pages/SettingsPage';
 
 export default function App(): React.JSX.Element {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/onboarding" element={<OnboardingPage />} />
+      <Route path="/invite/:token" element={<InvitePage />} />
       <Route element={<AppShell />}>
         <Route path="/inbox" element={<InboxPage />} />
         <Route path="/contacts" element={<ContactsPage />} />

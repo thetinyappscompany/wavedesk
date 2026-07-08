@@ -18,6 +18,10 @@ vi.mock('@/lib/client', () => ({
     createCanned: vi.fn(),
     updateCanned: vi.fn(),
     deleteCanned: vi.fn(),
+    listMembers: vi.fn(),
+    listInvites: vi.fn(),
+    inviteMember: vi.fn(),
+    revokeInvite: vi.fn(),
   },
 }));
 
@@ -50,6 +54,10 @@ describe('SettingsPage', () => {
     vi.mocked(client.listCanned).mockResolvedValue([
       { name: 'CANNED-1', shortcode: 'greet', content: 'Namaste {{contact.name}}!' },
     ]);
+    vi.mocked(client.listMembers).mockResolvedValue([
+      { user: 'owner@x.test', role: 'Owner', full_name: 'Owner O' },
+    ]);
+    vi.mocked(client.listInvites).mockResolvedValue([]);
   });
 
   it('renders labels, canned responses, and the masking toggle', async () => {
@@ -119,6 +127,42 @@ describe('SettingsPage', () => {
     renderPage();
     await user.click(await screen.findByLabelText('Delete label vip'));
     expect(client.deleteLabel).toHaveBeenCalledWith('LBL-1');
+  });
+
+  it('team card lists members, invites, and revokes', async () => {
+    vi.mocked(client.listInvites).mockResolvedValue([
+      {
+        name: 'INV-1',
+        email: 'riya@x.test',
+        role: 'Agent',
+        status: 'pending',
+        expires_at: null,
+        invite_url: 'http://x/invite/tok',
+      },
+    ]);
+    vi.mocked(client.inviteMember).mockResolvedValue({
+      name: 'INV-2',
+      email: 'dev@x.test',
+      role: 'Admin',
+      status: 'pending',
+      expires_at: null,
+      invite_url: 'http://x/invite/tok2',
+    });
+    vi.mocked(client.revokeInvite).mockResolvedValue({ invite: 'INV-1', status: 'revoked' });
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByTestId('member-row')).toHaveTextContent('Owner O');
+    expect(await screen.findByTestId('invite-row')).toHaveTextContent('riya@x.test');
+
+    await user.type(screen.getByLabelText('Invite email'), 'dev@x.test');
+    await user.selectOptions(screen.getByLabelText('Invite role'), 'Admin');
+    await user.click(screen.getByRole('button', { name: 'Invite' }));
+    await waitFor(() => {
+      expect(client.inviteMember).toHaveBeenCalledWith('dev@x.test', 'Admin');
+    });
+
+    await user.click(screen.getByLabelText('Revoke invite for riya@x.test'));
+    expect(client.revokeInvite).toHaveBeenCalledWith('INV-1');
   });
 
   it('agents get a read-only page', async () => {

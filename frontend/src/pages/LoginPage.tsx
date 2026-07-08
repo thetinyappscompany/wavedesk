@@ -37,7 +37,9 @@ export default function LoginPage(): React.JSX.Element {
     setAuthError(null);
     try {
       await client.login(values.email, values.password);
-      await navigate('/inbox');
+      // first login without a workspace → onboarding wizard
+      const status = await client.onboardingStatus().catch(() => null);
+      await navigate(status && !status.has_workspace ? '/onboarding' : '/inbox');
     } catch {
       setAuthError('Login failed — check your email and password.');
     }

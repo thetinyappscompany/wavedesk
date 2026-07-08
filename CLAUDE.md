@@ -11,7 +11,27 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 1
-Current epic: Phase 1 — epic 9 (Labels & canned responses + number masking) DONE
+Current epic: Phase 1 — epic 10 (Onboarding flow) DONE
+P1.10: api/onboarding.py (create_workspace — caller becomes Owner, trial+wallet
+auto-provision via existing after_insert hook, WD Owner Frappe role granted,
+active ws set; onboarding_status drives the wizard + post-login routing) and
+api/invites.py (WD Invite DocType: email+role Admin/Agent, 48-char token, 7-day
+expiry, pending/accepted/revoked/expired; invite_member Owner/Admin + queued
+email — sendmail failure-tolerant for benches without SMTP, list_invites with
+copyable links manager-only, revoke; accept_invite is allow_guest — token is the
+credential — creates the user w/ password ≥8 + WD role + membership, single-use,
+logs invitee in via login_manager.login_as). Frontend: /onboarding 3-step wizard
+(name workspace → connect number CTA w/ skip → InvitePanel + go-to-inbox),
+/invite/:token public accept page (existing users leave password blank), login
+routes to /onboarding when the user has no workspace, Settings gains Team card
+(members + pending invites w/ copy link + revoke + invite form) — shared
+components/InvitePanel.tsx. VERIFIED LIVE end-to-end: invite created in
+Settings → link opened → NEW user riya.live@wavedesk.test created + auto-logged
+in → landed in /inbox seeing workspace chats; as that Agent, masking toggled on
+→ saw 91••••••0372 in chat list (P1.9 masking proven for a real agent).
+Next: P1 epic 11 Playwright E2E + consumer polish (skip status@broadcast,
+auto-reopen on inbound).
+Previous: Phase 1 — epic 9 (Labels & canned responses + number masking) DONE
 P1.9: WD Label (lowercase-slug titles, hex color, unique per workspace) + WD Chat Label
 child (Table MultiSelect on WD Chat) + WD Canned Response (shortcode + content).
 api/labels.py (CRUD Owner/Admin, set_chat_labels replaces whole list per Chatwoot,
@@ -49,9 +69,9 @@ developer_mode=1 must be in COMMON site config (socketio auth callback). VERIFIE
 LIVE post-fix: wd:presence/wd:message/wd:chat all on the socket, sub-second.
 Earlier epics (P1.1–1.6 + Phase 0): DONE, live-verified on a REAL paired WhatsApp
 number (baileys-pairing-notes.md).
-Suites: 118 Frappe + 42 gateway + 51 frontend + 4 api-client + ruff, all green; CI green.
+Suites: 127 Frappe + 42 gateway + 59 frontend + 4 api-client + ruff, all green; CI green.
 Founder items open: Meta Business Verification, staging VM, Sentry DSNs.
-Next code epic: Phase 1 — 10. Onboarding flow (workspace → number → invites).
+Next code epic: Phase 1 — 11. Playwright E2E + consumer polish.
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

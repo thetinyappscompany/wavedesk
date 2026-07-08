@@ -6,7 +6,7 @@ import LoginPage from './LoginPage';
 import { client } from '@/lib/client';
 
 vi.mock('@/lib/client', () => ({
-  client: { login: vi.fn() },
+  client: { login: vi.fn(), onboardingStatus: vi.fn() },
 }));
 
 function renderPage() {
@@ -20,6 +20,7 @@ function renderPage() {
 describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(client.onboardingStatus).mockResolvedValue({ has_workspace: true });
   });
 
   it('renders the login form', () => {

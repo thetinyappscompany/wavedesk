@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Trash2 } from 'lucide-react';
 import type { WdCannedResponse, WdLabel } from '@wavedesk/api-client';
 import { client } from '@/lib/client';
+import InvitePanel from '@/components/InvitePanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -338,6 +339,11 @@ export default function SettingsPage(): React.JSX.Element {
             {errorText(toggleMask.error)}
           </p>
         )}
+      </section>
+
+      <section aria-label="Team" className="rounded-lg border p-4">
+        <h2 className="mb-3 font-semibold">Team</h2>
+        <InvitePanel canManage={canManage} />
       </section>
 
       <LabelsCard canManage={canManage} />

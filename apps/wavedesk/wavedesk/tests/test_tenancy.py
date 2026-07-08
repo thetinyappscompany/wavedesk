@@ -108,6 +108,7 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
     insert("WD Contact Import", file_name=f"import-{suffix}.csv")
     insert("WD Label", title=f"label-{suffix}")
     insert("WD Canned Response", shortcode=f"canned-{suffix}", content="Namaste!")
+    insert("WD Invite", email=f"invite-{suffix}@wavedesk.test")
     return docs
 
 
