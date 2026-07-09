@@ -22,7 +22,10 @@ def _get_chat_checked(chat: str, ptype: str = "write"):
 
 @frappe.whitelist()
 def list_members() -> list[dict]:
-    """Workspace members with display names — powers the assignee picker."""
+    """Workspace members with display names + live availability (P3.2) — powers
+    the assignee picker (an online dot next to each agent)."""
+    from wavedesk import routing
+
     workspace = get_active_workspace()
     member = frappe.qb.DocType("WD Workspace Member")
     user = frappe.qb.DocType("User")
@@ -33,6 +36,9 @@ def list_members() -> list[dict]:
         .select(member.user, member.role, user.full_name)
         .where((member.parent == workspace) & (member.parenttype == "WD Workspace"))
     ).run(as_dict=True)
+    for row in rows:
+        row["online"] = routing.is_online(workspace, row["user"])
+        row["available"] = routing.is_available(workspace, row["user"])
     return rows
 
 

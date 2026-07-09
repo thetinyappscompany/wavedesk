@@ -8,6 +8,7 @@
   "workspace",
   "team_name",
   "routing",
+  "capacity_per_agent",
   "members"
  ],
  "fields": [
@@ -34,7 +35,14 @@
    "label": "Routing",
    "options": "manual\nround_robin\nload_based",
    "default": "manual",
-   "description": "Routing logic lands in Phase 3; manual only until then."
+   "description": "manual = assign by hand; round_robin = rotate through available agents; load_based = fewest open chats first."
+  },
+  {
+   "fieldname": "capacity_per_agent",
+   "fieldtype": "Int",
+   "label": "Capacity Per Agent",
+   "default": "0",
+   "description": "Max open chats an agent takes via auto-routing (0 = unlimited). Agents at capacity are skipped."
   },
   {
    "fieldname": "members",

@@ -203,6 +203,11 @@ def apply_event(event: dict) -> None:
             (chat,),
         )
         _auto_reopen(workspace, chat)
+        # Out-of-office auto-reply (P3.2): a DM arriving outside business hours
+        # gets one automated reply per window. Self-guards on settings/type.
+        from wavedesk import routing
+
+        routing.maybe_ooo_reply(workspace, chat, chat_type)
         if chat_type == "group":
             # Needs Reply queue (P2.2): question-looking messages start the clock
             inbox.flag_pending_query(workspace, chat, body)
@@ -414,4 +419,11 @@ def _upsert_chat(
     automation.run_trigger(
         workspace, "chat_created", chat.name, {"trigger": "chat_created"}
     )
+
+    # Auto-assignment & routing (P3.2): drop a brand-new DM on the workspace's
+    # default routing team, which then auto-routes to an available agent.
+    if chat_type == "dm":
+        from wavedesk import routing
+
+        routing.route_new_chat(workspace, chat.name)
     return chat.name

@@ -26,6 +26,10 @@ vi.mock('@/lib/client', () => ({
     createMonitoringRule: vi.fn(),
     updateMonitoringRule: vi.fn(),
     deleteMonitoringRule: vi.fn(),
+    listTeams: vi.fn(),
+    createTeam: vi.fn(),
+    updateTeam: vi.fn(),
+    deleteTeam: vi.fn(),
   },
 }));
 
@@ -36,6 +40,10 @@ function settings(overrides: Partial<WdWorkspaceSettings> = {}): WdWorkspaceSett
     role: 'Owner',
     mask_numbers: false,
     needs_reply_minutes: 10,
+    default_routing_team: null,
+    business_hours: { enabled: false, timezone: 'Asia/Kolkata', days: {}, holidays: [] },
+    ooo_reply_enabled: false,
+    ooo_reply_message: '',
     ...overrides,
   };
 }
@@ -64,6 +72,7 @@ describe('SettingsPage', () => {
     ]);
     vi.mocked(client.listInvites).mockResolvedValue([]);
     vi.mocked(client.listMonitoringRules).mockResolvedValue([]);
+    vi.mocked(client.listTeams).mockResolvedValue([]);
   });
 
   it('renders labels, canned responses, and the masking toggle', async () => {

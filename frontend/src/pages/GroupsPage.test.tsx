@@ -61,6 +61,10 @@ describe('GroupsPage', () => {
       role: 'Owner',
       mask_numbers: false,
       needs_reply_minutes: 10,
+      default_routing_team: null,
+      business_hours: { enabled: false, timezone: 'Asia/Kolkata', days: {}, holidays: [] },
+      ooo_reply_enabled: false,
+      ooo_reply_message: '',
     });
     vi.mocked(client.workspaceAnalytics).mockResolvedValue({
       days: 14,
@@ -154,6 +158,10 @@ describe('GroupsPage', () => {
       role: 'Agent',
       mask_numbers: false,
       needs_reply_minutes: 10,
+      default_routing_team: null,
+      business_hours: { enabled: false, timezone: 'Asia/Kolkata', days: {}, holidays: [] },
+      ooo_reply_enabled: false,
+      ooo_reply_message: '',
     });
     vi.mocked(client.listGroups).mockResolvedValue({
       groups: [group({ name: 'GRP-1' })],

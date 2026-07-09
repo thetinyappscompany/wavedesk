@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { client } from '@/lib/client';
 import { cn } from '@/lib/utils';
+import AvailabilityToggle from '@/components/AvailabilityToggle';
 
 const NAV = [
   { to: '/inbox', label: 'Inbox', icon: Inbox },
@@ -68,6 +69,9 @@ export default function AppShell(): React.JSX.Element {
             )}
           </NavLink>
         ))}
+        <div className="mt-auto border-t pt-2">
+          <AvailabilityToggle />
+        </div>
       </nav>
       <div className="min-w-0 flex-1 overflow-auto">
         <Outlet />

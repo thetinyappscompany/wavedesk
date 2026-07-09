@@ -5,6 +5,8 @@ import type { WdCannedResponse, WdLabel } from '@wavedesk/api-client';
 import { client } from '@/lib/client';
 import InvitePanel from '@/components/InvitePanel';
 import MonitoringCard from '@/components/MonitoringCard';
+import RoutingCard from '@/components/RoutingCard';
+import BusinessHoursCard from '@/components/BusinessHoursCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -394,6 +396,9 @@ export default function SettingsPage(): React.JSX.Element {
         <h2 className="mb-3 font-semibold">Team</h2>
         <InvitePanel canManage={canManage} />
       </section>
+
+      <RoutingCard canManage={canManage} settings={settings.data} />
+      {settings.data && <BusinessHoursCard canManage={canManage} settings={settings.data} />}
 
       <MonitoringCard canManage={canManage} />
       <LabelsCard canManage={canManage} />

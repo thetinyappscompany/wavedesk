@@ -146,6 +146,19 @@ export interface WdCannedResponse {
   content: string;
 }
 
+/** One day's business-hours window; a day with no entry is closed (P3.2). */
+export interface WdBusinessHoursDay {
+  open: string; // "HH:MM"
+  close: string; // "HH:MM"
+}
+
+export interface WdBusinessHours {
+  enabled: boolean;
+  timezone: string;
+  days: Partial<Record<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun', WdBusinessHoursDay>>;
+  holidays: string[]; // ISO dates "YYYY-MM-DD"
+}
+
 export interface WdWorkspaceSettings {
   workspace: string;
   workspace_name: string | null;
@@ -154,6 +167,11 @@ export interface WdWorkspaceSettings {
   mask_numbers: boolean;
   /** minutes an unanswered group question waits before entering Needs Reply */
   needs_reply_minutes: number;
+  /** team new chats auto-route to (P3.2), or null */
+  default_routing_team: string | null;
+  business_hours: WdBusinessHours;
+  ooo_reply_enabled: boolean;
+  ooo_reply_message: string;
 }
 
 export interface WdContact {
@@ -201,6 +219,16 @@ export interface WdMember {
   user: string;
   role: 'Owner' | 'Admin' | 'Agent';
   full_name: string | null;
+  /** live availability (P3.2) — powers the online dot in the assignee picker */
+  online?: boolean;
+  available?: boolean;
+}
+
+/** A member's live routing state (P3.2) — availability + current open-chat load. */
+export interface WdAgentStatus extends WdMember {
+  online: boolean;
+  available: boolean;
+  load: number;
 }
 
 export interface WdOnboardingStatus {
@@ -231,9 +259,15 @@ export interface WdInviteAcceptResult {
   new_user: boolean;
 }
 
+export type WdRouting = 'manual' | 'round_robin' | 'load_based';
+
 export interface WdTeam {
   name: string;
   team_name: string;
+  /** routing mode (P3.2); defaults to 'manual' */
+  routing: WdRouting;
+  /** max open chats per agent via auto-routing; 0 = unlimited (P3.2) */
+  capacity_per_agent: number;
   members: string[];
 }
 
@@ -560,23 +594,65 @@ export class WaveDeskClient {
     return this.call('wavedesk.api.teams.list_teams');
   }
 
-  createTeam(teamName: string, members?: string[]): Promise<WdTeam> {
+  createTeam(
+    teamName: string,
+    options: { members?: string[]; routing?: WdRouting; capacityPerAgent?: number } = {},
+  ): Promise<WdTeam> {
     return this.call('wavedesk.api.teams.create_team', {
       team_name: teamName,
-      ...(members ? { members } : {}),
+      ...(options.members ? { members: options.members } : {}),
+      ...(options.routing !== undefined ? { routing: options.routing } : {}),
+      ...(options.capacityPerAgent !== undefined
+        ? { capacity_per_agent: options.capacityPerAgent }
+        : {}),
     });
   }
 
-  updateTeam(team: string, changes: { teamName?: string; members?: string[] }): Promise<WdTeam> {
+  updateTeam(
+    team: string,
+    changes: {
+      teamName?: string;
+      members?: string[];
+      routing?: WdRouting;
+      capacityPerAgent?: number;
+    },
+  ): Promise<WdTeam> {
     return this.call('wavedesk.api.teams.update_team', {
       team,
       ...(changes.teamName !== undefined ? { team_name: changes.teamName } : {}),
       ...(changes.members !== undefined ? { members: changes.members } : {}),
+      ...(changes.routing !== undefined ? { routing: changes.routing } : {}),
+      ...(changes.capacityPerAgent !== undefined
+        ? { capacity_per_agent: changes.capacityPerAgent }
+        : {}),
     });
   }
 
   deleteTeam(team: string): Promise<{ deleted: string }> {
     return this.call('wavedesk.api.teams.delete_team', { team });
+  }
+
+  // --- auto-assignment & routing (Phase 3 feature 2) ---
+  /** Keep the caller marked online for auto-routing (call on a timer). */
+  routingHeartbeat(): Promise<{ online: boolean }> {
+    return this.call('wavedesk.api.routing.heartbeat');
+  }
+
+  getAvailability(): Promise<{ available: boolean; online: boolean }> {
+    return this.call('wavedesk.api.routing.get_availability');
+  }
+
+  setAvailability(available: boolean): Promise<{ available: boolean }> {
+    return this.call('wavedesk.api.routing.set_availability', { available });
+  }
+
+  teamStatus(): Promise<WdAgentStatus[]> {
+    return this.call('wavedesk.api.routing.team_status');
+  }
+
+  /** Manual 'route now' — auto-assign an agent to a team-owned chat. */
+  routeChat(chat: string): Promise<{ chat: string; assigned_agent: string | null }> {
+    return this.call('wavedesk.api.routing.route_chat', { chat });
   }
 
   // --- groups (Phase 2 feature 1 — registry; bulk actions land in P2.3) ---
@@ -841,8 +917,17 @@ export class WaveDeskClient {
   updateWorkspaceSettings(changes: {
     mask_numbers?: boolean;
     needs_reply_minutes?: number;
+    default_routing_team?: string | null;
+    business_hours?: WdBusinessHours;
+    ooo_reply_enabled?: boolean;
+    ooo_reply_message?: string;
   }): Promise<WdWorkspaceSettings> {
-    return this.call('wavedesk.api.workspace.update_workspace_settings', { ...changes });
+    return this.call('wavedesk.api.workspace.update_workspace_settings', {
+      ...changes,
+      ...(changes.business_hours !== undefined
+        ? { business_hours: JSON.stringify(changes.business_hours) }
+        : {}),
+    });
   }
 
   // --- sending (Phase 1 feature 7 — queued pipeline) ---
