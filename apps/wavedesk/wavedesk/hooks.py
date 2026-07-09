@@ -26,6 +26,7 @@ scheduler_events = {
             "wavedesk.pipeline.consumer.process_wa_events",
             "wavedesk.inbox.unsnooze_due_chats",
             "wavedesk.sla.check_breaches",
+            "wavedesk.schedules.run_due_schedules",
         ],
     },
     "daily": [

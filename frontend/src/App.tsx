@@ -3,6 +3,7 @@ import AppShell from '@/components/AppShell';
 import AlertsPage from '@/pages/AlertsPage';
 import AutomationPage from '@/pages/AutomationPage';
 import BroadcastsPage from '@/pages/BroadcastsPage';
+import SchedulesPage from '@/pages/SchedulesPage';
 import ContactsPage from '@/pages/ContactsPage';
 import DashboardPage from '@/pages/DashboardPage';
 import GroupsPage from '@/pages/GroupsPage';
@@ -29,6 +30,7 @@ export default function App(): React.JSX.Element {
         <Route path="/tickets" element={<TicketsPage />} />
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/broadcasts" element={<BroadcastsPage />} />
+        <Route path="/schedules" element={<SchedulesPage />} />
         <Route path="/numbers" element={<NumbersPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
