@@ -158,6 +158,12 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         match_type="all",
         filters='[{"type": "opted_out", "value": false}]',
     )
+    insert(
+        "WD Message Template",
+        template_name=f"tpl_{digits}",
+        category="utility",
+        body_text="Hello {{1}}",
+    )
     return docs
 
 

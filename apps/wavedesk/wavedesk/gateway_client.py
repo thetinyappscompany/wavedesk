@@ -69,6 +69,13 @@ def send_cloud_message(phone_number_id: str, to: str, text: str) -> dict:
     return _request("POST", f"/cloud/{phone_number_id}/messages", {"to": to, "text": text})
 
 
+def submit_template(number: str, template: dict) -> dict:
+    """Submit a message template to Meta via the Cloud API adapter (P3.8).
+    Only reachable when a Cloud API number is connected."""
+    phone_number_id = frappe.db.get_value("WD WhatsApp Number", number, "phone_number_id")
+    return _request("POST", f"/cloud/{phone_number_id}/templates", template)
+
+
 # --- group actions (P2.3) ---
 
 def group_participants_update(

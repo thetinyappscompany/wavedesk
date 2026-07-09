@@ -304,6 +304,24 @@ export interface WdSlaEvent {
   creation: string;
 }
 
+export type WdTemplateCategory = 'marketing' | 'utility' | 'authentication';
+export type WdTemplateStatus = 'draft' | 'pending' | 'approved' | 'rejected';
+
+export interface WdMessageTemplate {
+  name: string;
+  template_name: string;
+  category: WdTemplateCategory;
+  language: string;
+  header_text: string | null;
+  body_text: string;
+  footer_text: string | null;
+  buttons: unknown[];
+  variable_count: number;
+  status: WdTemplateStatus;
+  meta_template_id: string | null;
+  rejection_reason: string | null;
+}
+
 export type WdSegmentConditionType =
   | 'has_tag'
   | 'attribute'
@@ -1053,6 +1071,66 @@ export class WaveDeskClient {
     return this.call('wavedesk.api.segments.preview_segment', {
       segment,
       ...(limit ? { limit } : {}),
+    });
+  }
+
+  // --- message templates (Phase 3 feature 8) ---
+  listTemplates(): Promise<WdMessageTemplate[]> {
+    return this.call('wavedesk.api.templates.list_templates');
+  }
+
+  createTemplate(input: {
+    templateName: string;
+    bodyText: string;
+    category?: WdTemplateCategory;
+    language?: string;
+    headerText?: string;
+    footerText?: string;
+  }): Promise<WdMessageTemplate> {
+    return this.call('wavedesk.api.templates.create_template', {
+      template_name: input.templateName,
+      body_text: input.bodyText,
+      category: input.category ?? 'utility',
+      language: input.language ?? 'en',
+      ...(input.headerText !== undefined ? { header_text: input.headerText } : {}),
+      ...(input.footerText !== undefined ? { footer_text: input.footerText } : {}),
+    });
+  }
+
+  updateTemplate(
+    template: string,
+    changes: {
+      templateName?: string;
+      bodyText?: string;
+      category?: WdTemplateCategory;
+      language?: string;
+      headerText?: string;
+      footerText?: string;
+    },
+  ): Promise<WdMessageTemplate> {
+    return this.call('wavedesk.api.templates.update_template', {
+      template,
+      ...(changes.templateName !== undefined ? { template_name: changes.templateName } : {}),
+      ...(changes.bodyText !== undefined ? { body_text: changes.bodyText } : {}),
+      ...(changes.category !== undefined ? { category: changes.category } : {}),
+      ...(changes.language !== undefined ? { language: changes.language } : {}),
+      ...(changes.headerText !== undefined ? { header_text: changes.headerText } : {}),
+      ...(changes.footerText !== undefined ? { footer_text: changes.footerText } : {}),
+    });
+  }
+
+  submitTemplate(template: string): Promise<{ status: string; live: boolean; note?: string }> {
+    return this.call('wavedesk.api.templates.submit_template', { template });
+  }
+
+  deleteTemplate(template: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.templates.delete_template', { template });
+  }
+
+  previewTemplate(template: string, values?: string[]): Promise<{ rendered: string }> {
+    return this.call('wavedesk.api.templates.preview_template', {
+      template,
+      ...(values ? { values } : {}),
     });
   }
 
