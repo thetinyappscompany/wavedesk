@@ -216,6 +216,15 @@ def apply_event(event: dict) -> None:
                 message.name,
                 body,
             )
+        # Automation rules (P3.1): message_received trigger (+ chat_created below)
+        from wavedesk import automation
+
+        automation.run_trigger(
+            workspace,
+            "message_received",
+            chat,
+            {"body": body, "message": message.name, "trigger": "message_received"},
+        )
     else:
         # a reply from the phone itself also answers the pending question
         inbox.clear_pending_query(workspace, chat)
@@ -398,4 +407,11 @@ def _upsert_chat(
         }
     )
     chat.insert(ignore_permissions=True)
+
+    # Automation rules (P3.1): chat_created trigger fires on a brand-new chat.
+    from wavedesk import automation
+
+    automation.run_trigger(
+        workspace, "chat_created", chat.name, {"trigger": "chat_created"}
+    )
     return chat.name

@@ -124,6 +124,13 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
     )
     insert("WD Alert", kind="keyword", summary=f"alert {suffix}")
     insert("WD Ticket", title=f"ticket-{suffix}", status="open", priority="medium")
+    insert(
+        "WD Automation Rule",
+        rule_name=f"auto-{suffix}",
+        trigger_event="message_received",
+        actions='[{"type": "add_label", "label": "x"}]',
+    )
+    insert("WD Automation Log", rule_name=f"auto-{suffix}", trigger_event="message_received")
     return docs
 
 

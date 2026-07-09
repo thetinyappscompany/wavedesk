@@ -109,6 +109,14 @@ def set_status(chat_doc, status: str, snoozed_until: str | None = None) -> None:
     chat_doc.save(ignore_permissions=True)
     emit_chat_updated(chat_doc.workspace, chat_doc.name)
 
+    # Automation rules (P3.1): status_change trigger. The engine's re-entrancy
+    # guard stops an automation-driven set_status from looping back here.
+    from wavedesk import automation
+
+    automation.run_trigger(
+        chat_doc.workspace, "status_change", chat_doc.name, {"status": status, "trigger": "status_change"}
+    )
+
 
 def unsnooze_due_chats() -> int:
     """Scheduler (every minute): snoozed chats past their wake time reopen."""

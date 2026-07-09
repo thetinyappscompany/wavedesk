@@ -10,11 +10,32 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 2
-Current epic: Phase 2 — epic 7 (Ticket object v1) DONE — **Phase 2 feature
-list (1–7) CODE-COMPLETE**; remaining is the Phase 2 exit checklist (200-group
-sync <60s [met via P2.x drain fix], bulk 50 groups, unanswered ≥80%, analytics
-reconcile) + Phase 3.
+Phase: 3
+Current epic: Phase 3 — epic 1 (Automation rules engine) DONE
+P3.1: WD Automation Rule (trigger message_received/chat_created/status_change,
+conditions JSON, actions JSON, enabled, run_count) + WD Automation Log
+(rule/chat/outcome/detail); both tenancy-registered + fixtures. wavedesk/
+automation.py run_trigger: finds enabled rules for the trigger, evaluates
+conditions (AND) — is_group/is_dm/has_label/number/first_time_contact/keyword —
+then runs actions (assign_agent/team, add_label, create_ticket, set_status,
+snooze, send_webhook, notify_slack, auto_reply) best-effort (a failing action
+is logged, others still run), each firing logged + run_count bumped.
+RE-ENTRANCY GUARD (frappe.local flag) stops an action's own side effects
+(set_status, auto_reply) from recursing. Wired: message_received + chat_created
+in consumer, status_change in inbox.set_status. auto_reply routes through the
+queued sender (needs a linked number, else skipped); webhook/slack via
+monitoring._enqueue_post (short queue). api/automation.py CRUD (Owner/Admin) +
+list_logs. Frontend: /automation page (Automation nav, Zap) — rule list w/
+enable toggle + run counts + summary, RuleBuilder (trigger → dynamic conditions
+list → dynamic actions list with per-type param field), execution log.
+VERIFIED LIVE via real pipeline: 'refund router' rule (keyword refund →
+add_label + set pending) fired on a real inbound message → chat went pending +
+labelled, logged fired, run_count 1; UI rendered rule + log; probe cleaned up.
+Deferred to later P3 epics: chat_idle/schedule/SLA_breach triggers,
+business_hours condition, template-variable auto-reply, add_to_segment action.
+Previous: Phase 2 — epic 7 (Ticket object v1) DONE — Phase 2 feature list
+(1–7) CODE-COMPLETE; exit checklist (2-agent concurrent, 10k backfill, design
+partner) is operational/founder-gated.
 P2.7: WD Ticket DocType (title, status open/in_progress/resolved/closed,
 priority low/medium/high/urgent, chat, source_message, assigned_agent, team,
 resolution_note; tenancy-registered + fixture; validate() checks status/
@@ -230,14 +251,14 @@ developer_mode=1 must be in COMMON site config (socketio auth callback). VERIFIE
 LIVE post-fix: wd:presence/wd:message/wd:chat all on the socket, sub-second.
 Earlier epics (P1.1–1.6 + Phase 0): DONE, live-verified on a REAL paired WhatsApp
 number (baileys-pairing-notes.md).
-Suites: 184 Frappe + 47 gateway + 92 frontend + 4 api-client + 12 e2e + ruff,
+Suites: 193 Frappe + 47 gateway + 96 frontend + 4 api-client + 12 e2e + ruff,
 all green; CI green (incl. e2e job).
 LIVE: founder's real number paired (session cf9916ef46) — 327 groups / 7812
-members / 21 chats synced. Founder items open: Meta Business Verification,
-staging VM, Sentry DSNs.
-Next code epic: Phase 3 — 1. Automation rules engine (triggers/conditions/
-actions + rule builder UI + execution log). Or run the Phase 2 exit checklist
-first (2-agent concurrent test, 10k backfill, design partner on staging).
+members / 21 chats synced. Founder items open: Meta Business Verification
+(gates P3.8 embedded signup + templates), staging VM, Sentry DSNs.
+Next code epic: Phase 3 — 2. Auto-assignment & routing (round-robin/load-based
+per team, agent capacity, online/offline, business hours + holidays, OOO
+auto-reply) — the WD Team.routing field already exists (manual only until now).
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

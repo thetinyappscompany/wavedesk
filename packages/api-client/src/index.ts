@@ -308,6 +308,48 @@ export interface WdDashboard {
   per_number_volume: { number: string; display_name: string | null; messages: number }[];
 }
 
+export type WdAutomationTrigger = 'message_received' | 'chat_created' | 'status_change';
+
+export interface WdAutomationCondition {
+  type: 'is_group' | 'is_dm' | 'has_label' | 'number' | 'first_time_contact' | 'keyword';
+  value?: string;
+}
+
+export interface WdAutomationAction {
+  type:
+    | 'assign_agent'
+    | 'assign_team'
+    | 'add_label'
+    | 'create_ticket'
+    | 'set_status'
+    | 'snooze'
+    | 'send_webhook'
+    | 'notify_slack'
+    | 'auto_reply';
+  [param: string]: string | number | undefined;
+}
+
+export interface WdAutomationRule {
+  name: string;
+  rule_name: string;
+  enabled: boolean;
+  trigger_event: WdAutomationTrigger;
+  conditions: WdAutomationCondition[];
+  actions: WdAutomationAction[];
+  run_count: number;
+}
+
+export interface WdAutomationLog {
+  name: string;
+  rule: string | null;
+  rule_name: string;
+  trigger_event: string;
+  chat: string | null;
+  outcome: 'fired' | 'skipped' | 'error';
+  detail: string | null;
+  creation: string;
+}
+
 export type WdTicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 export type WdTicketPriority = 'low' | 'medium' | 'high' | 'urgent';
 
@@ -571,6 +613,41 @@ export class WaveDeskClient {
   /** Bulk message N groups — queued + jittered server-side. */
   sendToGroups(groups: string[], body: string): Promise<{ queued_groups: number }> {
     return this.call('wavedesk.api.groups.send_to_groups', { groups, body });
+  }
+
+  // --- automation (Phase 3 feature 1) ---
+  listAutomationRules(): Promise<WdAutomationRule[]> {
+    return this.call('wavedesk.api.automation.list_rules');
+  }
+
+  createAutomationRule(rule: {
+    rule_name: string;
+    trigger_event: WdAutomationTrigger;
+    conditions?: WdAutomationCondition[];
+    actions?: WdAutomationAction[];
+  }): Promise<WdAutomationRule> {
+    return this.call('wavedesk.api.automation.create_rule', { ...rule });
+  }
+
+  updateAutomationRule(
+    rule: string,
+    changes: {
+      rule_name?: string;
+      trigger_event?: WdAutomationTrigger;
+      enabled?: boolean;
+      conditions?: WdAutomationCondition[];
+      actions?: WdAutomationAction[];
+    },
+  ): Promise<WdAutomationRule> {
+    return this.call('wavedesk.api.automation.update_rule', { rule, ...changes });
+  }
+
+  deleteAutomationRule(rule: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.automation.delete_rule', { rule });
+  }
+
+  listAutomationLogs(rule?: string): Promise<WdAutomationLog[]> {
+    return this.call('wavedesk.api.automation.list_logs', { ...(rule ? { rule } : {}) });
   }
 
   // --- tickets (Phase 2 feature 7) ---
