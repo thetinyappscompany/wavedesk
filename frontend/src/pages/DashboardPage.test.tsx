@@ -19,7 +19,7 @@ vi.mock('@/lib/realtime', () => ({
 function dashboard(overrides: Partial<WdDashboard> = {}): WdDashboard {
   return {
     days: 14,
-    live: { open: 5, unassigned: 2, needs_reply: 1 },
+    live: { open: 5, unassigned: 2, needs_reply: 1, sla_breached: 3 },
     conversations_trend: [
       { date: '2026-07-08', count: 4 },
       { date: '2026-07-09', count: 9 },
@@ -55,7 +55,7 @@ describe('DashboardPage', () => {
 
   it('renders live tiles, chart, timing, per-agent and per-number', async () => {
     renderPage();
-    expect(await screen.findAllByTestId('live-tile')).toHaveLength(3);
+    expect(await screen.findAllByTestId('live-tile')).toHaveLength(4);
     expect(screen.getByText('5')).toBeInTheDocument(); // open
     expect(screen.getAllByTestId('conv-bar')).toHaveLength(2);
     expect(screen.getByText('12.5m')).toBeInTheDocument();

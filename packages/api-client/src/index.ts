@@ -259,6 +259,34 @@ export interface WdInviteAcceptResult {
   new_user: boolean;
 }
 
+export type WdSlaTarget = 'agent' | 'team' | 'owner' | 'slack' | 'webhook';
+
+export interface WdSlaEscalationStep {
+  after_mins: number;
+  target: WdSlaTarget;
+  url?: string;
+}
+
+export interface WdSlaPolicy {
+  name: string;
+  policy_name: string;
+  enabled: boolean;
+  first_response_mins: number;
+  resolution_mins: number;
+  escalation_chain: WdSlaEscalationStep[];
+}
+
+export interface WdSlaEvent {
+  name: string;
+  chat: string | null;
+  policy: string | null;
+  metric: 'first_response' | 'resolution' | null;
+  outcome: 'breached' | 'escalated';
+  target: string | null;
+  detail: string | null;
+  creation: string;
+}
+
 export type WdRouting = 'manual' | 'round_robin' | 'load_based';
 
 export interface WdTeam {
@@ -331,7 +359,7 @@ export interface WdWorkspaceAnalytics {
 
 export interface WdDashboard {
   days: number;
-  live: { open: number; unassigned: number; needs_reply: number };
+  live: { open: number; unassigned: number; needs_reply: number; sla_breached: number };
   conversations_trend: WdVolumePoint[];
   conversations_total: number;
   first_response_avg_mins: number | null;
@@ -653,6 +681,64 @@ export class WaveDeskClient {
   /** Manual 'route now' — auto-assign an agent to a team-owned chat. */
   routeChat(chat: string): Promise<{ chat: string; assigned_agent: string | null }> {
     return this.call('wavedesk.api.routing.route_chat', { chat });
+  }
+
+  // --- SLA engine (Phase 3 feature 3) ---
+  listSlaPolicies(): Promise<WdSlaPolicy[]> {
+    return this.call('wavedesk.api.sla.list_policies');
+  }
+
+  createSlaPolicy(policy: {
+    policyName: string;
+    firstResponseMins?: number;
+    resolutionMins?: number;
+    escalationChain?: WdSlaEscalationStep[];
+  }): Promise<WdSlaPolicy> {
+    return this.call('wavedesk.api.sla.create_policy', {
+      policy_name: policy.policyName,
+      first_response_mins: policy.firstResponseMins ?? 0,
+      resolution_mins: policy.resolutionMins ?? 0,
+      escalation_chain: policy.escalationChain ?? [],
+    });
+  }
+
+  updateSlaPolicy(
+    policy: string,
+    changes: {
+      policyName?: string;
+      enabled?: boolean;
+      firstResponseMins?: number;
+      resolutionMins?: number;
+      escalationChain?: WdSlaEscalationStep[];
+    },
+  ): Promise<WdSlaPolicy> {
+    return this.call('wavedesk.api.sla.update_policy', {
+      policy,
+      ...(changes.policyName !== undefined ? { policy_name: changes.policyName } : {}),
+      ...(changes.enabled !== undefined ? { enabled: changes.enabled } : {}),
+      ...(changes.firstResponseMins !== undefined
+        ? { first_response_mins: changes.firstResponseMins }
+        : {}),
+      ...(changes.resolutionMins !== undefined ? { resolution_mins: changes.resolutionMins } : {}),
+      ...(changes.escalationChain !== undefined
+        ? { escalation_chain: changes.escalationChain }
+        : {}),
+    });
+  }
+
+  deleteSlaPolicy(policy: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.sla.delete_policy', { policy });
+  }
+
+  attachSlaPolicy(
+    chat: string,
+    policy: string,
+  ): Promise<{ chat: string; sla_policy: string; first_response_due: string | null; resolution_due: string | null }> {
+    return this.call('wavedesk.api.sla.attach_policy', { chat, policy });
+  }
+
+  listSlaBreaches(limit?: number): Promise<WdSlaEvent[]> {
+    return this.call('wavedesk.api.sla.list_breaches', { ...(limit ? { limit } : {}) });
   }
 
   // --- groups (Phase 2 feature 1 — registry; bulk actions land in P2.3) ---

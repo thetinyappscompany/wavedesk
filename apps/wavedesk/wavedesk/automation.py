@@ -172,6 +172,14 @@ def _run_one(workspace: str, chat: str, action: dict, context: dict) -> str:
             }
         ).insert(ignore_permissions=True)
         return f"ticket {doc.name}"
+    if atype == "set_sla":
+        from wavedesk import sla
+
+        policy = action.get("policy")
+        if not policy:
+            return "no policy"
+        sla.apply_policy(chat_doc, policy)
+        return f"sla {policy}"
     if atype == "auto_reply":
         return _auto_reply(chat_doc, action.get("body") or "")
     if atype in ("send_webhook", "notify_slack"):

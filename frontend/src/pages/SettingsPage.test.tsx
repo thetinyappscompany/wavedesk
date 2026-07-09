@@ -30,6 +30,10 @@ vi.mock('@/lib/client', () => ({
     createTeam: vi.fn(),
     updateTeam: vi.fn(),
     deleteTeam: vi.fn(),
+    listSlaPolicies: vi.fn(),
+    createSlaPolicy: vi.fn(),
+    updateSlaPolicy: vi.fn(),
+    deleteSlaPolicy: vi.fn(),
   },
 }));
 
@@ -73,6 +77,7 @@ describe('SettingsPage', () => {
     vi.mocked(client.listInvites).mockResolvedValue([]);
     vi.mocked(client.listMonitoringRules).mockResolvedValue([]);
     vi.mocked(client.listTeams).mockResolvedValue([]);
+    vi.mocked(client.listSlaPolicies).mockResolvedValue([]);
   });
 
   it('renders labels, canned responses, and the masking toggle', async () => {
