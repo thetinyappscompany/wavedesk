@@ -12,8 +12,11 @@
   "status",
   "session_ref",
   "health_score",
+  "risk_level",
+  "health_checked_at",
   "daily_send_limit",
   "warmup_stage",
+  "warmup_started_on",
   "waba_id",
   "phone_number_id",
   "cloud_token"
@@ -68,16 +71,36 @@
    "default": "100"
   },
   {
+   "fieldname": "risk_level",
+   "fieldtype": "Select",
+   "label": "Ban Risk",
+   "options": "low\nmedium\nhigh",
+   "default": "low"
+  },
+  {
+   "fieldname": "health_checked_at",
+   "fieldtype": "Datetime",
+   "label": "Health Checked At"
+  },
+  {
    "fieldname": "daily_send_limit",
    "fieldtype": "Int",
    "label": "Daily Send Limit",
-   "default": "0"
+   "default": "0",
+   "description": "Full daily send target once warmed (0 = unlimited)."
   },
   {
    "fieldname": "warmup_stage",
    "fieldtype": "Int",
    "label": "Warm-up Stage",
-   "default": "1"
+   "default": "1",
+   "description": "Current warm-up day (computed)."
+  },
+  {
+   "fieldname": "warmup_started_on",
+   "fieldtype": "Date",
+   "label": "Warm-up Started On",
+   "description": "Ramp start; empty = fully warmed / no warm-up cap."
   },
   {
    "fieldname": "waba_id",
@@ -100,7 +123,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-07 18:00:00.000000",
+ "modified": "2026-07-09 22:30:00.000000",
  "modified_by": "Administrator",
  "module": "WaveDesk Core",
  "name": "WD WhatsApp Number",
