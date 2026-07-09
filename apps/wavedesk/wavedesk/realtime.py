@@ -66,6 +66,11 @@ def emit_group_updated(workspace: str, group: str) -> None:
     emit_workspace_event(workspace, "wd:group", {"group": group})
 
 
+def emit_ticket_updated(workspace: str, ticket: str) -> None:
+    """Ticket created/changed — clients refetch the ticket list."""
+    emit_workspace_event(workspace, "wd:ticket", {"ticket": ticket})
+
+
 def emit_alert(workspace: str, alert: str, kind: str, summary: str, chat: str | None) -> None:
     """Monitoring rule fired — clients refetch alerts (summary is tenant data
     the members are entitled to see; still no raw customer numbers added)."""

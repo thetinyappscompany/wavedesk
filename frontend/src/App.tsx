@@ -10,6 +10,7 @@ import LoginPage from '@/pages/LoginPage';
 import NumbersPage from '@/pages/NumbersPage';
 import OnboardingPage from '@/pages/OnboardingPage';
 import SettingsPage from '@/pages/SettingsPage';
+import TicketsPage from '@/pages/TicketsPage';
 
 export default function App(): React.JSX.Element {
   return (
@@ -23,6 +24,7 @@ export default function App(): React.JSX.Element {
         <Route path="/groups" element={<GroupsPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/tickets" element={<TicketsPage />} />
         <Route path="/numbers" element={<NumbersPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

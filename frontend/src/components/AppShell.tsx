@@ -7,6 +7,7 @@ import {
   MessagesSquare,
   Phone,
   Settings,
+  Ticket,
   UsersRound,
 } from 'lucide-react';
 import { client } from '@/lib/client';
@@ -15,6 +16,7 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { to: '/inbox', label: 'Inbox', icon: Inbox },
   { to: '/groups', label: 'Groups', icon: MessagesSquare },
+  { to: '/tickets', label: 'Tickets', icon: Ticket },
   { to: '/alerts', label: 'Alerts', icon: Bell },
   { to: '/dashboard', label: 'Analytics', icon: BarChart3 },
   { to: '/contacts', label: 'Contacts', icon: UsersRound },

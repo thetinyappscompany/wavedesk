@@ -11,7 +11,25 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 2
-Current epic: Phase 2 — epic 6 (Workspace analytics dashboard) DONE
+Current epic: Phase 2 — epic 7 (Ticket object v1) DONE — **Phase 2 feature
+list (1–7) CODE-COMPLETE**; remaining is the Phase 2 exit checklist (200-group
+sync <60s [met via P2.x drain fix], bulk 50 groups, unanswered ≥80%, analytics
+reconcile) + Phase 3.
+P2.7: WD Ticket DocType (title, status open/in_progress/resolved/closed,
+priority low/medium/high/urgent, chat, source_message, assigned_agent, team,
+resolution_note; tenancy-registered + fixture; validate() checks status/
+priority/member/team). api/tickets.py: create_ticket (title auto from source
+message body, ≤140 chars; falls back to contact name), list_tickets (status/
+priority/assignee me|unassigned filters), get_ticket, update_ticket (with
+_unset_agent/_unset_team sentinels), delete_ticket; wd:ticket realtime. Any
+member creates/manages (operational work items). Frontend: /tickets page
+(Tickets nav, status tabs + assignee filter, priority badges, inline status
+picker, click→inbox), TicketButton in conversation header converts the chat
+(auto-titled from last inbound message). VERIFIED LIVE: ticket created via UI
+→ rendered with priority badge → inline status open→in_progress persisted →
+deleted; probe cleaned. Deferred: SLA fields (sla_policy/breached — Phase 3),
+AI/rule-created tickets (Phase 3/4).
+Previous: Phase 2 — epic 6 (Workspace analytics dashboard) DONE
 P2.6: WD Chat gains first_response_at (stamped on first outbound in sender)
 + resolved_at (set by inbox.set_status on →resolved, cleared on reopen incl.
 consumer auto-reopen). analytics.workspace_dashboard: live tiles (open,
@@ -212,13 +230,14 @@ developer_mode=1 must be in COMMON site config (socketio auth callback). VERIFIE
 LIVE post-fix: wd:presence/wd:message/wd:chat all on the socket, sub-second.
 Earlier epics (P1.1–1.6 + Phase 0): DONE, live-verified on a REAL paired WhatsApp
 number (baileys-pairing-notes.md).
-Suites: 176 Frappe + 47 gateway + 87 frontend + 4 api-client + 12 e2e + ruff,
+Suites: 184 Frappe + 47 gateway + 92 frontend + 4 api-client + 12 e2e + ruff,
 all green; CI green (incl. e2e job).
-Founder items open: QR-pair a fresh number (old one deleted), Meta Business
-Verification, staging VM, Sentry DSNs.
-Next code epic: Phase 2 — 7. Ticket object v1 (convert message → ticket,
-ticket list w/ status/priority/assignee, link back to chat) — LAST Phase 2
-epic, then Phase 2 exit checklist.
+LIVE: founder's real number paired (session cf9916ef46) — 327 groups / 7812
+members / 21 chats synced. Founder items open: Meta Business Verification,
+staging VM, Sentry DSNs.
+Next code epic: Phase 3 — 1. Automation rules engine (triggers/conditions/
+actions + rule builder UI + execution log). Or run the Phase 2 exit checklist
+first (2-agent concurrent test, 10k backfill, design partner on staging).
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

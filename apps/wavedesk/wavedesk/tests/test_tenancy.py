@@ -123,6 +123,7 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         keywords="scam",
     )
     insert("WD Alert", kind="keyword", summary=f"alert {suffix}")
+    insert("WD Ticket", title=f"ticket-{suffix}", status="open", priority="medium")
     return docs
 
 

@@ -21,6 +21,7 @@ vi.mock('@/lib/client', () => ({
     searchCanned: vi.fn(),
     listLabels: vi.fn(),
     setChatLabels: vi.fn(),
+    createTicket: vi.fn(),
   },
 }));
 vi.mock('@/lib/realtime', () => ({
@@ -93,6 +94,16 @@ describe('ConversationPane', () => {
     vi.mocked(client.getLoggedUser).mockResolvedValue('me@x.test');
     vi.mocked(client.searchCanned).mockResolvedValue([]);
     vi.mocked(client.listLabels).mockResolvedValue([]);
+    vi.mocked(client.createTicket).mockResolvedValue({
+      name: 'TKT-1',
+      title: 'namaste',
+      status: 'open',
+      priority: 'medium',
+      chat: 'CHAT-1',
+      assigned_agent: null,
+      team: null,
+      creation: '2026-07-09 12:00:00',
+    });
     vi.mocked(useChatPresence).mockReturnValue([]);
   });
 
@@ -372,6 +383,24 @@ describe('ConversationPane', () => {
     await screen.findByTestId('canned-menu');
     await user.keyboard('{Enter}');
     expect(box).toHaveValue('Order {{order.id}} shipped');
+  });
+
+  it('converts the conversation into a ticket from the last inbound message', async () => {
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [
+        message({ name: 'M1', body: 'order missing', direction: 'in' }),
+        message({ name: 'M2', body: 'looking into it', direction: 'out' }),
+      ],
+      has_more: false,
+      next_before: null,
+    });
+    const user = userEvent.setup();
+    renderPane();
+    await user.click(await screen.findByLabelText('Create ticket'));
+    expect(client.createTicket).toHaveBeenCalledWith({
+      chat: 'CHAT-1',
+      source_message: 'M1',
+    });
   });
 
   it('label picker applies the full selection to the chat', async () => {

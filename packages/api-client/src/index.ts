@@ -308,6 +308,31 @@ export interface WdDashboard {
   per_number_volume: { number: string; display_name: string | null; messages: number }[];
 }
 
+export type WdTicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+export type WdTicketPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export interface WdTicket {
+  name: string;
+  title: string;
+  status: WdTicketStatus;
+  priority: WdTicketPriority;
+  chat: string | null;
+  source_message?: string | null;
+  assigned_agent: string | null;
+  team: string | null;
+  resolution_note?: string | null;
+  creation: string;
+}
+
+export interface TicketListParams {
+  status?: WdTicketStatus;
+  priority?: WdTicketPriority;
+  /** 'me' | 'unassigned' | a member's user id */
+  assignee?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export type WdMonitoringRuleType = 'keyword' | 'link' | 'phone_number' | 'member_change';
 
 export interface WdMonitoringRule {
@@ -546,6 +571,42 @@ export class WaveDeskClient {
   /** Bulk message N groups — queued + jittered server-side. */
   sendToGroups(groups: string[], body: string): Promise<{ queued_groups: number }> {
     return this.call('wavedesk.api.groups.send_to_groups', { groups, body });
+  }
+
+  // --- tickets (Phase 2 feature 7) ---
+  createTicket(params: {
+    title?: string;
+    chat?: string;
+    source_message?: string;
+    priority?: WdTicketPriority;
+  }): Promise<WdTicket> {
+    return this.call('wavedesk.api.tickets.create_ticket', { ...params });
+  }
+
+  listTickets(params: TicketListParams = {}): Promise<{ tickets: WdTicket[]; total: number }> {
+    return this.call('wavedesk.api.tickets.list_tickets', { ...params });
+  }
+
+  getTicket(ticket: string): Promise<WdTicket> {
+    return this.call('wavedesk.api.tickets.get_ticket', { ticket });
+  }
+
+  updateTicket(
+    ticket: string,
+    changes: {
+      title?: string;
+      status?: WdTicketStatus;
+      priority?: WdTicketPriority;
+      assigned_agent?: string;
+      resolution_note?: string;
+      _unset_agent?: boolean;
+    },
+  ): Promise<WdTicket> {
+    return this.call('wavedesk.api.tickets.update_ticket', { ticket, ...changes });
+  }
+
+  deleteTicket(ticket: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.tickets.delete_ticket', { ticket });
   }
 
   // --- group analytics (Phase 2 feature 5) ---

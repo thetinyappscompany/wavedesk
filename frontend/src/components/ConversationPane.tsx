@@ -16,6 +16,7 @@ import {
   RotateCcw,
   SendHorizontal,
   Tag,
+  TicketPlus,
   UserRound,
 } from 'lucide-react';
 import type { WdCannedResponse, WdChat, WdMessage } from '@wavedesk/api-client';
@@ -230,6 +231,45 @@ function LabelPicker({
   );
 }
 
+/** Convert this conversation into a ticket (title auto-filled from the last
+ * inbound message server-side). */
+function TicketButton({
+  chatName,
+  lastInbound,
+}: {
+  chatName: string;
+  lastInbound: string | undefined;
+}): React.JSX.Element {
+  const [created, setCreated] = useState<string | null>(null);
+  const create = useMutation({
+    mutationFn: () =>
+      client.createTicket({
+        chat: chatName,
+        ...(lastInbound ? { source_message: lastInbound } : {}),
+      }),
+    onSuccess: (ticket) => {
+      setCreated(ticket.name);
+      setTimeout(() => {
+        setCreated(null);
+      }, 2500);
+    },
+  });
+  return (
+    <Button
+      aria-label="Create ticket"
+      variant="outline"
+      size="icon"
+      className="h-8 w-8"
+      disabled={create.isPending}
+      onClick={() => {
+        create.mutate();
+      }}
+    >
+      {created ? <Check className="h-4 w-4 text-primary" /> : <TicketPlus className="h-4 w-4" />}
+    </Button>
+  );
+}
+
 function HeaderControls({
   chatName,
   chat,
@@ -429,6 +469,7 @@ export default function ConversationPane({
   const ordered: WdMessage[] = [...(messages.data?.pages ?? [])]
     .reverse()
     .flatMap((page) => page.messages);
+  const lastInbound = [...ordered].reverse().find((m) => m.direction === 'in')?.name;
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastMessage = ordered.at(-1)?.name;
@@ -465,6 +506,7 @@ export default function ConversationPane({
         <div className="flex shrink-0 items-center gap-2">
           <HeaderControls chatName={chatName} chat={chat} />
           <LabelPicker chatName={chatName} chat={chat} />
+          <TicketButton chatName={chatName} lastInbound={lastInbound} />
           {chat?.contact && onToggleContact && (
             <Button
               aria-label="Contact details"

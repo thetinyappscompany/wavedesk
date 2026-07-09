@@ -76,17 +76,22 @@ export function useWorkspaceEvents(): void {
     const onAlert = (): void => {
       void queryClient.invalidateQueries({ queryKey: ['alerts'] });
     };
+    const onTicket = (): void => {
+      void queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    };
     sock.on('wd:message', onMessage);
     sock.on('wd:message_status', onStatus);
     sock.on('wd:chat', onChat);
     sock.on('wd:group', onGroup);
     sock.on('wd:alert', onAlert);
+    sock.on('wd:ticket', onTicket);
     return () => {
       sock.off('wd:message', onMessage);
       sock.off('wd:message_status', onStatus);
       sock.off('wd:chat', onChat);
       sock.off('wd:group', onGroup);
       sock.off('wd:alert', onAlert);
+      sock.off('wd:ticket', onTicket);
     };
   }, [queryClient]);
 }
