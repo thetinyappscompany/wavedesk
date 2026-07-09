@@ -135,6 +135,14 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         "WD SLA Policy", policy_name=f"sla-{suffix}", first_response_mins=10, resolution_mins=60
     )
     insert("WD SLA Event", policy=policy, metric="first_response", outcome="breached")
+    broadcast = insert(
+        "WD Broadcast",
+        broadcast_name=f"bc-{suffix}",
+        number=docs["WD WhatsApp Number"],
+        message_template="Hi {{name}}",
+        audience_type="all_contacts",
+    )
+    insert("WD Broadcast Recipient", broadcast=broadcast, phone=f"9188{digits}", status="pending")
     return docs
 
 
