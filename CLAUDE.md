@@ -11,7 +11,31 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 3
-Current epic: Phase 3 — epic 5 (Scheduled messages) DONE
+Current epic: Phase 3 — epic 6 (Anti-ban intelligence) DONE
+P3.6: WD WhatsApp Number gains warmup_started_on/risk_level/health_checked_at
+(reusing the Phase-0 health_score/daily_send_limit/warmup_stage placeholders).
+wavedesk/antiban.py: WARM-UP = per-number daily cap ramping day1 (20) → day30
+(full target daily_send_limit, or 1000 ceiling if unset) via warmup_cap/
+daily_cap_for; sent_today (outbound WD Message today joined via chat.number);
+can_dispatch (sent_today < cap; None cap = unlimited), WIRED into the broadcast
+driver run_broadcast so a bulk run auto-pauses when the number hits its warm-up
+cap (resume next day to keep ramping). HEALTH = compute_health scores 0-100 from
+the 7-day outbound failure rate (100 - round(rate*60)) + status penalty
+(disconnected -20, banned→0), derives risk low/medium/high (_risk_from), stores
+score/risk/health_checked_at; nightly cron recompute_all_health refreshes all
+numbers + warmup_stage. api/antiban.py: number_health (per-number score/risk/
+warmup_day/daily_cap/sent_today/warming) + start_warmup/stop_warmup (Owner/Admin)
++ refresh_health. Frontend: NumbersPage per-number HealthStrip (risk badge +
+score + sent/cap today + warm-up day + Start/Stop warm-up w/ target input);
+api-client WdNumberHealth + methods. Humanized VARIABLE DELAYS already in the
+broadcast jitter; typing-presence-before-send is gateway-side (deferred). Tests:
+13 Frappe + 1 frontend; suites 272 Frappe + 119 frontend green, ruff clean.
+VERIFIED LIVE: probe number w/ 25% failure rate → score 85/medium; warm-up day1
+cap 20 (sent 4 < 20 → can_dispatch true); day30 ramp → full 1000; probe cleaned
+up. Shipped on feat/p3.6-antiban, stacked on the P3.5 PR. Deferred: typing-
+presence humanization (gateway), disconnect-frequency signal (no status history),
+per-number sending windows.
+Previous: Phase 3 — epic 5 (Scheduled messages) DONE
 P3.5: WD Scheduled Message (title, target_type chat/group/broadcast, target,
 number, body, schedule_type once/recurring, scheduled_at, recurrence JSON
 {frequency daily|weekly, time HH:MM, weekdays [0-6]}, timezone, next_run_at,
