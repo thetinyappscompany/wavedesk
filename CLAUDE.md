@@ -11,7 +11,31 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 3
-Current epic: Phase 3 — epic 6 (Anti-ban intelligence) DONE
+Current epic: Phase 3 — epic 7 (Segments) DONE — only P3.8 (Cloud API embedded
+signup + templates) remains in Phase 3, and it is GATED on Meta Business
+Verification (still not started).
+P3.7: WD Segment (segment_name, description, match_type all/any, filters JSON).
+wavedesk/segments.py: matching_contacts evaluated LIVE (never materialized) —
+match_type all=intersect / any=union over per-condition resolvers: has_tag
+(tags Small Text like), attribute (custom_attributes JSON key==value, Python
+filter), opted_out, has_email, name_contains, phone_prefix, last_seen_days
+(distinct contact w/ inbound msg within N days via chat join), in_group (WD Group
+Member.contact). WIRED: broadcasts._audience_rows segment branch (replaces the
+P3.4 throw stub — build_recipients now resolves a segment to contacts);
+automation._check in_segment condition (chat.contact ∈ segment) + wd_automation_
+rule CONDITION_TYPES gained in_segment. api/segments.py CRUD + preview (live
+count + sample). Tenancy-registered + fixtures. Frontend: /segments page +
+Filter nav (list w/ live PreviewCount + Builder: match type + dynamic condition
+rows, attribute-key + bool/text value inputs); Broadcast composer gained a
+'segment' audience option + segment picker; AutomationPage conditions gained
+in_segment. api-client WdSegment/WdSegmentCondition + methods; WdAutomation
+Condition type union gained in_segment. Tests: 11 Frappe + 3 frontend; suites
+283 Frappe + 122 frontend green, ruff clean. VERIFIED LIVE: has_tag segment
+matched exactly the tagged contact (not the untagged one); broadcast segment
+audience built 1 recipient; probe cleaned up. Shipped on feat/p3.7-segments,
+stacked on the P3.6 PR. Deferred: numeric/relative operators, last-seen on
+outbound, segment analytics.
+Previous: Phase 3 — epic 6 (Anti-ban intelligence) DONE
 P3.6: WD WhatsApp Number gains warmup_started_on/risk_level/health_checked_at
 (reusing the Phase-0 health_score/daily_send_limit/warmup_stage placeholders).
 wavedesk/antiban.py: WARM-UP = per-number daily cap ramping day1 (20) → day30
