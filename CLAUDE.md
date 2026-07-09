@@ -11,7 +11,25 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 2
-Current epic: Phase 2 — epic 4 (Monitoring rules per group) DONE
+Current epic: Phase 2 — epic 5 (Group analytics) DONE
+P2.5: wavedesk/analytics.py = read-only aggregation over WD Message (windowed,
+chat-indexed). group_metrics: daily volume trend, active-member % (distinct
+inbound senders ÷ current members), top-5 contributors by inbound volume,
+response time (avg mins from a looks_like_query inbound to the next outbound,
+≤24h window) + answered count, unanswered-now (pending_query_since count),
+best-3 posting hours. workspace_rollup: group count + message/inbound totals +
+unanswered. Nightly cron compute_engagement_scores → WD Group Member.
+engagement_score 0–100 (share of the group's 30-day inbound vs the top
+contributor). api/analytics.py group_analytics (contributor numbers masked for
+agents) + workspace_analytics, both clamped ≤90 days. Frontend: GroupAnalytics
+component (dependency-free inline SVG bar chart — no recharts added — + stat
+grid + contributors + busiest hours), Analytics/Details tabs in GroupDrawer,
+workspace rollup strip on the Groups page header. VERIFIED LIVE via real
+pipeline: probe group w/ question+chatter+reply → group_analytics returned
+3 msgs / 100% active / 1 answered / 2 contributors / busiest hour; rollup
+strip + drawer analytics tab (14-bar chart) rendered it; engagement cron set
+scores; probe cleaned up. Deferred: CSV export of analytics (P2.6 dashboard).
+Previous: Phase 2 — epic 4 (Monitoring rules per group) DONE
 P2.4: WD Monitoring Rule (keyword/link/phone_number/member_change; optional
 group scope — empty = all groups; notify_agents + notify_slack_url +
 notify_webhook_url) + WD Alert store (seen flag), both tenancy-registered.
@@ -174,13 +192,14 @@ developer_mode=1 must be in COMMON site config (socketio auth callback). VERIFIE
 LIVE post-fix: wd:presence/wd:message/wd:chat all on the socket, sub-second.
 Earlier epics (P1.1–1.6 + Phase 0): DONE, live-verified on a REAL paired WhatsApp
 number (baileys-pairing-notes.md).
-Suites: 161 Frappe + 47 gateway + 79 frontend + 4 api-client + 12 e2e + ruff,
+Suites: 168 Frappe + 47 gateway + 83 frontend + 4 api-client + 12 e2e + ruff,
 all green; CI green (incl. e2e job).
 Founder items open: re-pair the real number (QR — see P2.1 note), Meta
 Business Verification, staging VM, Sentry DSNs.
-Next code epic: Phase 2 — 5. Group analytics (per-group + rollup: volume trend,
-active member %, top contributors, response time, unanswered count) + 6.
-Workspace analytics dashboard.
+Next code epic: Phase 2 — 6. Workspace analytics dashboard (live open/
+unassigned/breach-risk + historical conversations/day, first-response time,
+resolution time, per-agent + per-number volume, date-range + CSV export) +
+7. Ticket object v1.
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

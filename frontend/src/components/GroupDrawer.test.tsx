@@ -14,6 +14,9 @@ vi.mock('@/lib/client', () => ({
     revokeGroupInvite: vi.fn(),
   },
 }));
+vi.mock('@/components/GroupAnalytics', () => ({
+  default: () => <div data-testid="group-analytics-stub" />,
+}));
 
 function detail(overrides: Partial<WdGroupDetail> = {}): WdGroupDetail {
   return {
@@ -128,5 +131,13 @@ describe('GroupDrawer', () => {
     expect(screen.queryByRole('button', { name: /Revoke/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Add participant phone')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Remove 919111100001')).not.toBeInTheDocument();
+  });
+
+  it('switches to the analytics tab', async () => {
+    const user = userEvent.setup();
+    renderDrawer();
+    await user.click(await screen.findByRole('tab', { name: 'analytics' }));
+    expect(screen.getByTestId('group-analytics-stub')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Subject')).not.toBeInTheDocument();
   });
 });

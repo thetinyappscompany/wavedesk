@@ -11,6 +11,7 @@ vi.mock('@/lib/client', () => ({
     listGroups: vi.fn(),
     getWorkspaceSettings: vi.fn(),
     sendToGroups: vi.fn(),
+    workspaceAnalytics: vi.fn(),
   },
 }));
 vi.mock('@/lib/realtime', () => ({
@@ -60,6 +61,13 @@ describe('GroupsPage', () => {
       role: 'Owner',
       mask_numbers: false,
       needs_reply_minutes: 10,
+    });
+    vi.mocked(client.workspaceAnalytics).mockResolvedValue({
+      days: 14,
+      groups: 3,
+      messages: 120,
+      inbound_messages: 90,
+      unanswered_now: 2,
     });
   });
 
@@ -173,5 +181,14 @@ describe('GroupsPage', () => {
     vi.mocked(client.listGroups).mockResolvedValue({ groups: [], total: 0 });
     renderPage();
     expect(await screen.findByText(/No groups yet/)).toBeInTheDocument();
+  });
+
+  it('renders the workspace analytics rollup', async () => {
+    vi.mocked(client.listGroups).mockResolvedValue({ groups: [], total: 0 });
+    renderPage();
+    const rollup = await screen.findByTestId('rollup');
+    expect(rollup).toHaveTextContent('120');
+    expect(rollup).toHaveTextContent('Inbound');
+    expect(rollup).toHaveTextContent('Unanswered');
   });
 });

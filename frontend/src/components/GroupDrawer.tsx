@@ -3,8 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDownCircle, ArrowUpCircle, Copy, RefreshCcw, UserMinus, X } from 'lucide-react';
 import type { WdParticipantAction } from '@wavedesk/api-client';
 import { client } from '@/lib/client';
+import GroupAnalytics from '@/components/GroupAnalytics';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 /** Group detail drawer (P2.3): metadata edit, invite link management, and
  * participant actions — every action is audit-logged server-side. */
@@ -23,6 +25,7 @@ export default function GroupDrawer({
     queryFn: () => client.getGroup(groupName),
   });
 
+  const [tab, setTab] = useState<'details' | 'analytics'>('details');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [newParticipant, setNewParticipant] = useState('');
@@ -70,22 +73,47 @@ export default function GroupDrawer({
       className="flex w-96 shrink-0 flex-col overflow-y-auto border-l bg-background"
     >
       <header className="flex items-center justify-between border-b px-4 py-3">
-        <h2 className="font-semibold">Group details</h2>
+        <div role="tablist" aria-label="Group view" className="flex gap-1">
+          {(['details', 'analytics'] as const).map((key) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => {
+                setTab(key);
+              }}
+              className={cn(
+                'rounded-md px-2 py-1 text-sm capitalize',
+                tab === key
+                  ? 'bg-primary/10 font-medium text-primary'
+                  : 'text-muted-foreground hover:bg-accent',
+              )}
+            >
+              {key}
+            </button>
+          ))}
+        </div>
         <Button aria-label="Close group details" variant="ghost" size="icon" onClick={onClose}>
           <X className="h-4 w-4" />
         </Button>
       </header>
 
-      {group.isLoading && (
+      {tab === 'analytics' && (
+        <div className="p-4">
+          <GroupAnalytics groupName={groupName} />
+        </div>
+      )}
+
+      {tab === 'details' && group.isLoading && (
         <p className="p-4 text-sm text-muted-foreground">Loading group…</p>
       )}
-      {group.isError && (
+      {tab === 'details' && group.isError && (
         <p role="alert" className="p-4 text-sm text-destructive">
           Failed to load the group.
         </p>
       )}
 
-      {group.data && (
+      {tab === 'details' && group.data && (
         <div className="space-y-5 p-4">
           <div className="space-y-2">
             <label className="block text-sm font-medium" htmlFor="group-subject">

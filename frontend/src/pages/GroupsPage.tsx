@@ -39,6 +39,12 @@ export default function GroupsPage(): React.JSX.Element {
   });
   const canManage = settings.data ? settings.data.role !== 'Agent' : false;
 
+  const rollup = useQuery({
+    queryKey: ['workspace-analytics'],
+    queryFn: () => client.workspaceAnalytics(),
+    refetchInterval: 60_000,
+  });
+
   const bulkSend = useMutation({
     mutationFn: () => client.sendToGroups([...selected], bulkBody.trim()),
     onSuccess: (result) => {
@@ -127,6 +133,25 @@ export default function GroupsPage(): React.JSX.Element {
           </span>
         )}
       </div>
+
+      {rollup.data && (
+        <div
+          data-testid="rollup"
+          className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4"
+        >
+          {[
+            { label: 'Groups', value: rollup.data.groups },
+            { label: `Messages · ${String(rollup.data.days)}d`, value: rollup.data.messages },
+            { label: 'Inbound', value: rollup.data.inbound_messages },
+            { label: 'Unanswered', value: rollup.data.unanswered_now },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-md border p-2">
+              <div className="text-xs text-muted-foreground">{stat.label}</div>
+              <div className="text-lg font-semibold">{stat.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {bulkOpen && (
         <div className="mb-3 rounded-lg border p-3" data-testid="bulk-dialog">

@@ -263,6 +263,38 @@ export interface WdMessage {
   creation: string;
 }
 
+export interface WdVolumePoint {
+  date: string;
+  count: number;
+}
+
+export interface WdContributor {
+  display: string;
+  messages: number;
+}
+
+export interface WdGroupAnalytics {
+  days: number;
+  total_messages: number;
+  inbound_messages: number;
+  outbound_messages: number;
+  volume_trend: WdVolumePoint[];
+  active_member_pct: number;
+  top_contributors: WdContributor[];
+  best_posting_hours: { hour: number; messages: number }[];
+  avg_response_mins: number | null;
+  answered_queries: number;
+  unanswered_now: number;
+}
+
+export interface WdWorkspaceAnalytics {
+  days: number;
+  groups: number;
+  messages: number;
+  inbound_messages: number;
+  unanswered_now: number;
+}
+
 export type WdMonitoringRuleType = 'keyword' | 'link' | 'phone_number' | 'member_change';
 
 export interface WdMonitoringRule {
@@ -501,6 +533,20 @@ export class WaveDeskClient {
   /** Bulk message N groups — queued + jittered server-side. */
   sendToGroups(groups: string[], body: string): Promise<{ queued_groups: number }> {
     return this.call('wavedesk.api.groups.send_to_groups', { groups, body });
+  }
+
+  // --- group analytics (Phase 2 feature 5) ---
+  groupAnalytics(group: string, days?: number): Promise<WdGroupAnalytics> {
+    return this.call('wavedesk.api.analytics.group_analytics', {
+      group,
+      ...(days ? { days } : {}),
+    });
+  }
+
+  workspaceAnalytics(days?: number): Promise<WdWorkspaceAnalytics> {
+    return this.call('wavedesk.api.analytics.workspace_analytics', {
+      ...(days ? { days } : {}),
+    });
   }
 
   // --- onboarding + invites (Phase 1 feature 8) ---

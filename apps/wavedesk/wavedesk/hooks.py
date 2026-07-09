@@ -29,6 +29,7 @@ scheduler_events = {
     },
     "daily": [
         "wavedesk.wallet.ledger.reconcile_all_wallets",
+        "wavedesk.analytics.compute_engagement_scores",
     ],
 }
 
