@@ -11,7 +11,31 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 3
-Current epic: Phase 3 — epic 4 (Broadcasts) DONE
+Current epic: Phase 3 — epic 5 (Scheduled messages) DONE
+P3.5: WD Scheduled Message (title, target_type chat/group/broadcast, target,
+number, body, schedule_type once/recurring, scheduled_at, recurrence JSON
+{frequency daily|weekly, time HH:MM, weekdays [0-6]}, timezone, next_run_at,
+last_run_at, run_count, status scheduled/sent/cancelled/failed, enabled);
+tenancy-registered + fixtures. wavedesk/schedules.py: TIME MODEL = all schedule
+datetimes are NAIVE, interpreted in the schedule's own timezone (self-consistent
+regardless of server tz); compute_next_run (once=scheduled_at; recurring via
+_next_occurrence rolling forward to next daily/weekly slot), run_due_schedules
+MINUTELY cron (per-row compares next_run_at <= datetime.now(sched.tz)), _fire →
+_dispatch (chat/group via sender.queue_send [group chat ensured via
+groups._ensure_group_chat], broadcast via broadcasts.start) then _advance (once→
+sent + next_run None; recurring→next occurrence, stays scheduled; failed once→
+failed, failed recurrence→skip occurrence). Controller validate recomputes
+next_run_at when scheduled+enabled, clears it otherwise. api/schedules.py CRUD +
+cancel + run_now (manual fire), Owner/Admin manage. hooks cron gained
+run_due_schedules. Frontend: /schedules page + Clock nav — Composer (target
+type+id, body, once datetime-local OR recurring frequency/time/weekday-toggle
+picker), list with run-now/enable/cancel/delete + recurrence summary. api-client
+types+methods. Tests: 12 Frappe + 3 frontend; suites 259 Frappe + 118 frontend
+green, ruff clean. VERIFIED LIVE: a due one-time schedule fired → status sent,
+run_count 1, real outbound WD Message queued through the pipeline; probe cleaned
+up. Shipped on feat/p3.5-schedules, stacked on the P3.4 PR. Deferred: friendly
+target pickers (raw ids for now), monthly/custom-cron recurrence.
+Previous: Phase 3 — epic 4 (Broadcasts) DONE
 P3.4: WD Broadcast (number, message_template, status draft/sending/paused/
 completed/cancelled, audience_type, counts, daily_cap, min/max_interval_sec,
 failure_pause_pct) + WD Broadcast Recipient (contact/phone/recipient_name/
