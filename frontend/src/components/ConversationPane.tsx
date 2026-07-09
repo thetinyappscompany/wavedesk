@@ -12,6 +12,7 @@ import {
   Check,
   CheckCheck,
   Clock,
+  Flag,
   RotateCcw,
   SendHorizontal,
   Tag,
@@ -103,6 +104,15 @@ function Bubble({
         {showSender && !outbound && message.sender_display && (
           <p data-testid="sender-name" className="mb-0.5 text-xs font-medium text-primary">
             {message.sender_display}
+          </p>
+        )}
+        {message.flagged && (
+          <p
+            data-testid="flag-badge"
+            title={message.flag_reason ?? 'Flagged by monitoring'}
+            className="mb-0.5 inline-flex items-center gap-1 rounded bg-amber-500/15 px-1 text-[10px] font-medium text-amber-600"
+          >
+            <Flag className="h-2.5 w-2.5" /> {message.flag_reason ?? 'flagged'}
           </p>
         )}
         {message.quoted_body && (

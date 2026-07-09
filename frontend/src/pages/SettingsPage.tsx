@@ -4,6 +4,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import type { WdCannedResponse, WdLabel } from '@wavedesk/api-client';
 import { client } from '@/lib/client';
 import InvitePanel from '@/components/InvitePanel';
+import MonitoringCard from '@/components/MonitoringCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -394,6 +395,7 @@ export default function SettingsPage(): React.JSX.Element {
         <InvitePanel canManage={canManage} />
       </section>
 
+      <MonitoringCard canManage={canManage} />
       <LabelsCard canManage={canManage} />
       <CannedCard canManage={canManage} />
     </div>

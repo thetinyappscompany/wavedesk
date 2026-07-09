@@ -11,7 +11,28 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 2
-Current epic: Phase 2 — epic 3 (Group actions) DONE
+Current epic: Phase 2 — epic 4 (Monitoring rules per group) DONE
+P2.4: WD Monitoring Rule (keyword/link/phone_number/member_change; optional
+group scope — empty = all groups; notify_agents + notify_slack_url +
+notify_webhook_url) + WD Alert store (seen flag), both tenancy-registered.
+wavedesk/monitoring.py = evaluation engine: message rules run inside the
+consumer txn on inbound GROUP messages only (keyword substring case-insensitive,
+link regex, phone regex) → flag WD Message (flagged + flag_reason) + raise
+WD Alert; member_change fires on add/remove only (promote/demote are admin
+actions, not events). Alerts emit wd:alert to agents when notify_agents;
+Slack ({text}) + webhook (full payload) POSTs enqueued on the SHORT queue so a
+slow endpoint can't stall the pipeline (best-effort, no retry, failures logged
+w/o PII). api/monitoring.py = rule CRUD (Owner/Admin) + list_alerts (unseen
+count, group_subject join) + mark_alerts_seen; messages API returns flagged/
+flag_reason. Frontend: MonitoringCard in Settings (rule CRUD, enable toggle,
+Slack/webhook fields), /alerts page + nav Bell w/ unseen badge (live via
+wd:alert), amber flag badge on flagged bubbles. VERIFIED LIVE via real
+pipeline: 'Scam watch' keyword rule created in UI → probe group message
+'…probe-alert…' → WD Alert raised + message flagged + Alerts page showed it
+with 1-new nav badge; mark_alerts_seen → unseen 0 (API confirmed); probe
+cleaned up. Deferred: business-hours conditions, per-rule mute windows (P3
+rules engine territory).
+Previous: Phase 2 — epic 3 (Group actions) DONE
 P2.3: gateway grew session-scoped group action endpoints — POST
 /sessions/:id/groups/:jid/participants (add/remove/promote/demote), PATCH
 …/:jid (subject/description), POST …/:jid/revoke-invite (returns fresh code);
@@ -153,12 +174,13 @@ developer_mode=1 must be in COMMON site config (socketio auth callback). VERIFIE
 LIVE post-fix: wd:presence/wd:message/wd:chat all on the socket, sub-second.
 Earlier epics (P1.1–1.6 + Phase 0): DONE, live-verified on a REAL paired WhatsApp
 number (baileys-pairing-notes.md).
-Suites: 153 Frappe + 47 gateway + 75 frontend + 4 api-client + 12 e2e + ruff,
+Suites: 161 Frappe + 47 gateway + 79 frontend + 4 api-client + 12 e2e + ruff,
 all green; CI green (incl. e2e job).
 Founder items open: re-pair the real number (QR — see P2.1 note), Meta
 Business Verification, staging VM, Sentry DSNs.
-Next code epic: Phase 2 — 4. Monitoring rules per group (keyword/link/member
-alerts → agent/Slack/webhook).
+Next code epic: Phase 2 — 5. Group analytics (per-group + rollup: volume trend,
+active member %, top contributors, response time, unanswered count) + 6.
+Workspace analytics dashboard.
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

@@ -66,6 +66,14 @@ def emit_group_updated(workspace: str, group: str) -> None:
     emit_workspace_event(workspace, "wd:group", {"group": group})
 
 
+def emit_alert(workspace: str, alert: str, kind: str, summary: str, chat: str | None) -> None:
+    """Monitoring rule fired — clients refetch alerts (summary is tenant data
+    the members are entitled to see; still no raw customer numbers added)."""
+    emit_workspace_event(
+        workspace, "wd:alert", {"alert": alert, "kind": kind, "summary": summary, "chat": chat}
+    )
+
+
 def emit_presence(workspace: str, chat: str, user: str, full_name: str, state: str) -> None:
     """Ephemeral, no transaction behind it — deliver immediately."""
     emit_workspace_event(

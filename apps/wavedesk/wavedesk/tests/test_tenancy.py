@@ -116,6 +116,13 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         participant_id=f"9179{digits}@s.whatsapp.net",
         role="member",
     )
+    insert(
+        "WD Monitoring Rule",
+        rule_name=f"rule-{suffix}",
+        rule_type="keyword",
+        keywords="scam",
+    )
+    insert("WD Alert", kind="keyword", summary=f"alert {suffix}")
     return docs
 
 

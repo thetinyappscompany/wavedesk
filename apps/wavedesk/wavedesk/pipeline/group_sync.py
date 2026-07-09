@@ -129,6 +129,10 @@ def _apply_participants(workspace: str, wa_group_id: str, payload: dict) -> None
     _refresh_member_count(name)
     _emit(workspace, name)
 
+    from wavedesk import monitoring
+
+    monitoring.evaluate_member_change(workspace, name, action or "", participant_ids)
+
 
 def _sync_members(workspace: str, group: str, participants: list[dict]) -> None:
     existing = {

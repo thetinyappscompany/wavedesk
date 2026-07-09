@@ -22,6 +22,8 @@ CLIENT_FIELDS = [
     "sender_name",
     "wa_message_id",
     "quoted_message",
+    "flagged",
+    "flag_reason",
     "creation",
 ]
 
@@ -87,6 +89,7 @@ def list_messages(chat: str, before: str | None = None, limit: int = 50) -> dict
     for row in rows:
         row["creation"] = str(row["creation"])
         row["quoted_body"] = quoted_bodies.get(row.quoted_message) if row.quoted_message else None
+        row["flagged"] = bool(row["flagged"])
         _sender_display(row, masked)
 
     rows.reverse()  # ascending for rendering

@@ -194,6 +194,16 @@ def apply_event(event: dict) -> None:
         if chat_type == "group":
             # Needs Reply queue (P2.2): question-looking messages start the clock
             inbox.flag_pending_query(workspace, chat, body)
+            # Monitoring rules (P2.4): keyword/link/phone alerts
+            from wavedesk import monitoring
+
+            monitoring.evaluate_message(
+                workspace,
+                chat,
+                frappe.db.get_value("WD Chat", chat, "group"),
+                message.name,
+                body,
+            )
     else:
         # a reply from the phone itself also answers the pending question
         inbox.clear_pending_query(workspace, chat)

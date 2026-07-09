@@ -257,6 +257,36 @@ export interface WdMessage {
   wa_message_id: string | null;
   quoted_message: string | null;
   quoted_body: string | null;
+  /** A monitoring rule matched this message (P2.4). */
+  flagged: boolean;
+  flag_reason: string | null;
+  creation: string;
+}
+
+export type WdMonitoringRuleType = 'keyword' | 'link' | 'phone_number' | 'member_change';
+
+export interface WdMonitoringRule {
+  name: string;
+  rule_name: string;
+  enabled: boolean;
+  rule_type: WdMonitoringRuleType;
+  group: string | null;
+  keywords: string | null;
+  notify_agents: boolean;
+  notify_slack_url: string | null;
+  notify_webhook_url: string | null;
+}
+
+export interface WdAlert {
+  name: string;
+  rule_name: string | null;
+  kind: WdMonitoringRuleType;
+  group: string | null;
+  group_subject: string | null;
+  chat: string | null;
+  message: string | null;
+  summary: string;
+  seen: boolean;
   creation: string;
 }
 
@@ -557,6 +587,42 @@ export class WaveDeskClient {
 
   deleteCanned(canned: string): Promise<{ deleted: string }> {
     return this.call('wavedesk.api.canned.delete_canned', { canned });
+  }
+
+  // --- monitoring (Phase 2 feature 4) ---
+  listMonitoringRules(): Promise<WdMonitoringRule[]> {
+    return this.call('wavedesk.api.monitoring.list_rules');
+  }
+
+  createMonitoringRule(rule: {
+    rule_name: string;
+    rule_type: WdMonitoringRuleType;
+    keywords?: string;
+    group?: string;
+    notify_agents?: boolean;
+    notify_slack_url?: string;
+    notify_webhook_url?: string;
+  }): Promise<WdMonitoringRule> {
+    return this.call('wavedesk.api.monitoring.create_rule', { ...rule });
+  }
+
+  updateMonitoringRule(
+    rule: string,
+    changes: Partial<Omit<WdMonitoringRule, 'name'>>,
+  ): Promise<WdMonitoringRule> {
+    return this.call('wavedesk.api.monitoring.update_rule', { rule, ...changes });
+  }
+
+  deleteMonitoringRule(rule: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.monitoring.delete_rule', { rule });
+  }
+
+  listAlerts(): Promise<{ alerts: WdAlert[]; unseen: number }> {
+    return this.call('wavedesk.api.monitoring.list_alerts');
+  }
+
+  markAlertsSeen(): Promise<{ unseen: number }> {
+    return this.call('wavedesk.api.monitoring.mark_alerts_seen');
   }
 
   // --- workspace settings (Phase 1 feature 6 — number masking) ---

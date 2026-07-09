@@ -42,6 +42,8 @@ function message(overrides: Partial<WdMessage>): WdMessage {
     wa_message_id: null,
     quoted_message: null,
     quoted_body: null,
+    flagged: false,
+    flag_reason: null,
     creation: '2026-07-07 12:00:00',
     ...overrides,
   };
@@ -126,6 +128,18 @@ describe('ConversationPane', () => {
     expect(await screen.findByTestId('sender-name')).toHaveTextContent('Riya S');
     // exactly one: the outbound bubble never shows a sender
     expect(screen.getAllByTestId('sender-name')).toHaveLength(1);
+  });
+
+  it('flagged messages show the monitoring badge', async () => {
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [
+        message({ name: 'M1', body: 'yeh scam hai', flagged: true, flag_reason: 'Competitor watch' }),
+      ],
+      has_more: false,
+      next_before: null,
+    });
+    renderPane();
+    expect(await screen.findByTestId('flag-badge')).toHaveTextContent('Competitor watch');
   });
 
   it('dm chats never show sender names', async () => {

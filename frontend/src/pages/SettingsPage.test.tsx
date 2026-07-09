@@ -22,6 +22,10 @@ vi.mock('@/lib/client', () => ({
     listInvites: vi.fn(),
     inviteMember: vi.fn(),
     revokeInvite: vi.fn(),
+    listMonitoringRules: vi.fn(),
+    createMonitoringRule: vi.fn(),
+    updateMonitoringRule: vi.fn(),
+    deleteMonitoringRule: vi.fn(),
   },
 }));
 
@@ -59,6 +63,7 @@ describe('SettingsPage', () => {
       { user: 'owner@x.test', role: 'Owner', full_name: 'Owner O' },
     ]);
     vi.mocked(client.listInvites).mockResolvedValue([]);
+    vi.mocked(client.listMonitoringRules).mockResolvedValue([]);
   });
 
   it('renders labels, canned responses, and the masking toggle', async () => {
@@ -137,6 +142,32 @@ describe('SettingsPage', () => {
     await user.click(submit);
     await waitFor(() => {
       expect(client.createCanned).toHaveBeenCalledWith('closing', 'Anything else?');
+    });
+  });
+
+  it('creates a monitoring rule from the form', async () => {
+    vi.mocked(client.createMonitoringRule).mockResolvedValue({
+      name: 'MRULE-1',
+      rule_name: 'Competitor watch',
+      enabled: true,
+      rule_type: 'keyword',
+      group: null,
+      keywords: 'scam',
+      notify_agents: true,
+      notify_slack_url: null,
+      notify_webhook_url: null,
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(await screen.findByLabelText('Rule name'), 'Competitor watch');
+    await user.type(screen.getByLabelText('Rule keywords'), 'scam, competitorx');
+    await user.click(screen.getByRole('button', { name: 'Add rule' }));
+    await waitFor(() => {
+      expect(client.createMonitoringRule).toHaveBeenCalledWith({
+        rule_name: 'Competitor watch',
+        rule_type: 'keyword',
+        keywords: 'scam, competitorx',
+      });
     });
   });
 
