@@ -295,6 +295,19 @@ export interface WdWorkspaceAnalytics {
   unanswered_now: number;
 }
 
+export interface WdDashboard {
+  days: number;
+  live: { open: number; unassigned: number; needs_reply: number };
+  conversations_trend: WdVolumePoint[];
+  conversations_total: number;
+  first_response_avg_mins: number | null;
+  first_response_p90_mins: number | null;
+  resolution_avg_mins: number | null;
+  resolution_p90_mins: number | null;
+  messages_per_agent: { agent: string; agent_name: string; messages: number }[];
+  per_number_volume: { number: string; display_name: string | null; messages: number }[];
+}
+
 export type WdMonitoringRuleType = 'keyword' | 'link' | 'phone_number' | 'member_change';
 
 export interface WdMonitoringRule {
@@ -547,6 +560,17 @@ export class WaveDeskClient {
     return this.call('wavedesk.api.analytics.workspace_analytics', {
       ...(days ? { days } : {}),
     });
+  }
+
+  workspaceDashboard(days?: number): Promise<WdDashboard> {
+    return this.call('wavedesk.api.analytics.workspace_dashboard', {
+      ...(days ? { days } : {}),
+    });
+  }
+
+  /** URL for the CSV export — open it directly to trigger a browser download. */
+  dashboardCsvUrl(days: number): string {
+    return `${this.baseUrl}/api/method/wavedesk.api.analytics.export_dashboard_csv?days=${String(days)}`;
   }
 
   // --- onboarding + invites (Phase 1 feature 8) ---

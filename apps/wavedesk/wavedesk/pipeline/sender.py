@@ -56,10 +56,12 @@ def queue_send(chat_name: str, body: str, agent: str) -> dict:
         }
     )
     message.insert(ignore_permissions=True)
-    frappe.db.set_value(
-        "WD Chat", chat.name, "last_message_at", frappe.utils.now_datetime(),
-        update_modified=False,
-    )
+    now = frappe.utils.now_datetime()
+    chat_updates = {"last_message_at": now}
+    # First-response-time analytics (P2.6): stamp the first outbound reply.
+    if not chat.first_response_at:
+        chat_updates["first_response_at"] = now
+    frappe.db.set_value("WD Chat", chat.name, chat_updates, update_modified=False)
 
     from wavedesk import inbox
     from wavedesk.realtime import emit_message

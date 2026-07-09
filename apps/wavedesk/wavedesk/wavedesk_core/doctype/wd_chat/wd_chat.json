@@ -17,6 +17,8 @@
   "assigned_team",
   "labels",
   "pending_query_since",
+  "first_response_at",
+  "resolved_at",
   "last_message_at",
   "unread_count"
  ],
@@ -104,6 +106,18 @@
    "description": "Set when an inbound group message looks like a question; cleared on team reply. Needs Reply = older than the workspace threshold."
   },
   {
+   "fieldname": "first_response_at",
+   "fieldtype": "Datetime",
+   "label": "First Response At",
+   "description": "First outbound reply — powers first-response-time analytics."
+  },
+  {
+   "fieldname": "resolved_at",
+   "fieldtype": "Datetime",
+   "label": "Resolved At",
+   "description": "Set when moved to resolved; cleared on reopen. Resolution-time analytics."
+  },
+  {
    "fieldname": "last_message_at",
    "fieldtype": "Datetime",
    "label": "Last Message At"
@@ -117,7 +131,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-09 02:00:00.000000",
+ "modified": "2026-07-09 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "WaveDesk Core",
  "name": "WD Chat",

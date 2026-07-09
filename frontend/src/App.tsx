@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router';
 import AppShell from '@/components/AppShell';
 import AlertsPage from '@/pages/AlertsPage';
 import ContactsPage from '@/pages/ContactsPage';
+import DashboardPage from '@/pages/DashboardPage';
 import GroupsPage from '@/pages/GroupsPage';
 import InboxPage from '@/pages/InboxPage';
 import InvitePage from '@/pages/InvitePage';
@@ -21,6 +22,7 @@ export default function App(): React.JSX.Element {
         <Route path="/contacts" element={<ContactsPage />} />
         <Route path="/groups" element={<GroupsPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/numbers" element={<NumbersPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

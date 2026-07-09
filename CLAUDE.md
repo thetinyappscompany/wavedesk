@@ -11,7 +11,27 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 2
-Current epic: Phase 2 — epic 5 (Group analytics) DONE
+Current epic: Phase 2 — epic 6 (Workspace analytics dashboard) DONE
+P2.6: WD Chat gains first_response_at (stamped on first outbound in sender)
++ resolved_at (set by inbox.set_status on →resolved, cleared on reopen incl.
+consumer auto-reopen). analytics.workspace_dashboard: live tiles (open,
+unassigned = non-resolved & no agent, needs_reply = pending count — v1
+breach-risk proxy until the Phase 3 SLA engine); historical: new-conversations/
+day trend, first-response avg + p90, resolution avg + p90 (SQL timestampdiff),
+messages-per-agent, per-number volume. api/analytics.py workspace_dashboard
+(agent display names) + export_dashboard_csv (frappe.response download).
+Frontend: /dashboard page (Analytics nav, BarChart3) — 3 live tiles, inline-SVG
+conversations chart, 4 timing tiles, per-agent + per-number lists, 7/14/30d
+range tabs, Export CSV link. VERIFIED LIVE: dashboard rendered real workspace
+data (21 open / 21 unassigned / 14-bar trend / Administrator agent row), CSV
+endpoint returned text/csv attachment with live counts. Deferred: SLA-based
+breach-risk (Phase 3).
+BUGFIX this session (commit 03782fd): delete_number raised LinkExistsError
+(417) for any number linked from a chat/group → now unlinks first; the
+founder's dead number (auth lost in Docker crash) was deleted live + 4
+orphaned QR-looping gateway sessions cleared. Founder must still QR-pair a
+fresh number.
+Previous: Phase 2 — epic 5 (Group analytics) DONE
 P2.5: wavedesk/analytics.py = read-only aggregation over WD Message (windowed,
 chat-indexed). group_metrics: daily volume trend, active-member % (distinct
 inbound senders ÷ current members), top-5 contributors by inbound volume,
@@ -192,14 +212,13 @@ developer_mode=1 must be in COMMON site config (socketio auth callback). VERIFIE
 LIVE post-fix: wd:presence/wd:message/wd:chat all on the socket, sub-second.
 Earlier epics (P1.1–1.6 + Phase 0): DONE, live-verified on a REAL paired WhatsApp
 number (baileys-pairing-notes.md).
-Suites: 168 Frappe + 47 gateway + 83 frontend + 4 api-client + 12 e2e + ruff,
+Suites: 176 Frappe + 47 gateway + 87 frontend + 4 api-client + 12 e2e + ruff,
 all green; CI green (incl. e2e job).
-Founder items open: re-pair the real number (QR — see P2.1 note), Meta
-Business Verification, staging VM, Sentry DSNs.
-Next code epic: Phase 2 — 6. Workspace analytics dashboard (live open/
-unassigned/breach-risk + historical conversations/day, first-response time,
-resolution time, per-agent + per-number volume, date-range + CSV export) +
-7. Ticket object v1.
+Founder items open: QR-pair a fresh number (old one deleted), Meta Business
+Verification, staging VM, Sentry DSNs.
+Next code epic: Phase 2 — 7. Ticket object v1 (convert message → ticket,
+ticket list w/ status/priority/assignee, link back to chat) — LAST Phase 2
+epic, then Phase 2 exit checklist.
 
 ## Architecture (one paragraph)
 Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.

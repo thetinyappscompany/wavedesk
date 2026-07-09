@@ -186,6 +186,117 @@ def workspace_rollup(workspace: str, days: int = DEFAULT_WINDOW_DAYS) -> dict:
     }
 
 
+# --- workspace dashboard (Phase 2 feature 6) ---------------------------------
+
+def _percentile(values: list[float], pct: float):
+    if not values:
+        return None
+    ordered = sorted(values)
+    k = (len(ordered) - 1) * pct
+    lo = int(k)
+    hi = min(lo + 1, len(ordered) - 1)
+    return round(ordered[lo] + (ordered[hi] - ordered[lo]) * (k - lo), 1)
+
+
+def workspace_dashboard(workspace: str, days: int = DEFAULT_WINDOW_DAYS) -> dict:
+    """Live snapshot + historical operational metrics (guide P2 feature 6)."""
+    start = _window_start(days)
+
+    live = {
+        "open": frappe.db.count("WD Chat", {"workspace": workspace, "status": "open"}),
+        "unassigned": frappe.db.count(
+            "WD Chat",
+            {"workspace": workspace, "status": ("!=", "resolved"), "assigned_agent": ("in", (None, ""))},
+        ),
+        # v1 breach-risk proxy until the SLA engine (Phase 3): unanswered questions
+        "needs_reply": frappe.db.count(
+            "WD Chat", {"workspace": workspace, "pending_query_since": ("is", "set")}
+        ),
+    }
+
+    conversations = frappe.db.sql(
+        """
+        select date(creation) as day, count(*) as n
+        from `tabWD Chat`
+        where workspace = %s and creation >= %s
+        group by date(creation)
+        """,
+        (workspace, start),
+        as_dict=True,
+    )
+    conv_by_day = {str(r.day): int(r.n) for r in conversations}
+    conversations_trend = _empty_trend(days)
+    for point in conversations_trend:
+        point["count"] = conv_by_day.get(point["date"], 0)
+
+    first_response = frappe.db.sql(
+        """
+        select timestampdiff(second, creation, first_response_at) as secs
+        from `tabWD Chat`
+        where workspace = %s and first_response_at is not null and creation >= %s
+        """,
+        (workspace, start),
+        as_dict=True,
+    )
+    fr_mins = [r.secs / 60 for r in first_response if r.secs is not None and r.secs >= 0]
+
+    resolution = frappe.db.sql(
+        """
+        select timestampdiff(second, creation, resolved_at) as secs
+        from `tabWD Chat`
+        where workspace = %s and resolved_at is not null and creation >= %s
+        """,
+        (workspace, start),
+        as_dict=True,
+    )
+    res_mins = [r.secs / 60 for r in resolution if r.secs is not None and r.secs >= 0]
+
+    per_agent = frappe.db.sql(
+        """
+        select m.sender_agent as agent, count(*) as n
+        from `tabWD Message` m
+        where m.workspace = %s and m.direction = 'out'
+              and m.sender_agent is not null and m.creation >= %s
+        group by m.sender_agent
+        order by n desc
+        """,
+        (workspace, start),
+        as_dict=True,
+    )
+
+    per_number = frappe.db.sql(
+        """
+        select n.name as number, n.display_name as display_name, count(*) as n
+        from `tabWD Message` m
+        join `tabWD Chat` c on m.chat = c.name
+        join `tabWD WhatsApp Number` n on c.number = n.name
+        where c.workspace = %s and m.creation >= %s
+        group by n.name, n.display_name
+        order by n desc
+        """,
+        (workspace, start),
+        as_dict=True,
+    )
+
+    return {
+        "days": days,
+        "live": live,
+        "conversations_trend": conversations_trend,
+        "conversations_total": sum(conv_by_day.values()),
+        "first_response_avg_mins": round(sum(fr_mins) / len(fr_mins), 1) if fr_mins else None,
+        "first_response_p90_mins": _percentile(fr_mins, 0.9),
+        "resolution_avg_mins": round(sum(res_mins) / len(res_mins), 1) if res_mins else None,
+        "resolution_p90_mins": _percentile(res_mins, 0.9),
+        "messages_per_agent": [
+            {"agent": r.agent, "messages": int(r.n)} for r in per_agent
+        ],
+        "per_number_volume": [
+            {"number": r.number, "display_name": r.display_name, "messages": int(r.n)}
+            for r in per_number
+        ],
+    }
+
+
 # --- nightly engagement score -------------------------------------------------
 
 ENGAGEMENT_WINDOW_DAYS = 30

@@ -217,7 +217,10 @@ def _auto_reopen(workspace: str, chat: str) -> None:
     if status not in ("snoozed", "resolved"):
         return
     frappe.db.set_value(
-        "WD Chat", chat, {"status": "open", "snoozed_until": None}, update_modified=False
+        "WD Chat",
+        chat,
+        {"status": "open", "snoozed_until": None, "resolved_at": None},
+        update_modified=False,
     )
     from wavedesk.realtime import emit_chat_updated
 

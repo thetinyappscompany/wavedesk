@@ -1,6 +1,14 @@
 import { NavLink, Outlet } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, Inbox, MessagesSquare, Phone, Settings, UsersRound } from 'lucide-react';
+import {
+  BarChart3,
+  Bell,
+  Inbox,
+  MessagesSquare,
+  Phone,
+  Settings,
+  UsersRound,
+} from 'lucide-react';
 import { client } from '@/lib/client';
 import { cn } from '@/lib/utils';
 
@@ -8,6 +16,7 @@ const NAV = [
   { to: '/inbox', label: 'Inbox', icon: Inbox },
   { to: '/groups', label: 'Groups', icon: MessagesSquare },
   { to: '/alerts', label: 'Alerts', icon: Bell },
+  { to: '/dashboard', label: 'Analytics', icon: BarChart3 },
   { to: '/contacts', label: 'Contacts', icon: UsersRound },
   { to: '/numbers', label: 'Numbers', icon: Phone },
   { to: '/settings', label: 'Settings', icon: Settings },

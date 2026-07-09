@@ -100,6 +100,11 @@ def set_status(chat_doc, status: str, snoozed_until: str | None = None) -> None:
         chat_doc.snoozed_until = until
     else:
         chat_doc.snoozed_until = None
+    # Resolution-time analytics (P2.6): stamp on entering resolved, clear on leaving.
+    if status == "resolved" and not chat_doc.resolved_at:
+        chat_doc.resolved_at = now_datetime()
+    elif status != "resolved":
+        chat_doc.resolved_at = None
     chat_doc.status = status
     chat_doc.save(ignore_permissions=True)
     emit_chat_updated(chat_doc.workspace, chat_doc.name)
