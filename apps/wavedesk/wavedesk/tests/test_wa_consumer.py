@@ -139,6 +139,21 @@ class TestExactlyOnceReplay(WaConsumerTestBase):
         self.assertEqual(sample[0].sent_via, "baileys")
         self.assertEqual(sample[0].direction, "in")
 
+    def test_single_run_drains_backlog_larger_than_batch(self):
+        """A burst (e.g. a 300-group sync) must fully land in ONE run, not
+        trickle at `limit`/tick — Phase 2 exit target: 200-group sync < 60s."""
+        ws = self._ws = _make_workspace()
+        events = [
+            _baileys_event(ws, f"BULK-{i}", f"9190001{i:04d}", f"m {i}") for i in range(450)
+        ]
+        self._publish(events)
+
+        # one invocation with the small default batch must still clear all 450
+        acked = process_wa_events(limit=200, stream=self.stream, r=self.r)
+        self.assertEqual(acked, 450)
+        self.assertEqual(frappe.db.count("WD Message", {"workspace": ws}), 450)
+        self.assertEqual(process_wa_events(stream=self.stream, r=self.r), 0, "nothing left")
+
 
 class TestCrashRecovery(WaConsumerTestBase):
     def test_kill_mid_batch_then_restart_no_loss_no_duplicates(self):

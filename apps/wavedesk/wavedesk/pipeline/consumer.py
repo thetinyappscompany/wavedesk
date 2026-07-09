@@ -47,18 +47,30 @@ def ensure_group(r: "redis_lib.Redis", stream: str = STREAM) -> None:
             raise
 
 
+# Max entries drained per invocation — a burst backstop so one group sync
+# (e.g. 300+ groups) fully lands on a single cron tick instead of trickling
+# 200/min (Phase 2 exit target: 200-group sync < 60s). Bounds the worst-case
+# run so the scheduler slot can't be held indefinitely by a flooded stream.
+DRAIN_CAP = 5_000
+
+
 def process_wa_events(
     limit: int = 200,
     stream: str = STREAM,
     r: "redis_lib.Redis | None" = None,
 ) -> int:
     """Entry point (scheduled every minute + callable from RQ). Re-claims pending
-    deliveries first (crash recovery), then reads new entries. Returns the number
+    deliveries first (crash recovery), then drains all new entries in batches of
+    `limit` until the stream is empty (or DRAIN_CAP is hit). Returns the number
     of entries acked this run."""
     r = r or get_redis()
     ensure_group(r, stream)
     processed = _process_pending(r, stream, limit)
-    processed += _process_new(r, stream, limit)
+    while processed < DRAIN_CAP:
+        batch = _process_new(r, stream, limit)
+        processed += batch
+        if batch < limit:
+            break  # stream drained — nothing more waiting
     return processed
 
 
