@@ -11,7 +11,35 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 3
-Current epic: Phase 3 — epic 2 (Auto-assignment & routing) DONE
+Current epic: Phase 3 — epic 3 (SLA engine) DONE
+P3.3: WD SLA Policy (policy_name, enabled, first_response_mins, resolution_mins,
+escalation_chain JSON [{after_mins,target agent|team|owner|slack|webhook,url?}])
++ WD SLA Event (chat/policy/metric/outcome breached|escalated/target/detail);
+both tenancy-registered + coverage fixtures. WD Chat gains sla_policy +
+first_response_due/resolution_due/first_response_breached/resolution_breached/
+sla_escalation_level; WD Alert kind gains sla_breach. wavedesk/sla.py:
+apply_policy stamps due times (0-min target = no SLA for that metric; skips
+first-response if already answered); check_breaches (MINUTELY cron) detects
+breaches by comparing due vs the EXISTING first_response_at/resolved_at stamps
+(P2.6) — no new hooks in sender/inbox — marks the breach flag, raises a WD Alert,
+logs a WD SLA Event, emits wd:chat/wd:alert; then _run_escalations walks the
+chain firing steps whose after_mins elapsed since due, idempotent via
+sla_escalation_level (agent/team/owner → in-app alert; slack/webhook →
+monitoring._enqueue_post). CRITICAL BUG FOUND+FIXED: a plain get_all filter
+(due_field, '<=', now) ALSO matches rows where due IS NULL in Frappe's query
+builder — would false-breach every SLA-less chat; fixed with an explicit
+(due_field,'is','set') guard using list-form filters. Automation gains a set_sla
+action. api/sla.py: policy CRUD (Owner/Admin) + attach_policy + list_breaches
+feed. Dashboard live tiles gain sla_breached. Frontend: SlaCard in Settings
+(policy CRUD + escalation-chain builder) + SLA-breached dashboard tile; api-client
+types+methods. Tests: 17 Frappe + 4 frontend; suites 232 Frappe + 111 frontend
+green, ruff clean. VERIFIED LIVE on WS-64165: policy attached → backdated due →
+breach marked + owner escalation fired + alert/event logged; probe cleaned up.
+Shipped on feat/p3.3-sla, stacked on the P3.2 PR (base feat/p3.2-routing).
+Deferred: business-hours-aware SLA clock (v1 = calendar minutes, which is what
+the "breach within 60s of due" exit criterion tests), per-chat SLA badge in the
+inbox list, breach analytics trend (only the live tile so far).
+Previous: Phase 3 — epic 2 (Auto-assignment & routing) DONE
 P3.2: WD Team gains capacity_per_agent (0=unlimited) + routing validated
 (manual/round_robin/load_based). wavedesk/routing.py = the engine:
 availability (Redis online HEARTBEAT 60s TTL via api/routing.heartbeat +
