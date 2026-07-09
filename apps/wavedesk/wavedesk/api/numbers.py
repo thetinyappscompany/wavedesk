@@ -125,6 +125,14 @@ def delete_number(number: str) -> dict:
             gateway_client.delete_session(doc.session_ref)
         except gateway_client.GatewayError:
             pass  # session may already be gone; the doc is the source of truth here
+    # Unlink dependents so the number can be removed — chats and groups keep
+    # their history (a future inbound re-links them via consumer resolution).
+    # Without this Frappe raises LinkExistsError on any number that ever
+    # received a message.
+    for doctype in ("WD Chat", "WD Group"):
+        frappe.db.set_value(
+            doctype, {"number": doc.name}, "number", None, update_modified=False
+        )
     doc.delete(ignore_permissions=True)
     return {"deleted": number}
 

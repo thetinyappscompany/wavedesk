@@ -123,6 +123,40 @@ class TestNumbersApi(IntegrationTestCase):
         dele.assert_called_once()
         self.assertFalse(frappe.db.exists("WD WhatsApp Number", created["number"]))
 
+    def test_delete_number_unlinks_chats_and_groups(self):
+        """A number that ever received a message must still be deletable —
+        dependents are unlinked (kept as history), not blocked with
+        LinkExistsError."""
+        self._as_owner()
+        with patch(f"{GATEWAY}.create_session"):
+            created = numbers_api.connect_baileys()
+        number = created["number"]
+
+        group = frappe.new_doc("WD Group")
+        group.update(
+            {"workspace": self.ws, "wa_group_id": "1203grp@g.us", "subject": "G", "number": number}
+        )
+        group.insert(ignore_permissions=True)
+        chat = frappe.new_doc("WD Chat")
+        chat.update(
+            {
+                "workspace": self.ws,
+                "wa_chat_id": "9199@s.whatsapp.net",
+                "chat_type": "dm",
+                "number": number,
+                "status": "open",
+            }
+        )
+        chat.insert(ignore_permissions=True)
+
+        with patch(f"{GATEWAY}.delete_session"):
+            numbers_api.delete_number(number)
+
+        self.assertFalse(frappe.db.exists("WD WhatsApp Number", number))
+        self.assertTrue(frappe.db.exists("WD Chat", chat.name), "chat kept as history")
+        self.assertIsNone(frappe.db.get_value("WD Chat", chat.name, "number"))
+        self.assertIsNone(frappe.db.get_value("WD Group", group.name, "number"))
+
     def test_connect_cloud_number_stores_token_encrypted(self):
         self._as_owner()
         result = numbers_api.connect_cloud_number(
