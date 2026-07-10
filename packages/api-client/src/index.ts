@@ -163,6 +163,25 @@ export interface WdCannedResponse {
   content: string;
 }
 
+/** AI add-on state for the active workspace (Phase 4). Never carries rates/keys. */
+export interface WdAiSettings {
+  has_ai: boolean;
+  kill_switch: boolean;
+  byok_configured: boolean;
+  byok_provider: string | null;
+  persona_prompt: string | null;
+  confidence_threshold: number | null;
+}
+
+/** Friendly AI usage meter — percent of allowance + credits in INR (never USD/tokens). */
+export interface WdAiUsageMeter {
+  has_ai: boolean;
+  allowance_pct_used: number;
+  credits_inr: number;
+  paused: boolean;
+  byok: boolean;
+}
+
 /** One day's business-hours window; a day with no entry is closed (P3.2). */
 export interface WdBusinessHoursDay {
   open: string; // "HH:MM"
@@ -1350,6 +1369,55 @@ export class WaveDeskClient {
 
   deleteCanned(canned: string): Promise<{ deleted: string }> {
     return this.call('wavedesk.api.canned.delete_canned', { canned });
+  }
+
+  // --- AI settings + usage (Phase 4 feature 1) ---
+  aiSettings(): Promise<WdAiSettings> {
+    return this.call('wavedesk.api.ai.ai_settings');
+  }
+
+  aiUsageMeter(): Promise<WdAiUsageMeter> {
+    return this.call('wavedesk.api.ai.usage_meter');
+  }
+
+  setByok(
+    provider: string,
+    apiKey: string,
+  ): Promise<{ byok_configured: boolean; byok_provider: string }> {
+    return this.call('wavedesk.api.ai.set_byok', { provider, api_key: apiKey });
+  }
+
+  revokeByok(): Promise<{ byok_configured: boolean }> {
+    return this.call('wavedesk.api.ai.revoke_byok');
+  }
+
+  setAiKillSwitch(enabled: boolean): Promise<{ kill_switch: boolean }> {
+    return this.call('wavedesk.api.ai.set_kill_switch', { enabled: enabled ? 1 : 0 });
+  }
+
+  // --- Agent Copilot (Phase 4 feature 2) ---
+  copilotSuggestReply(chat: string): Promise<{ text: string }> {
+    return this.call('wavedesk.api.copilot.suggest_reply', { chat });
+  }
+
+  copilotRewrite(text: string, mode: 'polish' | 'expand' | 'shorten'): Promise<{ text: string }> {
+    return this.call('wavedesk.api.copilot.rewrite', { text, mode });
+  }
+
+  copilotTranslate(
+    text: string,
+    targetLang: string,
+    sourceLang?: string,
+  ): Promise<{ text: string }> {
+    return this.call('wavedesk.api.copilot.translate', {
+      text,
+      target_lang: targetLang,
+      source_lang: sourceLang,
+    });
+  }
+
+  copilotSummarize(chat: string, since?: string): Promise<{ text: string }> {
+    return this.call('wavedesk.api.copilot.summarize', { chat, since });
   }
 
   // --- monitoring (Phase 2 feature 4) ---
