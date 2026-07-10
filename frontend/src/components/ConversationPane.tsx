@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import type { WdCannedResponse, WdChat, WdMessage } from '@wavedesk/api-client';
 import { substituteVariables } from '@/lib/canned';
+import { AiCopilotBar } from '@/components/AiCopilotBar';
 import { client } from '@/lib/client';
 import { useChatPresence } from '@/lib/realtime';
 import { Button } from '@/components/ui/button';
@@ -554,6 +555,7 @@ export default function ConversationPane({
       </div>
 
       <footer className="border-t p-3">
+        <AiCopilotBar chatName={chatName} draft={draft} setDraft={setDraft} />
         {cannedOpen && cannedItems.length > 0 && (
           <div
             data-testid="canned-menu"
