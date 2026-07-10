@@ -11,9 +11,44 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 3
-Current epic: Phase 3 — epic 7 (Segments) DONE — only P3.8 (Cloud API embedded
-signup + templates) remains in Phase 3, and it is GATED on Meta Business
-Verification (still not started).
+Current epic: Phase 3 — epic 8 (Message templates) LOCAL HALF DONE. Phase 3 is
+now CODE-COMPLETE for everything buildable without Meta. Remaining P3.8 pieces
+(Cloud API embedded signup, LIVE template submission to Meta, approval-status
+webhook sync) stay GATED on Meta Business Verification (still not started).
+⚠ INCIDENT 2026-07-10: the founder's REAL paired number was put "Account in
+review" by WhatsApp (ToS/trust-and-safety). Root cause = Baileys (unofficial
+protocol) on a real personal SIM + bulk/automation + syncing 7812 group members
+— the predicted failure mode of testing on a live personal number. Our system
+was NOT actively sending at the time (0 active broadcasts, schedules parked at
+2030, warm-up idle, gateway idle ~24h). Guidance given: unlink the WaveDesk
+linked device while under review, no bulk from that number, use WhatsApp
+organically, and — critically — the sanctioned path for at-scale broadcast is
+the Cloud API (P3.8), which makes Meta Business Verification URGENT. NEVER test
+on a real personal number again; use a Cloud API sandbox number or a burner SIM.
+NB: dev DB is cluttered with test-fixture cruft (258 WD WhatsApp Number rows,
+~100 stale 'connecting'; test-fixture workspaces w/o owners; WD Workspace Member
+is a CHILD table — filter by `parent`, it has NO `workspace` column) — offered
+cleanup (clear stale numbers/schedules, stop idle gateway) pending founder OK.
+P3.8: WD Message Template (workspace, template_name, category marketing/utility/
+authentication, language, header/body/footer_text, buttons JSON, variable_count,
+status draft/pending/approved/rejected, meta_template_id, rejection_reason).
+validate() normalizes name (lower, spaces→underscores), enforces ^[a-z0-9_]+$
+(rejects other punctuation), requires body, rejects non-sequential positional
+{{n}} vars (Meta rule), derives variable_count. wavedesk/templates.py:
+variable_count, render (positional {{1}}.. fill; missing value keeps the
+placeholder), submit_template — LOCAL path saves pending + gating note when NO
+Cloud API number connected (Meta-gated), LIVE path posts via gateway_client.
+submit_template. api/templates.py CRUD + preview + submit (Owner/Admin gate;
+only draft/rejected editable/submittable). Tenancy-registered + fixture.
+Frontend: /templates page (Templates nav, FileText) — Builder + list w/ status
+badges + submit (surfaces gating note) + delete; api-client WdMessageTemplate
+types+methods. Tests: 9 Frappe + 3 frontend; suites 292 Frappe + 125 frontend
+green, ruff clean. VERIFIED LIVE (zero WA traffic): template inserted on real
+workspace WS-90359, render filled positional vars (missing value kept
+placeholder), submit → pending/live=False w/ Cloud-API gating note, name
+validation rejected punctuation; probe cleaned up. Shipped on feat/p3.8-
+templates (commit 4012f77), stacked on the P3.7 PR — PR #7 pending push.
+Previous: Phase 3 — epic 7 (Segments) DONE
 P3.7: WD Segment (segment_name, description, match_type all/any, filters JSON).
 wavedesk/segments.py: matching_contacts evaluated LIVE (never materialized) —
 match_type all=intersect / any=union over per-condition resolvers: has_tag

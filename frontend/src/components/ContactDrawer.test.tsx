@@ -64,7 +64,9 @@ describe('ContactDrawer', () => {
 
   it('shows contact fields and cross-number conversations', async () => {
     renderDrawer();
-    expect(await screen.findByLabelText('Contact name')).toHaveValue('Asha Traders');
+    await waitFor(() =>
+      expect(screen.getByLabelText('Contact name')).toHaveValue('Asha Traders'),
+    );
     expect(screen.getByText('+919111100001')).toBeInTheDocument();
     expect(screen.getByLabelText('Contact email')).toHaveValue('asha@x.test');
     expect(screen.getByText('Surat')).toBeInTheDocument();
