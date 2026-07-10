@@ -35,6 +35,12 @@ from wavedesk.tenancy import (
 USER_A = f"tenancy-a-{uuid.uuid4().hex[:10]}@wavedesk.test"
 USER_B = f"tenancy-b-{uuid.uuid4().hex[:10]}@wavedesk.test"
 
+# Tenant doctypes that are internal-only (System Manager reads; workspace members
+# cannot see even their OWN rows — e.g. WD Usage Record holds confidential raw USD
+# cost). Isolation still applies to them; only the member-can-read positive control
+# is skipped/inverted below.
+INTERNAL_ONLY_DOCTYPES = {"WD Usage Record"}
+
 
 def _make_user(email: str) -> None:
     if frappe.db.exists("User", email):
@@ -102,6 +108,13 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         amount=10,
         running_balance=10,
         idempotency_key=f"idem-{workspace}-{suffix}",
+    )
+    insert(
+        "WD Usage Record",
+        metric="ai_cost_usd",
+        quantity=0.01,
+        period="2026-07",
+        idempotency_key=f"usg-{workspace}-{suffix}",
     )
     insert("WD Audit Log", action="tenancy.fixture", entity=workspace)
     insert("WD Team", team_name=f"Team {suffix}")
@@ -260,6 +273,15 @@ class TestCrossTenantIsolation(IntegrationTestCase):
         frappe.set_user(USER_A)
         for dt in TENANT_DOCTYPES:
             with self.subTest(doctype=dt):
+                if dt in INTERNAL_ONLY_DOCTYPES:
+                    # Members can't enumerate internal-only rows at all (raise or empty).
+                    try:
+                        names = frappe.get_list(dt, pluck="name", limit=0)
+                    except frappe.PermissionError:
+                        continue
+                    self.assertNotIn(self.docs_a[dt], names, f"{dt}: internal doc leaked to member")
+                    self.assertNotIn(self.docs_b[dt], names, f"{dt}: CROSS-TENANT LEAK")
+                    continue
                 names = frappe.get_list(dt, pluck="name", limit=0)
                 self.assertIn(self.docs_a[dt], names, f"{dt}: own doc missing (positive control)")
                 self.assertNotIn(self.docs_b[dt], names, f"{dt}: CROSS-TENANT LEAK in list query")
@@ -277,7 +299,13 @@ class TestCrossTenantIsolation(IntegrationTestCase):
         for dt in TENANT_DOCTYPES:
             with self.subTest(doctype=dt):
                 own = frappe.get_doc(dt, self.docs_a[dt])
-                self.assertTrue(own.has_permission("read"), f"{dt}: cannot read own doc")
+                if dt in INTERNAL_ONLY_DOCTYPES:
+                    # Internal-only: members can't read even their own row.
+                    self.assertFalse(
+                        own.has_permission("read"), f"{dt}: internal-only doc must not be member-readable"
+                    )
+                else:
+                    self.assertTrue(own.has_permission("read"), f"{dt}: cannot read own doc")
                 foreign = frappe.get_doc(dt, self.docs_b[dt])
                 self.assertFalse(
                     foreign.has_permission("read"), f"{dt}: CROSS-TENANT LEAK on direct get"
@@ -311,7 +339,12 @@ class TestCrossTenantIsolation(IntegrationTestCase):
         frappe.set_user(USER_A)
         for dt in TENANT_DOCTYPES:
             with self.subTest(doctype=dt):
-                rows = client_get_list(dt, fields='["name"]', limit_page_length=0)
+                try:
+                    rows = client_get_list(dt, fields='["name"]', limit_page_length=0)
+                except frappe.PermissionError:
+                    # Internal-only doctypes reject listing outright — strongest isolation.
+                    self.assertIn(dt, INTERNAL_ONLY_DOCTYPES, f"{dt}: unexpected list denial")
+                    continue
                 names = {r["name"] for r in rows}
                 self.assertNotIn(self.docs_b[dt], names, f"{dt}: leak via /api/resource list")
 
