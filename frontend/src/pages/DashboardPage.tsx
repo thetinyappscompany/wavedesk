@@ -116,10 +116,11 @@ export default function DashboardPage(): React.JSX.Element {
 
       {d && (
         <>
-          <section aria-label="Live" className="grid grid-cols-3 gap-3">
+          <section aria-label="Live" className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <Tile label="Open chats" value={d.live.open} />
             <Tile label="Unassigned" value={d.live.unassigned} />
             <Tile label="Needs reply" value={d.live.needs_reply} tone="warn" />
+            <Tile label="SLA breached" value={d.live.sla_breached} tone="warn" />
           </section>
 
           <section aria-label="Conversations" className="rounded-lg border p-3">

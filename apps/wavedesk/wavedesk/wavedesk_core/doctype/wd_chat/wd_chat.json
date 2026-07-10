@@ -19,6 +19,12 @@
   "pending_query_since",
   "first_response_at",
   "resolved_at",
+  "sla_policy",
+  "first_response_due",
+  "resolution_due",
+  "first_response_breached",
+  "resolution_breached",
+  "sla_escalation_level",
   "last_message_at",
   "unread_count"
  ],
@@ -118,6 +124,41 @@
    "description": "Set when moved to resolved; cleared on reopen. Resolution-time analytics."
   },
   {
+   "fieldname": "sla_policy",
+   "fieldtype": "Link",
+   "label": "SLA Policy",
+   "options": "WD SLA Policy",
+   "description": "SLA policy attached to this chat (by an automation rule or by hand)."
+  },
+  {
+   "fieldname": "first_response_due",
+   "fieldtype": "Datetime",
+   "label": "First Response Due"
+  },
+  {
+   "fieldname": "resolution_due",
+   "fieldtype": "Datetime",
+   "label": "Resolution Due"
+  },
+  {
+   "fieldname": "first_response_breached",
+   "fieldtype": "Check",
+   "label": "First Response Breached",
+   "default": "0"
+  },
+  {
+   "fieldname": "resolution_breached",
+   "fieldtype": "Check",
+   "label": "Resolution Breached",
+   "default": "0"
+  },
+  {
+   "fieldname": "sla_escalation_level",
+   "fieldtype": "Int",
+   "label": "SLA Escalation Level",
+   "default": "0"
+  },
+  {
    "fieldname": "last_message_at",
    "fieldtype": "Datetime",
    "label": "Last Message At"
@@ -131,7 +172,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-09 15:00:00.000000",
+ "modified": "2026-07-09 18:30:00.000000",
  "modified_by": "Administrator",
  "module": "WaveDesk Core",
  "name": "WD Chat",

@@ -19,6 +19,7 @@ ACTION_TYPES = (
     "send_webhook",
     "notify_slack",
     "auto_reply",
+    "set_sla",
 )
 
 

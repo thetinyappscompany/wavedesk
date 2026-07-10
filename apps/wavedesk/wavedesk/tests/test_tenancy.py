@@ -131,6 +131,10 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         actions='[{"type": "add_label", "label": "x"}]',
     )
     insert("WD Automation Log", rule_name=f"auto-{suffix}", trigger_event="message_received")
+    policy = insert(
+        "WD SLA Policy", policy_name=f"sla-{suffix}", first_response_mins=10, resolution_mins=60
+    )
+    insert("WD SLA Event", policy=policy, metric="first_response", outcome="breached")
     return docs
 
 

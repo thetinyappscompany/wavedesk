@@ -159,7 +159,9 @@ class TestDashboard(IntegrationTestCase):
 
     def test_empty_dashboard(self):
         data = workspace_dashboard(self.ws)
-        self.assertEqual(data["live"], {"open": 0, "unassigned": 0, "needs_reply": 0})
+        self.assertEqual(
+            data["live"], {"open": 0, "unassigned": 0, "needs_reply": 0, "sla_breached": 0}
+        )
         self.assertIsNone(data["first_response_avg_mins"])
         self.assertEqual(data["messages_per_agent"], [])
         self.assertEqual(data["per_number_volume"], [])

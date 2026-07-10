@@ -208,9 +208,26 @@ def workspace_dashboard(workspace: str, days: int = DEFAULT_WINDOW_DAYS) -> dict
             "WD Chat",
             {"workspace": workspace, "status": ("!=", "resolved"), "assigned_agent": ("in", (None, ""))},
         ),
-        # v1 breach-risk proxy until the SLA engine (Phase 3): unanswered questions
         "needs_reply": frappe.db.count(
             "WD Chat", {"workspace": workspace, "pending_query_since": ("is", "set")}
+        ),
+        # SLA breaches on live (non-resolved) chats (P3.3).
+        "sla_breached": frappe.db.count(
+            "WD Chat",
+            {
+                "workspace": workspace,
+                "status": ("!=", "resolved"),
+                "first_response_breached": 1,
+            },
+        )
+        + frappe.db.count(
+            "WD Chat",
+            {
+                "workspace": workspace,
+                "status": ("!=", "resolved"),
+                "first_response_breached": 0,
+                "resolution_breached": 1,
+            },
         ),
     }
 
