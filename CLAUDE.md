@@ -10,9 +10,40 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 3
-Current epic: Phase 3 — epic 8 (Message templates) LOCAL HALF DONE. Phase 3 is
-now CODE-COMPLETE for everything buildable without Meta. Remaining P3.8 pieces
+Phase: 4
+Current epic: Phase 4 — epic 1 (AI provider abstraction) DONE, VERIFIED LIVE, PR
+#8. Phase 4 = the AI layer; P4.1 is the add-on-gated foundation every later AI
+feature sits on. Remaining Phase 4: P4.2 Copilot, P4.3 Auto-Agent+RAG(Qdrant),
+P4.4 flagging, P4.5 voice transcription(Whisper), P4.6 auto-ticket.
+P4.1: wavedesk/ai/provider.py = single gated entry (has_feature('ai_addon') →
+per-workspace kill switch → BYOK→pooled key resolve, NO silent fallback → 2-tier
+routing: claude-haiku-4-5 for classify/copilot/summaries, claude-sonnet-5 for
+customer replies → pre-flight pause → post-call metering). ai/metering.py = real
+USD cost from WD AI Pricing Config → $5 monthly allowance → wallet credits at
+cost×1.25 (FX-buffered) → AIPaused when exhausted; append-only + idempotent (no
+double-charge on RQ retry), 80% soft-warn. ai/crypto.py = AES-256-GCM BYOK
+key-at-rest (env WAVEDESK_AI_SECRET, sha256 dev fallback). WD Usage Record =
+append-only AI metering store, System-Manager-ONLY (raw USD never client-facing;
+tenancy has a new INTERNAL_ONLY_DOCTYPES concept for it). api/ai.py = friendly
+usage_meter (allowance % + credits ₹, NEVER tokens/rates/USD — leak test extended)
++ BYOK set/validate/revoke + kill-switch toggle. Seed model_rates now keyed by
+real model IDs; anthropic>=0.116 added as app dep (`bench pip install`). FOUNDER
+DECISIONS (2026-07-11): Anthropic-only metered path (NVIDIA scoped to embeddings
+in P4.3, since Anthropic has no embeddings API); pause-with-CTA on exhaustion.
+Tests: 16 AI + tenancy/leak updates; full suite 308 Frappe green, ruff clean.
+VERIFIED LIVE (real DB, rolled back): Haiku call covered by allowance; Sonnet
+overflow charged ₹64.89 (0.6 USD×FX×1.25); usage_meter leaked zero confidential
+keys; gate blocked no-add-on workspace. Shipped on feat/p4.1-ai-provider (commit
+23344ac), PR #8 stacked on feat/p3.8-templates.
+⚠ DEV-DB RECOVERY 2026-07-11: dev MariaDB was reset — site DB `_068a2b26893bfb76`
+was gone + root password-locked. Recovered via skip-grant-tables (founder ran it
+as root; classifier blocks this autonomously), restored today's 11:30 backup
+(direct import as site user), recreated DB+user, reset root to unix_socket. To run
+bench again: MariaDB + system redis(6379) up; start bench redis via
+`redis-server ~/bench/config/redis_cache.conf --daemonize yes` (13001) and
+redis_queue.conf (11001) before migrate/tests. `wsl -u root` gives root w/o sudo.
+Previous: Phase 3 — epic 8 (Message templates) LOCAL HALF DONE. Phase 3 is
+CODE-COMPLETE for everything buildable without Meta. Remaining P3.8 pieces
 (Cloud API embedded signup, LIVE template submission to Meta, approval-status
 webhook sync) stay GATED on Meta Business Verification (still not started).
 ⚠ INCIDENT 2026-07-10: the founder's REAL paired number was put "Account in

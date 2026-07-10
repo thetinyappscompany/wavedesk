@@ -7,7 +7,10 @@ description = "Multi-tenant WhatsApp team-inbox & group-management SaaS"
 requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]
-dependencies = []
+dependencies = [
+    # AI layer (Phase 4): Anthropic SDK for the pooled Haiku/Sonnet tiers + BYOK.
+    "anthropic>=0.116.0",
+]
 
 [build-system]
 requires = ["flit_core >=3.4,<4"]
