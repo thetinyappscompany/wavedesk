@@ -70,3 +70,69 @@ def answer(workspace: str, question: str) -> dict:
         return {"action": "handoff", "reason": "model_declined", "text": None,
                 "top_score": top_score, "hits": hits}
     return {"action": "reply", "text": text, "top_score": top_score, "hits": hits}
+
+
+# ---------------------------------------------------------------------------
+# Inbound-DM auto-answering (wired into the consumer)
+# ---------------------------------------------------------------------------
+
+def on_inbound_dm(workspace: str, chat: str, chat_type: str, body: str) -> None:
+    """Consumer hook: cheap gate here, heavy answering off-thread. Only auto-answers
+    customer DMs when the workspace has an enabled agent — otherwise a no-op so the
+    pipeline stays fast."""
+    if chat_type != "dm" or not (body or "").strip():
+        return
+    cfg = get_config(workspace)
+    if not cfg or not cfg.enabled:
+        return
+    frappe.enqueue(
+        "wavedesk.ai.agent.handle_inbound", queue="short",
+        workspace=workspace, chat=chat, question=body,
+    )
+
+
+def handle_inbound(workspace: str, chat: str, question: str) -> dict | None:
+    """RQ job: gate → answer → dispatch (reply via queued sender, or hand off to a
+    human). Best-effort — never raises into the worker."""
+    from wavedesk.plan.gating import has_feature
+
+    cfg = get_config(workspace)
+    if not cfg or not cfg.enabled or not has_feature(workspace, "ai_addon"):
+        return None
+    if provider.workspace_ai_config(workspace).get("kill_switch"):
+        return None
+    chat_doc = frappe.get_doc("WD Chat", chat)
+    if chat_doc.get("assigned_agent"):
+        return None  # a human is already handling this chat
+    if cfg.after_hours_only:
+        from wavedesk import routing
+
+        if routing.within_business_hours(workspace):
+            return None  # AI only answers outside business hours
+
+    result = answer(workspace, question)
+    if result["action"] == "reply" and result.get("text"):
+        _dispatch_reply(chat, result["text"])
+    else:
+        _dispatch_handoff(cfg, chat_doc, result.get("reason"))
+    return result
+
+
+def _dispatch_reply(chat: str, text: str) -> None:
+    from wavedesk.pipeline import sender
+
+    sender.queue_send(chat, text, "Administrator")
+
+
+def _dispatch_handoff(cfg, chat_doc, reason: str | None) -> None:
+    from wavedesk import inbox
+
+    inbox.assign_chat(chat_doc, None, cfg.handoff_team or None)
+    inbox.set_status(chat_doc, "pending")
+    try:
+        frappe.get_doc({
+            "doctype": "WD Internal Note", "workspace": chat_doc.workspace,
+            "chat": chat_doc.name, "body": f"AI auto-agent handed off ({reason}).",
+        }).insert(ignore_permissions=True)
+    except Exception:  # noqa: BLE001 - note is a nicety; handoff already applied
+        pass

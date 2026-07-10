@@ -182,6 +182,35 @@ export interface WdAiUsageMeter {
   byok: boolean;
 }
 
+/** AI Auto-Agent config for the active workspace (Phase 4 feature 3). */
+export interface WdAiAgentConfig {
+  name: string;
+  enabled: boolean;
+  persona_prompt: string | null;
+  confidence_threshold: number | null;
+  handoff_team: string | null;
+  after_hours_only: boolean;
+  greeting: string | null;
+}
+
+/** A knowledge-base document + its embedding status. */
+export interface WdKnowledgeDoc {
+  name: string;
+  title: string;
+  source_type: string;
+  source_ref: string | null;
+  embedding_status: string;
+  chunk_count: number | null;
+}
+
+/** Auto-agent decision for a previewed question. */
+export interface WdAgentAnswer {
+  action: 'reply' | 'handoff';
+  text: string | null;
+  reason?: string;
+  top_score?: number;
+}
+
 /** One day's business-hours window; a day with no entry is closed (P3.2). */
 export interface WdBusinessHoursDay {
   open: string; // "HH:MM"
@@ -1418,6 +1447,52 @@ export class WaveDeskClient {
 
   copilotSummarize(chat: string, since?: string): Promise<{ text: string }> {
     return this.call('wavedesk.api.copilot.summarize', { chat, since });
+  }
+
+  // --- AI Auto-Agent (Phase 4 feature 3) ---
+  getAgentConfig(): Promise<WdAiAgentConfig> {
+    return this.call('wavedesk.api.agent.get_agent_config');
+  }
+
+  updateAgentConfig(changes: {
+    enabled?: boolean;
+    persona_prompt?: string;
+    confidence_threshold?: number;
+    handoff_team?: string;
+    after_hours_only?: boolean;
+    greeting?: string;
+  }): Promise<WdAiAgentConfig> {
+    const payload: Record<string, unknown> = { ...changes };
+    if (changes.enabled !== undefined) payload.enabled = changes.enabled ? 1 : 0;
+    if (changes.after_hours_only !== undefined)
+      payload.after_hours_only = changes.after_hours_only ? 1 : 0;
+    return this.call('wavedesk.api.agent.update_agent_config', payload);
+  }
+
+  listKnowledge(): Promise<WdKnowledgeDoc[]> {
+    return this.call('wavedesk.api.agent.list_knowledge');
+  }
+
+  createKnowledge(
+    title: string,
+    content: string,
+    sourceType = 'text',
+    sourceRef?: string,
+  ): Promise<{ name: string; embedding_status: string }> {
+    return this.call('wavedesk.api.agent.create_knowledge', {
+      title,
+      content,
+      source_type: sourceType,
+      source_ref: sourceRef,
+    });
+  }
+
+  deleteKnowledge(doc: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.agent.delete_knowledge', { doc });
+  }
+
+  previewAnswer(question: string): Promise<WdAgentAnswer> {
+    return this.call('wavedesk.api.agent.preview_answer', { question });
   }
 
   // --- monitoring (Phase 2 feature 4) ---

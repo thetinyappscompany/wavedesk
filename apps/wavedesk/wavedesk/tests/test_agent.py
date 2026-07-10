@@ -167,3 +167,77 @@ class TestIngestAndApi(IntegrationTestCase):
         _workspace(ai_addon=False)
         with self.assertRaises(FeatureNotAvailableError):
             preview_answer("hi")
+
+
+def _make_chat(workspace: str) -> str:
+    c = frappe.new_doc("WD Chat")
+    c.update({"workspace": workspace, "chat_type": "dm", "wa_chat_id": f"wa-{uuid.uuid4().hex[:8]}"})
+    c.insert(ignore_permissions=True)
+    return c.name
+
+
+class TestAutoAgentInbound(IntegrationTestCase):
+    def setUp(self):
+        super().setUp()
+        frappe.set_user("Administrator")
+        seed_defaults()
+
+    def test_on_inbound_dm_enqueues_when_enabled(self):
+        ws = _workspace()  # enabled agent config
+        with patch("frappe.enqueue") as enq:
+            agent.on_inbound_dm(ws, "CHAT-X", "dm", "hi there")
+        enq.assert_called_once()
+        self.assertEqual(enq.call_args.args[0], "wavedesk.ai.agent.handle_inbound")
+
+    def test_on_inbound_dm_skips_group_and_disabled(self):
+        ws = _workspace()
+        with patch("frappe.enqueue") as enq:
+            agent.on_inbound_dm(ws, "CHAT-X", "group", "hi")  # groups excluded
+            agent.on_inbound_dm(ws, "CHAT-X", "dm", "   ")  # empty body
+        enq.assert_not_called()
+        # Disabled config → no enqueue
+        ws2 = _workspace()
+        frappe.db.set_value("WD AI Agent Config", {"workspace": ws2}, "enabled", 0)
+        with patch("frappe.enqueue") as enq2:
+            agent.on_inbound_dm(ws2, "CHAT-X", "dm", "hi")
+        enq2.assert_not_called()
+
+    def test_handle_inbound_reply_dispatches_send(self):
+        ws = _workspace()
+        chat = _make_chat(ws)
+        hits = [{"text": "Return policy is 7 days.", "doc": "KDOC-1", "score": 0.9}]
+        fake = _FakeClient("You can return within 7 days.")
+        with patch.object(rag, "search", lambda w, q, top_k=rag.TOP_K: hits), \
+             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-pool"}), \
+             patch.object(provider, "_client", lambda key: fake), \
+             patch("wavedesk.pipeline.sender.queue_send") as send:
+            out = agent.handle_inbound(ws, chat, "how many days to return?")
+        self.assertEqual(out["action"], "reply")
+        send.assert_called_once()
+        self.assertEqual(send.call_args.args[1], "You can return within 7 days.")
+
+    def test_handle_inbound_handoff_sets_pending(self):
+        ws = _workspace(threshold=0.6)
+        chat = _make_chat(ws)
+        with patch.object(rag, "search", lambda w, q, top_k=rag.TOP_K: []):
+            out = agent.handle_inbound(ws, chat, "totally unrelated")
+        self.assertEqual(out["action"], "handoff")
+        self.assertEqual(frappe.db.get_value("WD Chat", chat, "status"), "pending")
+
+    def test_handle_inbound_skips_when_human_assigned(self):
+        ws = _workspace()
+        chat = _make_chat(ws)
+        frappe.db.set_value("WD Chat", chat, "assigned_agent", "Administrator")
+        with patch.object(rag, "search") as search:
+            out = agent.handle_inbound(ws, chat, "hi")
+        self.assertIsNone(out)
+        search.assert_not_called()
+
+    def test_handle_inbound_skips_on_kill_switch(self):
+        ws = _workspace()
+        chat = _make_chat(ws)
+        frappe.db.set_value("WD Workspace", ws, "ai_config", json.dumps({"kill_switch": True}))
+        with patch.object(rag, "search") as search:
+            out = agent.handle_inbound(ws, chat, "hi")
+        self.assertIsNone(out)
+        search.assert_not_called()
