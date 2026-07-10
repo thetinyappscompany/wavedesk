@@ -116,6 +116,12 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         period="2026-07",
         idempotency_key=f"usg-{workspace}-{suffix}",
     )
+    insert(
+        "WD Invoice Ref",
+        zoho_invoice_id=f"INV-{workspace}-{suffix}",
+        amount=1200,
+        status="paid",
+    )
     insert("WD Audit Log", action="tenancy.fixture", entity=workspace)
     insert("WD Team", team_name=f"Team {suffix}")
     insert("WD Contact Import", file_name=f"import-{suffix}.csv")
