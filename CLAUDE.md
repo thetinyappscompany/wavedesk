@@ -11,8 +11,20 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 4
-Current epic: Phase 4 — epic 3 (AI Auto-Agent + RAG) DONE, PR #10. Remaining
-Phase 4: P4.4 flagging, P4.5 voice transcription(Whisper), P4.6 auto-ticket.
+Current epic: Phase 4 — epic 4 (AI message flagging) DONE, PR #11. Remaining
+Phase 4: P4.5 voice transcription(Whisper), P4.6 auto-ticket.
+P4.4: WD AI Flag Rule (workspace, flag_key, label, prompt/criteria, action
+flag|ticket, priority, enabled; tenancy-registered). ai/flagging.py = ONE
+mini-tier (Haiku) call per inbound msg classifies against ALL enabled rules →
+JSON keys (tolerant parse); matches set P2.4 flag fields on WD Message + open a
+WD Ticket per ticket-action rule. on_inbound consumer hook (cheap 'any rules?'
+gate → enqueue) + evaluate RQ job (add-on + kill-switch gated). Wired into
+consumer inbound (dm+group). api/flagging.py rule CRUD. Frontend AiFlaggingCard
+in Settings (list + enable toggle + add/delete; button 'Add flag rule' to avoid
+collision w/ MonitoringCard). Tests: 7 Frappe + 4 frontend; full suites 338
+Frappe + frontend green, ruff/typecheck/lint clean. Shipped on feat/p4.4-
+flagging, PR #11 stacked on feat/p4.3-autoagent (#10).
+Previous: Phase 4 — epic 3 (AI Auto-Agent + RAG) DONE, PR #10.
 P4.3: WD Knowledge Doc + WD AI Agent Config doctypes (tenancy-registered).
 ai/embeddings.py = NVIDIA OpenAI-compatible embeddings (Anthropic has none —
 NVIDIA scoped to embeddings; env NVIDIA_API_KEY). ai/rag.py = workspace-scoped

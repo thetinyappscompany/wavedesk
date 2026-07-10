@@ -184,6 +184,13 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         source_type="text",
         content="Our return policy is 7 days.",
     )
+    insert(
+        "WD AI Flag Rule",
+        flag_key=f"flag_{digits}",
+        label="Purchase intent",
+        prompt="Customer wants to buy",
+        action="flag",
+    )
     return docs
 
 

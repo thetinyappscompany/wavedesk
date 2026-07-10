@@ -235,6 +235,11 @@ def apply_event(event: dict) -> None:
             chat,
             {"body": body, "message": message.name, "trigger": "message_received"},
         )
+        # AI message flagging (P4.4): custom per-workspace flag rules on every
+        # inbound message (dm + group). Cheap gate; classify runs off-thread.
+        from wavedesk.ai import flagging
+
+        flagging.on_inbound(workspace, chat, message.name, body)
         # AI Auto-Agent (P4.3): auto-answer customer DMs from the knowledge base,
         # or hand off to a human. Cheap gate; heavy answering runs off-thread.
         if chat_type == "dm":

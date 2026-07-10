@@ -211,6 +211,17 @@ export interface WdAgentAnswer {
   top_score?: number;
 }
 
+/** A per-workspace AI flag rule (Phase 4 feature 4). */
+export interface WdAiFlagRule {
+  name: string;
+  flag_key: string;
+  label: string | null;
+  prompt: string;
+  action: 'flag' | 'ticket';
+  priority: string;
+  enabled: boolean;
+}
+
 /** One day's business-hours window; a day with no entry is closed (P3.2). */
 export interface WdBusinessHoursDay {
   open: string; // "HH:MM"
@@ -1493,6 +1504,38 @@ export class WaveDeskClient {
 
   previewAnswer(question: string): Promise<WdAgentAnswer> {
     return this.call('wavedesk.api.agent.preview_answer', { question });
+  }
+
+  // --- AI message flagging (Phase 4 feature 4) ---
+  listFlagRules(): Promise<WdAiFlagRule[]> {
+    return this.call('wavedesk.api.flagging.list_rules');
+  }
+
+  createFlagRule(
+    flagKey: string,
+    prompt: string,
+    opts?: { label?: string; action?: 'flag' | 'ticket'; priority?: string },
+  ): Promise<{ name: string; flag_key: string }> {
+    return this.call('wavedesk.api.flagging.create_rule', {
+      flag_key: flagKey,
+      prompt,
+      label: opts?.label,
+      action: opts?.action ?? 'flag',
+      priority: opts?.priority ?? 'medium',
+    });
+  }
+
+  updateFlagRule(
+    rule: string,
+    changes: { prompt?: string; label?: string; action?: 'flag' | 'ticket'; priority?: string; enabled?: boolean },
+  ): Promise<{ name: string; enabled: boolean }> {
+    const payload: Record<string, unknown> = { rule, ...changes };
+    if (changes.enabled !== undefined) payload.enabled = changes.enabled ? 1 : 0;
+    return this.call('wavedesk.api.flagging.update_rule', payload);
+  }
+
+  deleteFlagRule(rule: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.flagging.delete_rule', { rule });
   }
 
   // --- monitoring (Phase 2 feature 4) ---
