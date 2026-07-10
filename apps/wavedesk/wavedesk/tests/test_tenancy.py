@@ -143,6 +143,15 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         audience_type="all_contacts",
     )
     insert("WD Broadcast Recipient", broadcast=broadcast, phone=f"9188{digits}", status="pending")
+    insert(
+        "WD Scheduled Message",
+        title=f"sched-{suffix}",
+        target_type="chat",
+        target=chat,
+        body="scheduled hi",
+        schedule_type="once",
+        scheduled_at="2030-01-01 09:00:00",
+    )
     return docs
 
 

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
   Bell,
+  Clock,
   Inbox,
   Megaphone,
   MessagesSquare,
@@ -22,6 +23,7 @@ const NAV = [
   { to: '/tickets', label: 'Tickets', icon: Ticket },
   { to: '/automation', label: 'Automation', icon: Zap },
   { to: '/broadcasts', label: 'Broadcasts', icon: Megaphone },
+  { to: '/schedules', label: 'Schedules', icon: Clock },
   { to: '/alerts', label: 'Alerts', icon: Bell },
   { to: '/dashboard', label: 'Analytics', icon: BarChart3 },
   { to: '/contacts', label: 'Contacts', icon: UsersRound },

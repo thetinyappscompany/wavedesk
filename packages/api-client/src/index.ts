@@ -287,6 +287,33 @@ export interface WdSlaEvent {
   creation: string;
 }
 
+export type WdScheduleTargetType = 'chat' | 'group' | 'broadcast';
+export type WdScheduleType = 'once' | 'recurring';
+
+export interface WdRecurrence {
+  frequency: 'daily' | 'weekly';
+  time: string; // "HH:MM"
+  weekdays?: number[]; // 0 = Monday
+}
+
+export interface WdScheduledMessage {
+  name: string;
+  title: string;
+  target_type: WdScheduleTargetType;
+  target: string;
+  number: string | null;
+  body: string | null;
+  schedule_type: WdScheduleType;
+  scheduled_at: string | null;
+  recurrence: WdRecurrence | Record<string, never>;
+  timezone: string;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  run_count: number;
+  status: 'scheduled' | 'sent' | 'cancelled' | 'failed';
+  enabled: boolean;
+}
+
 export type WdBroadcastStatus = 'draft' | 'sending' | 'paused' | 'completed' | 'cancelled';
 export type WdAudienceType = 'csv' | 'group_members' | 'all_contacts' | 'segment';
 
@@ -846,6 +873,69 @@ export class WaveDeskClient {
 
   deleteBroadcast(broadcast: string): Promise<{ deleted: string }> {
     return this.call('wavedesk.api.broadcasts.delete_broadcast', { broadcast });
+  }
+
+  // --- scheduled messages (Phase 3 feature 5) ---
+  listSchedules(): Promise<WdScheduledMessage[]> {
+    return this.call('wavedesk.api.schedules.list_schedules');
+  }
+
+  createSchedule(input: {
+    title: string;
+    targetType: WdScheduleTargetType;
+    target: string;
+    scheduleType: WdScheduleType;
+    body?: string;
+    number?: string;
+    scheduledAt?: string;
+    recurrence?: WdRecurrence;
+    timezone?: string;
+  }): Promise<WdScheduledMessage> {
+    return this.call('wavedesk.api.schedules.create_schedule', {
+      title: input.title,
+      target_type: input.targetType,
+      target: input.target,
+      schedule_type: input.scheduleType,
+      ...(input.body !== undefined ? { body: input.body } : {}),
+      ...(input.number ? { number: input.number } : {}),
+      ...(input.scheduledAt ? { scheduled_at: input.scheduledAt } : {}),
+      ...(input.recurrence ? { recurrence: input.recurrence } : {}),
+      ...(input.timezone ? { timezone: input.timezone } : {}),
+    });
+  }
+
+  updateSchedule(
+    schedule: string,
+    changes: {
+      title?: string;
+      body?: string;
+      scheduledAt?: string;
+      recurrence?: WdRecurrence;
+      timezone?: string;
+      enabled?: boolean;
+    },
+  ): Promise<WdScheduledMessage> {
+    return this.call('wavedesk.api.schedules.update_schedule', {
+      schedule,
+      ...(changes.title !== undefined ? { title: changes.title } : {}),
+      ...(changes.body !== undefined ? { body: changes.body } : {}),
+      ...(changes.scheduledAt !== undefined ? { scheduled_at: changes.scheduledAt } : {}),
+      ...(changes.recurrence !== undefined ? { recurrence: changes.recurrence } : {}),
+      ...(changes.timezone !== undefined ? { timezone: changes.timezone } : {}),
+      ...(changes.enabled !== undefined ? { enabled: changes.enabled } : {}),
+    });
+  }
+
+  cancelSchedule(schedule: string): Promise<WdScheduledMessage> {
+    return this.call('wavedesk.api.schedules.cancel_schedule', { schedule });
+  }
+
+  runScheduleNow(schedule: string): Promise<WdScheduledMessage> {
+    return this.call('wavedesk.api.schedules.run_schedule_now', { schedule });
+  }
+
+  deleteSchedule(schedule: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.schedules.delete_schedule', { schedule });
   }
 
   // --- groups (Phase 2 feature 1 — registry; bulk actions land in P2.3) ---
