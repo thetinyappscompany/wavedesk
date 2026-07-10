@@ -11,10 +11,22 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 4
-Current epic: Phase 4 — epic 1 (AI provider abstraction) DONE, VERIFIED LIVE, PR
+Current epic: Phase 4 — epic 2 (Agent Copilot) DONE, PR #9. Remaining Phase 4:
+P4.3 Auto-Agent+RAG(Qdrant), P4.4 flagging, P4.5 voice transcription(Whisper),
+P4.6 auto-ticket.
+P4.2: ai/copilot.py = Haiku-tier assists over the P4.1 gated+metered provider —
+suggest_reply (drafts next reply from chat transcript), rewrite polish/expand/
+shorten, translate (auto-detect→target), summarize (chat/group, optional since);
+fresh idempotency key per call (interactive → billed each click). api/copilot.py
+whitelisted + add-on-gated + workspace-scoped. api-client gained copilot methods +
+AI settings/usage methods (WdAiSettings/WdAiUsageMeter). Frontend: AiCopilotBar in
+the conversation composer — hidden unless workspace has ai_addon; Suggest/Polish/
+Shorten/Translate replace the draft, Summarize opens a dismissible panel. Tests: 7
+Frappe + 5 frontend; full suites 315 Frappe + frontend green, ruff/typecheck/lint
+clean. Shipped on feat/p4.2-copilot, PR #9 stacked on feat/p4.1-ai-provider (#8).
+Previous: Phase 4 — epic 1 (AI provider abstraction) DONE, VERIFIED LIVE, PR
 #8. Phase 4 = the AI layer; P4.1 is the add-on-gated foundation every later AI
-feature sits on. Remaining Phase 4: P4.2 Copilot, P4.3 Auto-Agent+RAG(Qdrant),
-P4.4 flagging, P4.5 voice transcription(Whisper), P4.6 auto-ticket.
+feature sits on.
 P4.1: wavedesk/ai/provider.py = single gated entry (has_feature('ai_addon') →
 per-workspace kill switch → BYOK→pooled key resolve, NO silent fallback → 2-tier
 routing: claude-haiku-4-5 for classify/copilot/summaries, claude-sonnet-5 for
