@@ -287,6 +287,47 @@ export interface WdSlaEvent {
   creation: string;
 }
 
+export type WdBroadcastStatus = 'draft' | 'sending' | 'paused' | 'completed' | 'cancelled';
+export type WdAudienceType = 'csv' | 'group_members' | 'all_contacts' | 'segment';
+
+export interface WdBroadcast {
+  name: string;
+  broadcast_name: string;
+  number: string;
+  message_template: string;
+  status: WdBroadcastStatus;
+  audience_type: WdAudienceType | null;
+  audience_ref: string | null;
+  total_recipients: number;
+  sent_count: number;
+  failed_count: number;
+  daily_cap: number;
+  min_interval_sec: number;
+  max_interval_sec: number;
+  failure_pause_pct: number;
+}
+
+export interface WdBroadcastRecipient {
+  name: string;
+  phone: string | null;
+  recipient_name: string | null;
+  status: 'pending' | 'sent' | 'failed' | 'opted_out' | 'skipped';
+  error: string | null;
+  message_status: string | null;
+}
+
+export interface WdBroadcastReport {
+  broadcast: WdBroadcast;
+  counts: Record<'pending' | 'sent' | 'failed' | 'opted_out' | 'skipped', number>;
+  recipients: WdBroadcastRecipient[];
+}
+
+export interface WdBroadcastPreview {
+  phone: string | null;
+  name: string | null;
+  rendered: string;
+}
+
 export type WdRouting = 'manual' | 'round_robin' | 'load_based';
 
 export interface WdTeam {
@@ -739,6 +780,72 @@ export class WaveDeskClient {
 
   listSlaBreaches(limit?: number): Promise<WdSlaEvent[]> {
     return this.call('wavedesk.api.sla.list_breaches', { ...(limit ? { limit } : {}) });
+  }
+
+  // --- broadcasts (Phase 3 feature 4) ---
+  listBroadcasts(): Promise<WdBroadcast[]> {
+    return this.call('wavedesk.api.broadcasts.list_broadcasts');
+  }
+
+  createBroadcast(input: {
+    broadcastName: string;
+    number: string;
+    messageTemplate: string;
+    audienceType: WdAudienceType;
+    audience?: { phone: string; name?: string }[];
+    audienceRef?: string;
+    dailyCap?: number;
+    minIntervalSec?: number;
+    maxIntervalSec?: number;
+    failurePausePct?: number;
+  }): Promise<WdBroadcast> {
+    return this.call('wavedesk.api.broadcasts.create_broadcast', {
+      broadcast_name: input.broadcastName,
+      number: input.number,
+      message_template: input.messageTemplate,
+      audience_type: input.audienceType,
+      ...(input.audience ? { audience: input.audience } : {}),
+      ...(input.audienceRef ? { audience_ref: input.audienceRef } : {}),
+      ...(input.dailyCap !== undefined ? { daily_cap: input.dailyCap } : {}),
+      ...(input.minIntervalSec !== undefined ? { min_interval_sec: input.minIntervalSec } : {}),
+      ...(input.maxIntervalSec !== undefined ? { max_interval_sec: input.maxIntervalSec } : {}),
+      ...(input.failurePausePct !== undefined ? { failure_pause_pct: input.failurePausePct } : {}),
+    });
+  }
+
+  startBroadcast(broadcast: string): Promise<WdBroadcast> {
+    return this.call('wavedesk.api.broadcasts.start_broadcast', { broadcast });
+  }
+
+  pauseBroadcast(broadcast: string): Promise<WdBroadcast> {
+    return this.call('wavedesk.api.broadcasts.pause_broadcast', { broadcast });
+  }
+
+  resumeBroadcast(broadcast: string): Promise<WdBroadcast> {
+    return this.call('wavedesk.api.broadcasts.resume_broadcast', { broadcast });
+  }
+
+  cancelBroadcast(broadcast: string): Promise<WdBroadcast> {
+    return this.call('wavedesk.api.broadcasts.cancel_broadcast', { broadcast });
+  }
+
+  retryBroadcast(broadcast: string): Promise<{ retried: number }> {
+    return this.call('wavedesk.api.broadcasts.retry_broadcast', { broadcast });
+  }
+
+  previewBroadcast(broadcast: string, limit?: number): Promise<WdBroadcastPreview[]> {
+    return this.call('wavedesk.api.broadcasts.preview_broadcast', {
+      broadcast,
+      ...(limit ? { limit } : {}),
+    });
+  }
+
+  broadcastReport(broadcast: string): Promise<WdBroadcastReport> {
+    return this.call('wavedesk.api.broadcasts.delivery_report', { broadcast });
+  }
+
+  deleteBroadcast(broadcast: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.broadcasts.delete_broadcast', { broadcast });
   }
 
   // --- groups (Phase 2 feature 1 — registry; bulk actions land in P2.3) ---

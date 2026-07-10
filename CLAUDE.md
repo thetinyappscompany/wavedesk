@@ -11,7 +11,35 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 3
-Current epic: Phase 3 — epic 3 (SLA engine) DONE
+Current epic: Phase 3 — epic 4 (Broadcasts) DONE
+P3.4: WD Broadcast (number, message_template, status draft/sending/paused/
+completed/cancelled, audience_type, counts, daily_cap, min/max_interval_sec,
+failure_pause_pct) + WD Broadcast Recipient (contact/phone/recipient_name/
+wa_chat_id/status pending|sent|failed|opted_out|skipped/message/error); both
+tenancy-registered + fixtures. wavedesk/broadcasts.py: build_recipients (audience
+csv rows / group_members / all_contacts — dedupe by phone, skip opted-out;
+segment throws → P3.7), render_template ({{name}}/{{phone}}), run_broadcast
+DRIVER (RQ long job): randomized inter-send gaps, per-run daily_cap (warm-up),
+failure auto-pause once FAILURE_MIN_SAMPLE dispatched and failed% > threshold
+(ban signal), each send via pipeline.sender.queue_send (non-negotiable #7),
+_ensure_dm_chat creates the outbound DM chat, _reconcile flips dispatched
+recipients whose WD Message ultimately FAILED so the REAL failure rate drives
+auto-pause. STOP/UNSUBSCRIBE/CANCEL reply → WD Contact.opt_out (process_opt_out
+wired in consumer inbound DM), suppressed at build AND dispatch. Lifecycle
+start/pause/resume/cancel/retry_failed. api/broadcasts.py CRUD + start/pause/
+resume/cancel/retry + preview (rendered) + delivery_report (per-recipient joined
+to WD Message status + counts); 5k recipient cap (exit criterion). Frontend:
+/broadcasts page + Megaphone nav — Composer (number select, audience picker w/
+CSV textarea + group ref, message + variables, daily cap), broadcast list with
+inline start/pause/resume/cancel/retry + status/progress, expandable delivery
+Report (counts + per-recipient rows). api-client types+methods. Tests: 15 Frappe
++ 4 frontend; suites 247 Frappe + 115 frontend green, ruff clean. VERIFIED LIVE
+on WS-50210: CSV audience deduped 3->2, driver dispatched both through the REAL
+pipeline (real WD Message rows, status sent), STOP set opt_out; probe cleaned up.
+Shipped on feat/p3.4-broadcasts, stacked on the P3.3 PR. Deferred: media
+broadcasts (no media pipeline), segment audiences (P3.7), delivered/read receipts
+(await gateway message.status consumption), calendar-day cap windowing (P3.6).
+Previous: Phase 3 — epic 3 (SLA engine) DONE
 P3.3: WD SLA Policy (policy_name, enabled, first_response_mins, resolution_mins,
 escalation_chain JSON [{after_mins,target agent|team|owner|slack|webhook,url?}])
 + WD SLA Event (chat/policy/metric/outcome breached|escalated/target/detail);

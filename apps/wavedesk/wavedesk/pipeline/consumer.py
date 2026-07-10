@@ -208,6 +208,11 @@ def apply_event(event: dict) -> None:
         from wavedesk import routing
 
         routing.maybe_ooo_reply(workspace, chat, chat_type)
+        # Broadcast opt-out (P3.4): a 'STOP' reply suppresses future broadcasts.
+        if chat_type == "dm" and contact:
+            from wavedesk import broadcasts
+
+            broadcasts.process_opt_out(workspace, contact, body)
         if chat_type == "group":
             # Needs Reply queue (P2.2): question-looking messages start the clock
             inbox.flag_pending_query(workspace, chat, body)
