@@ -11,7 +11,38 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 3
-Current epic: Phase 3 — epic 1 (Automation rules engine) DONE
+Current epic: Phase 3 — epic 2 (Auto-assignment & routing) DONE
+P3.2: WD Team gains capacity_per_agent (0=unlimited) + routing validated
+(manual/round_robin/load_based). wavedesk/routing.py = the engine:
+availability (Redis online HEARTBEAT 60s TTL via api/routing.heartbeat +
+persistent 'taking chats' toggle set_available; is_eligible = available AND
+online), open_load (open+pending assigned chats), pick_agent (round_robin =
+Redis rr cursor rotating the full member order skipping non-eligible;
+load_based = min open_load; both filter by capacity), auto_route (assigns the
+picked agent, no-op for manual/already-assigned/no-candidate). WIRED into
+inbox.assign_chat (single team-assign chokepoint) so manual assign + P3.1
+assign_team action + default-team routing all auto-route identically; a
+no-candidate chat stays unassigned (never parked offline). within_business_hours
+(per-day windows + holidays, zoneinfo/tz-aware, disabled=24/7) + maybe_ooo_reply
+(inbound DM outside hours → one queued auto-reply per chat per hour via Redis
+SET NX dedup, through the SENDER pipeline). route_new_chat drops brand-new DMs
+on the workspace default_routing_team (wired in consumer _upsert_chat); OOO
+wired in consumer inbound block. api/routing.py (heartbeat, get/set_availability,
+team_status live load, manual route_chat Owner/Admin). Extended api/teams.py
+(routing+capacity), api/workspace.py (business_hours JSON validated + ooo_reply
++ default_routing_team), api/assign.list_members (online/available for the
+picker). Frontend: AvailabilityToggle in nav rail (heartbeat timer +
+pause/resume dot), RoutingCard (per-team routing select + capacity + create +
+default-team) + BusinessHoursCard (enable, tz, per-day open/close, holidays,
+OOO enable+message) in Settings; api-client types+methods. Tests: 22 Frappe +
+11 frontend; suites 215 Frappe + 107 frontend green, ruff clean. VERIFIED LIVE
+on WS-48539: online agent on a round-robin team → auto_route assigned that
+agent (MATCH); 24/7 default within-hours true; probe cleaned up. Shipped PR #1
+(feat/p3.2-routing, CI green) — first PR of the session (direct main push now
+blocked; back to the one-branch-one-PR convention). Deferred to later P3:
+chat_idle trigger + SLA timers (P3.3), business_hours CONDITION in rules,
+template-variable OOO.
+Previous: Phase 3 — epic 1 (Automation rules engine) DONE
 P3.1: WD Automation Rule (trigger message_received/chat_created/status_change,
 conditions JSON, actions JSON, enabled, run_count) + WD Automation Log
 (rule/chat/outcome/detail); both tenancy-registered + fixtures. wavedesk/

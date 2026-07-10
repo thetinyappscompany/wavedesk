@@ -87,6 +87,14 @@ def assign_chat(chat_doc, agent: str | None, team: str | None) -> None:
     chat_doc.save(ignore_permissions=True)
     emit_chat_updated(chat_doc.workspace, chat_doc.name)
 
+    # Auto-assignment & routing (P3.2): a team with round-robin/load-based
+    # routing and no explicit agent picks one now. No-op for manual teams or
+    # when the caller already named an agent.
+    if not agent and chat_doc.assigned_team:
+        from wavedesk import routing
+
+        routing.auto_route(chat_doc)
+
 
 def set_status(chat_doc, status: str, snoozed_until: str | None = None) -> None:
     """Open → Pending → Resolved (+ Snooze until). Any transition is allowed;
