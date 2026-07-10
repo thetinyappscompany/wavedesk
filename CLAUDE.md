@@ -10,8 +10,30 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 4
-Current epic: Phase 4 — epic 6 (AI auto-ticket) DONE, PR #12. ONLY P4.5 (voice
+Phase: 5 (started; Phase 4 code-complete except P4.5)
+Current epic: Phase 5 — Billing (Zoho) CORE DONE, PR #13. Phase 4 = 5/6 epics
+done; ONLY P4.5 (voice transcription) left, and it's HARD-BLOCKED on prereqs:
+(a) no media pipeline — the gateway doesn't download media/audio at all + WD
+Message has no transcript field, so there's no audio to transcribe; (b) the
+faster-whisper container (compose has an alpine placeholder only); (c) Docker
+Desktop (won't start headless — needs the founder's desktop; I launched it, it
+didn't stay up). So P4.5 = media-pipeline + whisper-container + Docker, all
+prereqs. Jumped to Phase 5 billing (Docker-free, high value, founder prepped Zoho).
+P5-billing: WD Invoice Ref (mirror; tenancy-registered). billing/zoho.py =
+entitlement state machine (non-negotiable #3, entitlements ONLY from verified
+webhooks): subscription created/activation/renewed→active, cancelled/expired→
+cancelled, payment_declined/failed→past_due; addon-code→entitlement mapping
+(reverse of WD Plan.zoho_addon_codes) flips ai_addon; invoice→mirror WD Invoice
+Ref (idempotent by zoho_invoice_id); top-up invoice→wallet.credit idempotent by
+invoice id (retried webhook never double-credits, #2). api/billing.zoho_webhook =
+allow_guest receiver, X-Webhook-Token verify (env ZOHO_WEBHOOK_TOKEN), normalizes
+raw Zoho payload→internal event contract (field extraction finalized at staging),
+dispatches billing/zoho.process. Tests: 9 Frappe; full suite 355 green, ruff
+clean. ⚠ LIVE webhook STAGING-GATED (Zoho can't reach localhost). Deferred:
+nightly Zoho API reconciliation sync + hosted-checkout API (need self-client
+refresh token + public URL). Shipped feat/p5-billing-zoho, PR #13 stacked on
+feat/p4.6-autoticket (#12). 13 PRs (#1–#13) stacked, unmerged.
+Previous: Phase 4 — epic 6 (AI auto-ticket) DONE, PR #12. ONLY P4.5 (voice
 transcription, self-hosted faster-whisper) LEFT in Phase 4 — it's infra-gated
 (needs the faster-whisper container; compose has a placeholder + Docker was down).
 P4.6: WD AI Agent Config gains auto_ticket flag. ai/autoticket.py = one mini-tier
