@@ -1,0 +1,84 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-07-11 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "workspace",
+  "enabled",
+  "persona_prompt",
+  "confidence_threshold",
+  "handoff_team",
+  "after_hours_only",
+  "greeting"
+ ],
+ "fields": [
+  {
+   "fieldname": "workspace",
+   "fieldtype": "Link",
+   "label": "Workspace",
+   "options": "WD Workspace",
+   "reqd": 1,
+   "unique": 1,
+   "search_index": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Auto-Agent Enabled",
+   "default": "0",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "persona_prompt",
+   "fieldtype": "Small Text",
+   "label": "Persona / Instructions",
+   "description": "Tone and role for the AI agent. Never let it invent prices or commitments."
+  },
+  {
+   "fieldname": "confidence_threshold",
+   "fieldtype": "Float",
+   "label": "Confidence Threshold",
+   "default": "0.6",
+   "description": "Minimum top-match retrieval score to answer; below this the chat is handed off."
+  },
+  {
+   "fieldname": "handoff_team",
+   "fieldtype": "Link",
+   "label": "Handoff Team",
+   "options": "WD Team"
+  },
+  {
+   "fieldname": "after_hours_only",
+   "fieldtype": "Check",
+   "label": "After-Hours Only",
+   "default": "0",
+   "description": "When set, the AI agent only answers outside business hours."
+  },
+  {
+   "fieldname": "greeting",
+   "fieldtype": "Small Text",
+   "label": "Greeting"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-11 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "WaveDesk Core",
+ "name": "WD AI Agent Config",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "share": 1, "write": 1},
+  {"role": "WD Owner", "create": 1, "delete": 1, "read": 1, "write": 1, "report": 1, "export": 1},
+  {"role": "WD Admin", "create": 1, "delete": 1, "read": 1, "write": 1, "report": 1, "export": 1},
+  {"role": "WD Agent", "read": 1}
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "format:AGENTCFG-{##########}",
+ "naming_rule": "Expression"
+}
