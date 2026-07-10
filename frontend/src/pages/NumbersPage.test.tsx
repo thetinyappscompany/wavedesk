@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WdNumber } from '@wavedesk/api-client';
+import type { WdNumber, WdNumberHealth } from '@wavedesk/api-client';
 import NumbersPage from './NumbersPage';
 import { client } from '@/lib/client';
 
@@ -15,6 +15,9 @@ vi.mock('@/lib/client', () => ({
     reconnectNumber: vi.fn(),
     deleteNumber: vi.fn(),
     connectCloudNumber: vi.fn(),
+    numberHealth: vi.fn(),
+    startWarmup: vi.fn(),
+    stopWarmup: vi.fn(),
   },
 }));
 
@@ -56,9 +59,28 @@ function renderPage() {
   );
 }
 
+const HEALTH: WdNumberHealth[] = [
+  {
+    name: 'WNUM-00001',
+    phone: '+919999900001',
+    display_name: 'Support line',
+    status: 'connected',
+    health_score: 82,
+    risk_level: 'medium',
+    daily_send_limit: 1000,
+    warmup_started_on: '2026-07-08',
+    health_checked_at: null,
+    warmup_day: 2,
+    daily_cap: 87,
+    sent_today: 5,
+    warming: true,
+  },
+];
+
 describe('NumbersPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(client.numberHealth).mockResolvedValue([]);
   });
 
   it('lists numbers with transport and status badges', async () => {
@@ -69,6 +91,21 @@ describe('NumbersPage', () => {
     expect(screen.getByText('Linked device')).toBeInTheDocument();
     expect(screen.getByText('Cloud API')).toBeInTheDocument();
     expect(screen.getAllByTestId('number-row')).toHaveLength(2);
+  });
+
+  it('shows health, risk and warm-up controls', async () => {
+    vi.mocked(client.listNumbers).mockResolvedValue([NUMBERS[0] as WdNumber]);
+    vi.mocked(client.numberHealth).mockResolvedValue(HEALTH);
+    vi.mocked(client.stopWarmup).mockResolvedValue({ number: 'WNUM-00001', warming: false });
+    const user = userEvent.setup();
+    renderPage();
+    const strip = await screen.findByTestId('health-strip');
+    expect(strip).toHaveTextContent('medium risk');
+    expect(strip).toHaveTextContent('health 82/100');
+    expect(strip).toHaveTextContent('5/87 sent today');
+    expect(strip).toHaveTextContent('warm-up day 2');
+    await user.click(screen.getByLabelText('Stop warm-up for Support line'));
+    expect(client.stopWarmup).toHaveBeenCalledWith('WNUM-00001');
   });
 
   it('shows the empty state', async () => {

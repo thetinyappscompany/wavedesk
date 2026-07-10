@@ -41,6 +41,23 @@ export interface WdNumber {
   phone_number_id: string | null;
 }
 
+/** Per-number health + warm-up snapshot (P3.6 anti-ban). */
+export interface WdNumberHealth {
+  name: string;
+  phone: string | null;
+  display_name: string | null;
+  status: WdNumber['status'];
+  health_score: number;
+  risk_level: 'low' | 'medium' | 'high';
+  daily_send_limit: number;
+  warmup_started_on: string | null;
+  health_checked_at: string | null;
+  warmup_day: number;
+  daily_cap: number | null; // null = unlimited
+  sent_today: number;
+  warming: boolean;
+}
+
 export interface NumberStatus {
   number: string;
   status: WdNumber['status'];
@@ -591,6 +608,23 @@ export class WaveDeskClient {
 
   deleteNumber(number: string): Promise<{ deleted: string }> {
     return this.call('wavedesk.api.numbers.delete_number', { number });
+  }
+
+  // --- anti-ban (Phase 3 feature 6) ---
+  numberHealth(): Promise<WdNumberHealth[]> {
+    return this.call('wavedesk.api.antiban.number_health');
+  }
+
+  startWarmup(number: string, dailyTarget: number): Promise<{ number: string; warmup_started_on: string }> {
+    return this.call('wavedesk.api.antiban.start_warmup', { number, daily_target: dailyTarget });
+  }
+
+  stopWarmup(number: string): Promise<{ number: string; warming: boolean }> {
+    return this.call('wavedesk.api.antiban.stop_warmup', { number });
+  }
+
+  refreshHealth(number: string): Promise<{ score: number; risk: string }> {
+    return this.call('wavedesk.api.antiban.refresh_health', { number });
   }
 
   connectCloudNumber(params: ConnectCloudParams): Promise<{ number: string; status: string }> {

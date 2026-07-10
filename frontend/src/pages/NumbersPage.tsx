@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { WdNumber } from '@wavedesk/api-client';
+import type { WdNumber, WdNumberHealth } from '@wavedesk/api-client';
 import { client } from '@/lib/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +33,80 @@ function TransportBadge({ transport }: { transport: WdNumber['connection_type'] 
     <span className="rounded border px-1.5 py-0.5 text-xs text-muted-foreground">
       {transport === 'baileys' ? 'Linked device' : 'Cloud API'}
     </span>
+  );
+}
+
+const RISK_STYLES: Record<WdNumberHealth['risk_level'], string> = {
+  low: 'bg-emerald-500/15 text-emerald-600',
+  medium: 'bg-amber-500/15 text-amber-600',
+  high: 'bg-destructive/15 text-destructive',
+};
+
+/** Health score + ban-risk + warm-up controls for one number (P3.6). */
+function HealthStrip({ health }: { health: WdNumberHealth }): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const [target, setTarget] = useState('1000');
+  const refresh = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ['number-health'] });
+  };
+  const start = useMutation({
+    mutationFn: () => client.startWarmup(health.name, Number(target) || 0),
+    onSuccess: refresh,
+  });
+  const stop = useMutation({ mutationFn: () => client.stopWarmup(health.name), onSuccess: refresh });
+
+  return (
+    <div
+      data-testid="health-strip"
+      className="mt-2 flex flex-wrap items-center gap-2 border-t pt-2 text-xs"
+    >
+      <span className={`rounded px-1.5 py-0.5 font-medium ${RISK_STYLES[health.risk_level]}`}>
+        {health.risk_level} risk
+      </span>
+      <span className="text-muted-foreground">health {health.health_score}/100</span>
+      <span className="text-muted-foreground">
+        {health.sent_today}
+        {health.daily_cap !== null ? `/${String(health.daily_cap)}` : ''} sent today
+      </span>
+      {health.warming ? (
+        <>
+          <span className="text-muted-foreground">· warm-up day {health.warmup_day}</span>
+          <button
+            type="button"
+            aria-label={`Stop warm-up for ${health.display_name ?? health.name}`}
+            className="rounded border px-1.5 py-0.5 hover:bg-accent"
+            onClick={() => {
+              stop.mutate();
+            }}
+          >
+            Stop warm-up
+          </button>
+        </>
+      ) : (
+        <span className="flex items-center gap-1">
+          <Input
+            aria-label={`Warm-up target for ${health.display_name ?? health.name}`}
+            type="number"
+            min={0}
+            className="h-6 w-20 text-xs"
+            value={target}
+            onChange={(e) => {
+              setTarget(e.target.value);
+            }}
+          />
+          <button
+            type="button"
+            aria-label={`Start warm-up for ${health.display_name ?? health.name}`}
+            className="rounded border px-1.5 py-0.5 hover:bg-accent"
+            onClick={() => {
+              start.mutate();
+            }}
+          >
+            Start warm-up
+          </button>
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -147,6 +221,12 @@ export default function NumbersPage(): React.JSX.Element {
   const [panel, setPanel] = useState<'none' | 'baileys' | 'cloud'>('none');
 
   const numbers = useQuery({ queryKey: ['numbers'], queryFn: () => client.listNumbers() });
+  const health = useQuery({
+    queryKey: ['number-health'],
+    queryFn: () => client.numberHealth(),
+    refetchInterval: 60_000,
+  });
+  const healthByName = new Map((health.data ?? []).map((h) => [h.name, h]));
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['numbers'] });
   const disconnect = useMutation({
@@ -225,7 +305,8 @@ export default function NumbersPage(): React.JSX.Element {
         )}
         {numbers.data?.map((number) => (
           <Card key={number.name} data-testid="number-row">
-            <CardContent className="flex items-center justify-between p-4">
+            <CardContent className="p-4">
+             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{number.display_name ?? number.phone}</span>
@@ -260,6 +341,10 @@ export default function NumbersPage(): React.JSX.Element {
                   Delete
                 </Button>
               </div>
+             </div>
+             {healthByName.get(number.name) && (
+               <HealthStrip health={healthByName.get(number.name) as WdNumberHealth} />
+             )}
             </CardContent>
           </Card>
         ))}

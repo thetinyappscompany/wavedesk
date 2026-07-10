@@ -208,6 +208,12 @@ def run_broadcast(name: str) -> int:
         if bc.daily_cap and sent >= int(bc.daily_cap):
             set_status(bc.name, "paused")  # resume tomorrow to continue warm-up
             return dispatched
+        # Anti-ban warm-up (P3.6): stop if the number hit its daily warm-up cap.
+        from wavedesk import antiban
+
+        if not antiban.can_dispatch(bc.number):
+            set_status(bc.name, "paused")
+            return dispatched
         if rec.contact and frappe.db.get_value("WD Contact", rec.contact, "opt_out"):
             frappe.db.set_value("WD Broadcast Recipient", rec.name, "status", "opted_out")
             continue
