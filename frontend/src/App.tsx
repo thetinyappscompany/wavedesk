@@ -4,6 +4,7 @@ import AlertsPage from '@/pages/AlertsPage';
 import AutomationPage from '@/pages/AutomationPage';
 import BroadcastsPage from '@/pages/BroadcastsPage';
 import SchedulesPage from '@/pages/SchedulesPage';
+import SegmentsPage from '@/pages/SegmentsPage';
 import ContactsPage from '@/pages/ContactsPage';
 import DashboardPage from '@/pages/DashboardPage';
 import GroupsPage from '@/pages/GroupsPage';
@@ -31,6 +32,7 @@ export default function App(): React.JSX.Element {
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/broadcasts" element={<BroadcastsPage />} />
         <Route path="/schedules" element={<SchedulesPage />} />
+        <Route path="/segments" element={<SegmentsPage />} />
         <Route path="/numbers" element={<NumbersPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

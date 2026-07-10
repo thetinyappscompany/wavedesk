@@ -25,8 +25,9 @@ const CONDITION_TYPES: WdAutomationCondition['type'][] = [
   'has_label',
   'number',
   'first_time_contact',
+  'in_segment',
 ];
-const CONDITION_NEEDS_VALUE = new Set(['keyword', 'has_label', 'number']);
+const CONDITION_NEEDS_VALUE = new Set(['keyword', 'has_label', 'number', 'in_segment']);
 
 const ACTION_TYPES: WdAutomationAction['type'][] = [
   'auto_reply',

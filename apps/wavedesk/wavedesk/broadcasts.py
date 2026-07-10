@@ -134,7 +134,18 @@ def _audience_rows(broadcast_doc, audience: list | None) -> list[dict]:
         )
         return [{"phone": c.phone, "name": c.full_name, "contact": c.name} for c in contacts]
     if atype == "segment":
-        frappe.throw(_("Segment audiences land with the segment engine (P3.7)"))
+        from wavedesk import segments
+
+        seg = frappe.get_doc("WD Segment", broadcast_doc.audience_ref)
+        if seg.workspace != workspace:
+            frappe.throw(_("Segment is outside this workspace"))
+        names = segments.matching_contacts(seg)
+        if not names:
+            return []
+        contacts = frappe.get_all(
+            "WD Contact", filters={"name": ("in", names)}, fields=["name", "phone", "full_name"]
+        )
+        return [{"phone": c.phone, "name": c.full_name, "contact": c.name} for c in contacts]
     frappe.throw(_("Unknown audience type: {0}").format(atype))
 
 

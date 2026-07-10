@@ -304,6 +304,35 @@ export interface WdSlaEvent {
   creation: string;
 }
 
+export type WdSegmentConditionType =
+  | 'has_tag'
+  | 'attribute'
+  | 'opted_out'
+  | 'has_email'
+  | 'name_contains'
+  | 'phone_prefix'
+  | 'last_seen_days'
+  | 'in_group';
+
+export interface WdSegmentCondition {
+  type: WdSegmentConditionType;
+  key?: string;
+  value?: string | number | boolean;
+}
+
+export interface WdSegment {
+  name: string;
+  segment_name: string;
+  description: string | null;
+  match_type: 'all' | 'any';
+  filters: WdSegmentCondition[];
+}
+
+export interface WdSegmentPreview {
+  count: number;
+  sample: { name: string; phone: string | null; full_name: string | null }[];
+}
+
 export type WdScheduleTargetType = 'chat' | 'group' | 'broadcast';
 export type WdScheduleType = 'once' | 'recurring';
 
@@ -458,7 +487,14 @@ export interface WdDashboard {
 export type WdAutomationTrigger = 'message_received' | 'chat_created' | 'status_change';
 
 export interface WdAutomationCondition {
-  type: 'is_group' | 'is_dm' | 'has_label' | 'number' | 'first_time_contact' | 'keyword';
+  type:
+    | 'is_group'
+    | 'is_dm'
+    | 'has_label'
+    | 'number'
+    | 'first_time_contact'
+    | 'keyword'
+    | 'in_segment';
   value?: string;
 }
 
@@ -970,6 +1006,54 @@ export class WaveDeskClient {
 
   deleteSchedule(schedule: string): Promise<{ deleted: string }> {
     return this.call('wavedesk.api.schedules.delete_schedule', { schedule });
+  }
+
+  // --- segments (Phase 3 feature 7) ---
+  listSegments(): Promise<WdSegment[]> {
+    return this.call('wavedesk.api.segments.list_segments');
+  }
+
+  createSegment(input: {
+    segmentName: string;
+    matchType?: 'all' | 'any';
+    filters?: WdSegmentCondition[];
+    description?: string;
+  }): Promise<WdSegment> {
+    return this.call('wavedesk.api.segments.create_segment', {
+      segment_name: input.segmentName,
+      match_type: input.matchType ?? 'all',
+      filters: input.filters ?? [],
+      ...(input.description !== undefined ? { description: input.description } : {}),
+    });
+  }
+
+  updateSegment(
+    segment: string,
+    changes: {
+      segmentName?: string;
+      matchType?: 'all' | 'any';
+      filters?: WdSegmentCondition[];
+      description?: string;
+    },
+  ): Promise<WdSegment> {
+    return this.call('wavedesk.api.segments.update_segment', {
+      segment,
+      ...(changes.segmentName !== undefined ? { segment_name: changes.segmentName } : {}),
+      ...(changes.matchType !== undefined ? { match_type: changes.matchType } : {}),
+      ...(changes.filters !== undefined ? { filters: changes.filters } : {}),
+      ...(changes.description !== undefined ? { description: changes.description } : {}),
+    });
+  }
+
+  deleteSegment(segment: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.segments.delete_segment', { segment });
+  }
+
+  previewSegment(segment: string, limit?: number): Promise<WdSegmentPreview> {
+    return this.call('wavedesk.api.segments.preview_segment', {
+      segment,
+      ...(limit ? { limit } : {}),
+    });
   }
 
   // --- groups (Phase 2 feature 1 — registry; bulk actions land in P2.3) ---

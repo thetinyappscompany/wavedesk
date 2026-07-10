@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 
 const AUDIENCE: { value: WdAudienceType; label: string }[] = [
   { value: 'all_contacts', label: 'All contacts' },
+  { value: 'segment', label: 'A segment' },
   { value: 'csv', label: 'CSV (phone,name per line)' },
   { value: 'group_members', label: "A group's members" },
 ];
@@ -45,8 +46,14 @@ function Composer({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [audienceType, setAudienceType] = useState<WdAudienceType>('all_contacts');
   const [csv, setCsv] = useState('');
   const [groupRef, setGroupRef] = useState('');
+  const [segmentRef, setSegmentRef] = useState('');
   const [message, setMessage] = useState('');
   const [dailyCap, setDailyCap] = useState('0');
+  const segments = useQuery({
+    queryKey: ['segments'],
+    queryFn: () => client.listSegments(),
+    enabled: audienceType === 'segment',
+  });
 
   const create = useMutation({
     mutationFn: () =>
@@ -57,6 +64,7 @@ function Composer({ onDone }: { onDone: () => void }): React.JSX.Element {
         audienceType,
         ...(audienceType === 'csv' ? { audience: parseCsv(csv) } : {}),
         ...(audienceType === 'group_members' ? { audienceRef: groupRef.trim() } : {}),
+        ...(audienceType === 'segment' ? { audienceRef: segmentRef } : {}),
         dailyCap: Number(dailyCap) || 0,
       }),
     onSuccess: () => {
@@ -65,7 +73,8 @@ function Composer({ onDone }: { onDone: () => void }): React.JSX.Element {
     },
   });
 
-  const canSave = name.trim() && number && message.trim();
+  const canSave =
+    name.trim() && number && message.trim() && (audienceType !== 'segment' || segmentRef);
 
   return (
     <form
@@ -139,6 +148,23 @@ function Composer({ onDone }: { onDone: () => void }): React.JSX.Element {
             setGroupRef(e.target.value);
           }}
         />
+      )}
+      {audienceType === 'segment' && (
+        <select
+          aria-label="Segment"
+          value={segmentRef}
+          onChange={(e) => {
+            setSegmentRef(e.target.value);
+          }}
+          className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
+        >
+          <option value="">Select segment…</option>
+          {(segments.data ?? []).map((s) => (
+            <option key={s.name} value={s.name}>
+              {s.segment_name}
+            </option>
+          ))}
+        </select>
       )}
 
       <textarea

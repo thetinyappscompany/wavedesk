@@ -152,6 +152,12 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         schedule_type="once",
         scheduled_at="2030-01-01 09:00:00",
     )
+    insert(
+        "WD Segment",
+        segment_name=f"seg-{suffix}",
+        match_type="all",
+        filters='[{"type": "opted_out", "value": false}]',
+    )
     return docs
 
 

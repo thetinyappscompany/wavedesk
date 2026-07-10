@@ -109,6 +109,15 @@ def _check(workspace: str, chat: str, cond: dict, context: dict) -> bool:
     if ctype == "keyword":
         body = (context.get("body") or "").lower()
         return bool(value) and value.lower() in body
+    if ctype == "in_segment":
+        if not value or not chat_row.contact:
+            return False
+        from wavedesk import segments
+
+        seg = frappe.db.get_value("WD Segment", value, "workspace")
+        if seg != workspace:
+            return False
+        return chat_row.contact in set(segments.matching_contacts(frappe.get_doc("WD Segment", value)))
     return False
 
 
