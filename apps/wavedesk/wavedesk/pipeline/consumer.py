@@ -235,6 +235,12 @@ def apply_event(event: dict) -> None:
             chat,
             {"body": body, "message": message.name, "trigger": "message_received"},
         )
+        # AI Auto-Agent (P4.3): auto-answer customer DMs from the knowledge base,
+        # or hand off to a human. Cheap gate; heavy answering runs off-thread.
+        if chat_type == "dm":
+            from wavedesk.ai import agent as ai_agent
+
+            ai_agent.on_inbound_dm(workspace, chat, chat_type, body)
     else:
         # a reply from the phone itself also answers the pending question
         inbox.clear_pending_query(workspace, chat)

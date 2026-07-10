@@ -8,6 +8,7 @@ import MonitoringCard from '@/components/MonitoringCard';
 import RoutingCard from '@/components/RoutingCard';
 import BusinessHoursCard from '@/components/BusinessHoursCard';
 import SlaCard from '@/components/SlaCard';
+import AiAgentCard from '@/components/AiAgentCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -401,6 +402,8 @@ export default function SettingsPage(): React.JSX.Element {
       <RoutingCard canManage={canManage} settings={settings.data} />
       {settings.data && <BusinessHoursCard canManage={canManage} settings={settings.data} />}
       <SlaCard canManage={canManage} />
+
+      <AiAgentCard canManage={canManage} />
 
       <MonitoringCard canManage={canManage} />
       <LabelsCard canManage={canManage} />

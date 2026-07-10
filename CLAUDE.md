@@ -11,9 +11,30 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 4
-Current epic: Phase 4 — epic 2 (Agent Copilot) DONE, PR #9. Remaining Phase 4:
-P4.3 Auto-Agent+RAG(Qdrant), P4.4 flagging, P4.5 voice transcription(Whisper),
-P4.6 auto-ticket.
+Current epic: Phase 4 — epic 3 (AI Auto-Agent + RAG) DONE, PR #10. Remaining
+Phase 4: P4.4 flagging, P4.5 voice transcription(Whisper), P4.6 auto-ticket.
+P4.3: WD Knowledge Doc + WD AI Agent Config doctypes (tenancy-registered).
+ai/embeddings.py = NVIDIA OpenAI-compatible embeddings (Anthropic has none —
+NVIDIA scoped to embeddings; env NVIDIA_API_KEY). ai/rag.py = workspace-scoped
+Qdrant collections (thin HTTP client, QDRANT_URL default :6333) — chunk/embed/
+upsert (deterministic point ids → idempotent) + top-k cosine search. ai/agent.py
+= answer(): retrieve top-k → below confidence_threshold or no hits ⇒ HANDOFF
+(no token spent) → else Sonnet answers ONLY from context w/ prompt caching +
+guardrails (never invent prices; [[HANDOFF]] marker → human). on_inbound_dm
+(consumer hook, cheap gate, enqueues) + handle_inbound (RQ job: gate enabled/
+add-on/kill-switch/human-assigned/after-hours → answer → reply via queued sender
+OR handoff = assign handoff_team + set pending + internal note). ai/ingest.py RQ
+job embeds a KB doc + stamps status; controller enqueues on content change,
+deletes vectors on trash. api/agent.py config get/update + knowledge CRUD +
+gated preview_answer. Frontend: AiAgentCard in Settings (enable/persona/
+threshold/handoff-team/after-hours + knowledge add/list/delete + live preview;
+locked without add-on) + api-client agent methods. Qdrant already in
+compose.dev.yml (:6333). Tests: 16 Frappe + 5 frontend; full suites 331 Frappe +
+frontend green, ruff/typecheck/lint clean. ⚠ LIVE QDRANT/NVIDIA ROUND-TRIP NOT
+YET RUN — Docker Desktop was down + needs NVIDIA key in bench env; logic fully
+unit-verified with Qdrant/NVIDIA/provider mocked. Shipped on feat/p4.3-autoagent,
+PR #10 stacked on feat/p4.2-copilot (#9).
+Previous: Phase 4 — epic 2 (Agent Copilot) DONE, PR #9.
 P4.2: ai/copilot.py = Haiku-tier assists over the P4.1 gated+metered provider —
 suggest_reply (drafts next reply from chat transcript), rewrite polish/expand/
 shorten, translate (auto-detect→target), summarize (chat/group, optional since);

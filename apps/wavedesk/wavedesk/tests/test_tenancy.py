@@ -177,6 +177,13 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         category="utility",
         body_text="Hello {{1}}",
     )
+    insert("WD AI Agent Config", enabled=0, confidence_threshold=0.6)
+    insert(
+        "WD Knowledge Doc",
+        title=f"kb-{suffix}",
+        source_type="text",
+        content="Our return policy is 7 days.",
+    )
     return docs
 
 
