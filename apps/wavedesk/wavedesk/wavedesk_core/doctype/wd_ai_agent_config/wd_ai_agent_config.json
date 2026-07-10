@@ -11,7 +11,8 @@
   "confidence_threshold",
   "handoff_team",
   "after_hours_only",
-  "greeting"
+  "greeting",
+  "auto_ticket"
  ],
  "fields": [
   {
@@ -61,6 +62,13 @@
    "fieldname": "greeting",
    "fieldtype": "Small Text",
    "label": "Greeting"
+  },
+  {
+   "fieldname": "auto_ticket",
+   "fieldtype": "Check",
+   "label": "Auto-create Tickets",
+   "default": "0",
+   "description": "AI classifies actionable issues from inbound DMs and opens a ticket with a suggested title + priority."
   }
  ],
  "index_web_pages_for_search": 0,

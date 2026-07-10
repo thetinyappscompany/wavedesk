@@ -45,6 +45,7 @@ export default function AiAgentCard({ canManage }: { canManage: boolean }): Reac
         confidence_threshold: form.confidence_threshold ?? 0.6,
         handoff_team: form.handoff_team ?? undefined,
         after_hours_only: Boolean(form.after_hours_only),
+        auto_ticket: Boolean(form.auto_ticket),
       }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['agent-config'] }),
   });
@@ -144,6 +145,15 @@ export default function AiAgentCard({ canManage }: { canManage: boolean }): Reac
               onChange={(e) => setForm((f) => ({ ...f, after_hours_only: e.target.checked }))}
             />
             After-hours only
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={Boolean(form.auto_ticket)}
+              disabled={!canManage}
+              onChange={(e) => setForm((f) => ({ ...f, auto_ticket: e.target.checked }))}
+            />
+            Auto-create tickets
           </label>
         </div>
         {canManage && (
