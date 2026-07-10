@@ -27,6 +27,7 @@ const CONFIG = {
   handoff_team: null,
   after_hours_only: false,
   greeting: null,
+  auto_ticket: false,
 };
 
 function renderCard(canManage = true) {

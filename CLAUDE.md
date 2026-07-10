@@ -11,8 +11,20 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 4
-Current epic: Phase 4 — epic 4 (AI message flagging) DONE, PR #11. Remaining
-Phase 4: P4.5 voice transcription(Whisper), P4.6 auto-ticket.
+Current epic: Phase 4 — epic 6 (AI auto-ticket) DONE, PR #12. ONLY P4.5 (voice
+transcription, self-hosted faster-whisper) LEFT in Phase 4 — it's infra-gated
+(needs the faster-whisper container; compose has a placeholder + Docker was down).
+P4.6: WD AI Agent Config gains auto_ticket flag. ai/autoticket.py = one mini-tier
+(Haiku, task=classify) call per inbound DM → JSON {actionable, title<=140,
+priority}; opens a WD Ticket w/ AI title+priority; DEDUPED vs an existing open
+ticket on the chat (no token spent). on_inbound consumer hook (enqueue only when
+auto_ticket on) + evaluate RQ job (add-on + kill-switch gated); wired into
+consumer dm path alongside the auto-agent. api/agent.py auto_ticket in config
+get/update. AiAgentCard 'Auto-create tickets' toggle + api-client type/method.
+Tests: 8 Frappe; full suites 346 Frappe + frontend green, ruff/typecheck/lint
+clean. Shipped on feat/p4.6-autoticket, PR #12 stacked on feat/p4.4-flagging
+(#11). NB built P4.6 before P4.5 because Whisper is infra-gated (Docker down).
+Previous: Phase 4 — epic 4 (AI message flagging) DONE, PR #11.
 P4.4: WD AI Flag Rule (workspace, flag_key, label, prompt/criteria, action
 flag|ticket, priority, enabled; tenancy-registered). ai/flagging.py = ONE
 mini-tier (Haiku) call per inbound msg classifies against ALL enabled rules →

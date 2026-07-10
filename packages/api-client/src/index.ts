@@ -191,6 +191,7 @@ export interface WdAiAgentConfig {
   handoff_team: string | null;
   after_hours_only: boolean;
   greeting: string | null;
+  auto_ticket: boolean;
 }
 
 /** A knowledge-base document + its embedding status. */
@@ -1472,11 +1473,14 @@ export class WaveDeskClient {
     handoff_team?: string;
     after_hours_only?: boolean;
     greeting?: string;
+    auto_ticket?: boolean;
   }): Promise<WdAiAgentConfig> {
     const payload: Record<string, unknown> = { ...changes };
     if (changes.enabled !== undefined) payload.enabled = changes.enabled ? 1 : 0;
     if (changes.after_hours_only !== undefined)
       payload.after_hours_only = changes.after_hours_only ? 1 : 0;
+    if (changes.auto_ticket !== undefined)
+      payload.auto_ticket = changes.auto_ticket ? 1 : 0;
     return this.call('wavedesk.api.agent.update_agent_config', payload);
   }
 

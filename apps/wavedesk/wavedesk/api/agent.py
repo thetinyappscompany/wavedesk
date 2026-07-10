@@ -42,6 +42,7 @@ def _serialize_config(doc) -> dict:
         "handoff_team": doc.handoff_team,
         "after_hours_only": bool(doc.after_hours_only),
         "greeting": doc.greeting,
+        "auto_ticket": bool(doc.auto_ticket),
     }
 
 
@@ -58,6 +59,7 @@ def update_agent_config(
     handoff_team: str | None = None,
     after_hours_only: int | bool | None = None,
     greeting: str | None = None,
+    auto_ticket: int | bool | None = None,
 ) -> dict:
     workspace = get_active_workspace()
     _require_manager(workspace)
@@ -69,6 +71,7 @@ def update_agent_config(
         "handoff_team": handoff_team,
         "after_hours_only": None if after_hours_only is None else int(bool(int(after_hours_only))),
         "greeting": greeting,
+        "auto_ticket": None if auto_ticket is None else int(bool(int(auto_ticket))),
     }.items():
         if value is not None:
             setattr(doc, field, value)

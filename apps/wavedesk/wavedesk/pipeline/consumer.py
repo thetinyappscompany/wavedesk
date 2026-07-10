@@ -244,8 +244,11 @@ def apply_event(event: dict) -> None:
         # or hand off to a human. Cheap gate; heavy answering runs off-thread.
         if chat_type == "dm":
             from wavedesk.ai import agent as ai_agent
+            from wavedesk.ai import autoticket
 
             ai_agent.on_inbound_dm(workspace, chat, chat_type, body)
+            # AI auto-ticket (P4.6): open a ticket for actionable issues.
+            autoticket.on_inbound(workspace, chat, message.name, body)
     else:
         # a reply from the phone itself also answers the pending question
         inbox.clear_pending_query(workspace, chat)
