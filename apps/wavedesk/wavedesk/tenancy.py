@@ -48,6 +48,7 @@ TENANT_DOCTYPES: tuple[str, ...] = (
     "WD Wallet",
     "WD Wallet Transaction",
     "WD Invoice Ref",
+    "WD API Key",
     "WD Usage Record",
     "WD AI Agent Config",
     "WD Knowledge Doc",
