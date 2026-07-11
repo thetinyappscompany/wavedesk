@@ -10,8 +10,25 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 5 (Phase 4 CODE-COMPLETE). 21 PRs (#1–#21) stacked, unmerged.
-Current epic: P5 PER-VERTICAL ONBOARDING STARTER PACKS done, PR #21 stacked on
+Phase: 5 (Phase 4 CODE-COMPLETE). 22 PRs (#1–#22) stacked, unmerged.
+Current epic: P5 IP ALLOWLIST (Business-plan access control) done, PR #22 stacked
+on feat/p5-vertical-templates (#21). Master doc §Phase 5 feature 6 last buildable
+security control. wavedesk/access.py: normalize (validate+canonicalize IP/CIDR,
+dedupe), is_ip_allowed (ipaddress CIDR match; empty=allow-all), get/set on WD
+Workspace.settings.ip_allowlist, enforce(ws,ip)→PermissionError when request IP
+outside allowlist. Enforced in publicapi/auth.authenticate (API-key calls refused
+from outside allowlist; low-risk chokepoint, doesn't touch SPA session). api/
+access.py (Owner/Admin) get/set_ip_allowlist. Frontend AccessControlCard in
+Settings (CIDR textarea+save); api-client get/setIpAllowlist. Tests 6 Frappe + 2
+frontend; suites 438 Frappe + frontend(165) + api-client green, ruff/eslint/tsc
+clean. FULLY LIVE-VERIFIABLE. Deferred (lockout-risk, needs staging): SPA-session
+before_request IP gate; plan-tier gating (Business-only) once catalog seeds an
+ip_allowlist entitlement. Shipped feat/p5-ip-allowlist.
+⚠ ALL 118 TRACKED TASKS COMPLETE. Remaining P5 work is founder-gated (Slack/
+Sheets/Zapier need their OAuth creds; hosted checkout/load-test/pen-test/K8s/
+status-page need staging) OR the 22-PR stack merge + Meta verification + Docker/
+staging bring-up. Repeatedly recommended pausing to merge+unblock.
+Previous epic: P5 PER-VERTICAL ONBOARDING STARTER PACKS done, PR #21 stacked on
 feat/p5-2fa-sessions (#20). Master doc §Phase 5 feature 4. wavedesk/verticals.py
 VERTICALS catalog (d2c/agency/community/support), each seeds curated labels +
 canned responses + keyword→add_label automation rules; apply(workspace,vertical)
