@@ -245,6 +245,16 @@ export interface WdApiKeyCreated {
   full_key: string;
 }
 
+/** A per-vertical onboarding starter pack (P5). */
+export interface WdVertical {
+  key: string;
+  label: string;
+  description: string;
+  labels: string[];
+  canned: string[];
+  automation: string[];
+}
+
 /** A 2FA enrollment challenge — secret + otpauth URI shown once (P5). */
 export interface WdTwoFactorEnroll {
   secret: string;
@@ -1849,6 +1859,19 @@ export class WaveDeskClient {
 
   revokeOtherSessions(): Promise<{ revoked: number }> {
     return this.call('wavedesk.api.security.revoke_other_sessions');
+  }
+
+  // --- vertical starter packs (Phase 5) ---
+  listVerticals(): Promise<WdVertical[]> {
+    return this.call<{ verticals: WdVertical[] }>('wavedesk.api.verticals.list_verticals').then(
+      (r) => r.verticals,
+    );
+  }
+
+  applyVertical(
+    vertical: string,
+  ): Promise<{ vertical: string; added: { labels: number; canned: number; automation: number } }> {
+    return this.call('wavedesk.api.verticals.apply_vertical', { vertical });
   }
 
   // --- monitoring (Phase 2 feature 4) ---
