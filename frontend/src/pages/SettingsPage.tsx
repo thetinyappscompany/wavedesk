@@ -13,6 +13,7 @@ import AiFlaggingCard from '@/components/AiFlaggingCard';
 import ApiKeysCard from '@/components/ApiKeysCard';
 import WebhooksCard from '@/components/WebhooksCard';
 import PrivacyCard from '@/components/PrivacyCard';
+import SecurityCard from '@/components/SecurityCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -417,6 +418,7 @@ export default function SettingsPage(): React.JSX.Element {
       <ApiKeysCard canManage={canManage} />
       <WebhooksCard canManage={canManage} />
       <PrivacyCard canManage={canManage} />
+      <SecurityCard />
     </div>
   );
 }
