@@ -18,6 +18,8 @@ export interface GatewayConfig {
   /** Encrypted session snapshot cadence (master doc §2.2: every 5 min). */
   snapshotIntervalMs: number;
   s3: S3Config;
+  /** Bucket for inbound WhatsApp media (separate from session snapshots). */
+  mediaBucket: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
@@ -29,6 +31,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     redisUrl: env.REDIS_URL ?? 'redis://localhost:6379',
     sessionSnapshotKey: env.SESSION_SNAPSHOT_KEY,
     snapshotIntervalMs: Number(env.SNAPSHOT_INTERVAL_MS ?? 5 * 60 * 1000),
+    mediaBucket: env.S3_MEDIA_BUCKET ?? 'wavedesk-media',
     s3: {
       endpoint: env.S3_ENDPOINT ?? 'http://localhost:9000',
       region: env.S3_REGION ?? 'us-east-1',

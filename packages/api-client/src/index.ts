@@ -514,7 +514,30 @@ export interface WdMessage {
   /** A monitoring rule matched this message (P2.4). */
   flagged: boolean;
   flag_reason: string | null;
+  /** Media pipeline (P4.5): this message has downloadable media in the store —
+   * resolve a short-lived URL via getMediaUrl(name). The raw S3 key stays server-side. */
+  has_media: boolean;
+  media_mimetype: string | null;
+  media_filename: string | null;
+  media_size: number | null;
+  media_duration: number | null;
+  is_voice: boolean;
+  /** Speech-to-text of a voice note (P4.5 Whisper), once transcribed. */
+  transcript: string | null;
   creation: string;
+}
+
+export interface WdMediaUrl {
+  message: string;
+  message_type: string;
+  /** Short-lived presigned URL, or null when media is undownloadable/unconfigured. */
+  url: string | null;
+  mimetype: string | null;
+  filename: string | null;
+  size: number | null;
+  duration: number | null;
+  is_voice: boolean;
+  available: boolean;
 }
 
 export interface WdVolumePoint {
@@ -760,6 +783,11 @@ export class WaveDeskClient {
 
   markChatRead(chat: string): Promise<{ chat: string; unread_count: number }> {
     return this.call('wavedesk.api.messages.mark_chat_read', { chat });
+  }
+
+  /** Media pipeline (P4.5): resolve a short-lived URL for a message's media. */
+  getMediaUrl(message: string): Promise<WdMediaUrl> {
+    return this.call('wavedesk.api.media.media_url', { message });
   }
 
   // --- contacts (Phase 1 feature 4) ---

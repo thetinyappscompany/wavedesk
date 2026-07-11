@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { RedisAuthStore } from '../src/baileys/authStore.js';
 import { SessionExistsError, SessionManager } from '../src/baileys/sessionManager.js';
 import { MemorySnapshotStorage } from '../src/baileys/snapshot.js';
+import { MemoryMediaStorage } from '../src/baileys/media.js';
 import { WA_EVENTS_STREAM, type WaEvent } from '../src/events/envelope.js';
 import { EventPublisher } from '../src/events/publisher.js';
 import { makeMockSocketFactory, simulatePairing } from './helpers/mockSocket.js';
@@ -20,6 +21,7 @@ function makeManager(overrides?: {
   const redis = overrides?.redis ?? (new RedisMock());
   const snapshots = overrides?.snapshots ?? new MemorySnapshotStorage();
   const snapshotKey = overrides?.snapshotKey ?? randomBytes(32);
+  const mediaStorage = new MemoryMediaStorage();
   const { factory, sockets } = makeMockSocketFactory();
   const manager = new SessionManager({
     redis,
@@ -27,10 +29,11 @@ function makeManager(overrides?: {
     snapshotKey,
     factory,
     publisher: new EventPublisher(redis, logger),
+    mediaStorage,
     logger,
     snapshotIntervalMs: 60_000,
   });
-  return { manager, redis, snapshots, snapshotKey, sockets };
+  return { manager, redis, snapshots, snapshotKey, sockets, mediaStorage };
 }
 
 async function readEvents(redis: Redis): Promise<WaEvent[]> {

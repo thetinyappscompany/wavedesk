@@ -28,6 +28,9 @@ export interface MockSocket extends GatewaySocket {
   readonly hadCredsAtCreation: boolean;
   ended: boolean;
   loggedOut: boolean;
+  /** Bytes returned by downloadMedia(); null simulates an undownloadable blob. */
+  mediaToReturn: Buffer | null;
+  readonly downloadCalls: InboundMessage[];
 }
 
 /** Mimics Baileys just enough for lifecycle tests: emits a QR only when the
@@ -57,6 +60,8 @@ export function makeMockSocketFactory(): {
       participantActions: [],
       metaUpdates: [],
       revokedInvites: [],
+      mediaToReturn: Buffer.from('mock-media-bytes'),
+      downloadCalls: [],
       onConnectionUpdate(cb) {
         em.on('connection.update', cb);
       },
@@ -84,6 +89,10 @@ export function makeMockSocketFactory(): {
       },
       ownJid() {
         return '919999900000:1@s.whatsapp.net';
+      },
+      downloadMedia(message) {
+        this.downloadCalls.push(message);
+        return Promise.resolve(this.mediaToReturn);
       },
       groupParticipantsAction(jid, participants, action) {
         this.participantActions.push({ jid, participants, action });
