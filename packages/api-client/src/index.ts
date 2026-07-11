@@ -245,6 +245,16 @@ export interface WdApiKeyCreated {
   full_key: string;
 }
 
+/** A DPDP/GDPR data-portability export request (P5). */
+export interface WdDataExport {
+  name: string;
+  status: 'pending' | 'processing' | 'ready' | 'failed';
+  file_url: string | null;
+  record_counts: Record<string, number>;
+  requested_by: string | null;
+  creation: string;
+}
+
 /** Cross-workspace summary row for the platform admin console (P5). */
 export interface WdAdminWorkspace {
   name: string;
@@ -1762,6 +1772,31 @@ export class WaveDeskClient {
 
   adminImpersonate(user: string): Promise<{ impersonating: string }> {
     return this.call('wavedesk.api.admin.impersonate', { user });
+  }
+
+  // --- DPDP/GDPR data controls (Phase 5) ---
+  getRetention(): Promise<number> {
+    return this.call<{ retention_days: number }>('wavedesk.api.privacy.get_retention').then(
+      (r) => r.retention_days,
+    );
+  }
+
+  setRetention(days: number): Promise<{ retention_days: number }> {
+    return this.call('wavedesk.api.privacy.set_retention', { days });
+  }
+
+  requestDataExport(): Promise<{ export: string }> {
+    return this.call('wavedesk.api.privacy.request_export');
+  }
+
+  listDataExports(): Promise<WdDataExport[]> {
+    return this.call<{ exports: WdDataExport[] }>('wavedesk.api.privacy.list_exports').then(
+      (r) => r.exports,
+    );
+  }
+
+  eraseContact(contact: string): Promise<{ contact: string; erased: boolean }> {
+    return this.call('wavedesk.api.privacy.erase_contact', { contact });
   }
 
   // --- monitoring (Phase 2 feature 4) ---

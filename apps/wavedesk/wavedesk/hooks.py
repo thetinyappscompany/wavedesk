@@ -40,6 +40,7 @@ scheduler_events = {
         "wavedesk.analytics.compute_engagement_scores",
         "wavedesk.antiban.recompute_all_health",
         "wavedesk.billing.reconcile.reconcile_all",
+        "wavedesk.compliance.privacy.apply_retention",
     ],
 }
 

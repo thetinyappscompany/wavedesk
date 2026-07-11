@@ -12,7 +12,8 @@
   "avatar",
   "custom_attributes",
   "tags",
-  "opt_out"
+  "opt_out",
+  "erased"
  ],
  "fields": [
   {
@@ -65,6 +66,13 @@
    "fieldtype": "Check",
    "label": "Opted Out",
    "default": "0"
+  },
+  {
+   "fieldname": "erased",
+   "fieldtype": "Check",
+   "label": "Erased (GDPR)",
+   "default": "0",
+   "description": "PII scrubbed under a right-to-erasure request (P5 DPDP)."
   }
  ],
  "index_web_pages_for_search": 0,
