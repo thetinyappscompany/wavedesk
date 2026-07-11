@@ -245,6 +245,33 @@ export interface WdApiKeyCreated {
   full_key: string;
 }
 
+/** An outbound-webhook subscriber (P5). */
+export interface WdWebhookEndpoint {
+  name: string;
+  label: string;
+  url: string;
+  signing_secret: string;
+  events: string[];
+  enabled: boolean;
+  last_status: string | null;
+  last_delivery_at: string | null;
+}
+
+/** One delivery attempt / dead-letter row (P5). */
+export interface WdWebhookDelivery {
+  name: string;
+  endpoint: string;
+  event_type: string;
+  event_id: string;
+  status: 'pending' | 'delivered' | 'failed' | 'dead';
+  attempts: number;
+  response_code: number | null;
+  last_error: string | null;
+  next_attempt_at: string | null;
+  delivered_at: string | null;
+  creation: string;
+}
+
 /** One day's business-hours window; a day with no entry is closed (P3.2). */
 export interface WdBusinessHoursDay {
   open: string; // "HH:MM"
@@ -1619,6 +1646,53 @@ export class WaveDeskClient {
 
   revokeApiKey(name: string): Promise<{ name: string; enabled: boolean }> {
     return this.call('wavedesk.api.publicapi.revoke_api_key', { name });
+  }
+
+  // --- outbound webhooks (Phase 5) ---
+  webhookEventCatalog(): Promise<string[]> {
+    return this.call<{ events: string[] }>('wavedesk.api.webhooks.event_catalog').then(
+      (r) => r.events,
+    );
+  }
+
+  listWebhookEndpoints(): Promise<WdWebhookEndpoint[]> {
+    return this.call<{ endpoints: WdWebhookEndpoint[] }>(
+      'wavedesk.api.webhooks.list_endpoints',
+    ).then((r) => r.endpoints);
+  }
+
+  createWebhookEndpoint(
+    label: string,
+    url: string,
+    events: string[],
+  ): Promise<WdWebhookEndpoint> {
+    return this.call('wavedesk.api.webhooks.create_endpoint', { label, url, events });
+  }
+
+  updateWebhookEndpoint(
+    name: string,
+    changes: { url?: string; events?: string[]; enabled?: boolean },
+  ): Promise<WdWebhookEndpoint> {
+    const payload: Record<string, unknown> = { name, ...changes };
+    if (changes.enabled !== undefined) payload.enabled = changes.enabled ? 1 : 0;
+    return this.call('wavedesk.api.webhooks.update_endpoint', payload);
+  }
+
+  deleteWebhookEndpoint(name: string): Promise<{ deleted: string }> {
+    return this.call('wavedesk.api.webhooks.delete_endpoint', { name });
+  }
+
+  listWebhookDeliveries(
+    opts: { endpoint?: string; status?: string; limit?: number } = {},
+  ): Promise<WdWebhookDelivery[]> {
+    return this.call<{ deliveries: WdWebhookDelivery[] }>(
+      'wavedesk.api.webhooks.list_deliveries',
+      opts as Record<string, unknown>,
+    ).then((r) => r.deliveries);
+  }
+
+  redeliverWebhook(delivery: string): Promise<{ delivery: string; status: string }> {
+    return this.call('wavedesk.api.webhooks.redeliver', { delivery });
   }
 
   // --- monitoring (Phase 2 feature 4) ---

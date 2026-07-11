@@ -129,6 +129,21 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         key_hash="0" * 64,
         scopes='["messages:write"]',
     )
+    endpoint = insert(
+        "WD Webhook Endpoint",
+        label=f"hook-{suffix}",
+        url="https://example.test/hook",
+        signing_secret="s3cret",
+        events='["ticket.created"]',
+    )
+    insert(
+        "WD Webhook Delivery",
+        endpoint=endpoint,
+        event_type="ticket.created",
+        event_id=f"evt-{digits}",
+        payload="{}",
+        status="pending",
+    )
     insert("WD Audit Log", action="tenancy.fixture", entity=workspace)
     insert("WD Team", team_name=f"Team {suffix}")
     insert("WD Contact Import", file_name=f"import-{suffix}.csv")

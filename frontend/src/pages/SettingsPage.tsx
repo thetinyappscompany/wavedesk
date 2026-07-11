@@ -11,6 +11,7 @@ import SlaCard from '@/components/SlaCard';
 import AiAgentCard from '@/components/AiAgentCard';
 import AiFlaggingCard from '@/components/AiFlaggingCard';
 import ApiKeysCard from '@/components/ApiKeysCard';
+import WebhooksCard from '@/components/WebhooksCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -413,6 +414,7 @@ export default function SettingsPage(): React.JSX.Element {
       <LabelsCard canManage={canManage} />
       <CannedCard canManage={canManage} />
       <ApiKeysCard canManage={canManage} />
+      <WebhooksCard canManage={canManage} />
     </div>
   );
 }
