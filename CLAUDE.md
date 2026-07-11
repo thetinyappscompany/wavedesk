@@ -10,8 +10,25 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 5 (Phase 4 CODE-COMPLETE). 18 PRs (#1–#18) stacked, unmerged.
-Current epic: P5 PLATFORM SUPERADMIN PANEL done, PR #18 stacked on feat/p5-
+Phase: 5 (Phase 4 CODE-COMPLETE). 19 PRs (#1–#19) stacked, unmerged.
+Current epic: P5 DPDP/GDPR DATA CONTROLS done, PR #19 stacked on feat/p5-admin-
+panel (#18). Master doc §Phase 5 feature 6. Three data-subject rights, workspace-
+scoped. WD Data Export doctype + WD Contact.erased flag (tenancy-registered +
+fixture). compliance/privacy.py: (1) EXPORT request_export()→build_export RQ
+bundles contacts/chats/messages/tickets/groups→private JSON File (pending→
+processing→ready/failed + counts); (2) ERASURE erase_contact() scrubs PII
+(name/phone/email + message bodies + sender identity) in place, keeps refs, flags
+erased, audited, idempotent (PII via db.set_value to bypass Phone validator);
+(3) RETENTION apply_retention() nightly cron purges WD Messages older than
+settings.retention_days (0=keep forever). api/privacy.py (Owner/Admin) request/
+list export + erase_contact + get/set retention; daily cron hook. Frontend
+PrivacyCard in Settings (retention + request export + download) + right-to-erasure
+two-step confirm on ContactDrawer; api-client WdDataExport + methods. Tests 8
+Frappe + 5 frontend; suites 417 Frappe + frontend(157) + api-client green,
+ruff/eslint/tsc clean. FULLY LIVE-VERIFIABLE. Deferred: consent-record doctype
+(opt-out already enforced), per-doctype retention windows, DPA template doc.
+Shipped feat/p5-dpdp-privacy.
+Previous epic: P5 PLATFORM SUPERADMIN PANEL done, PR #18 stacked on feat/p5-
 outbound-webhooks (#17). Master doc §Phase 5 feature 8. Cross-workspace operator
 console (System-Manager-only, NOT tenant-scoped). WD Workspace +suspended/
 suspended_reason/send_rate_clamp. admin/superadmin.py (all require System Manager):
