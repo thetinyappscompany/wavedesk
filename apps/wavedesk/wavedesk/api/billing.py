@@ -32,6 +32,19 @@ def zoho_webhook() -> dict:
     return zoho.process(event)
 
 
+@frappe.whitelist()
+def reconcile_now() -> dict:
+    """Manually run the Zoho↔WD subscription reconciliation net (spec §5).
+
+    System-Manager only — this reaches the billing provider and heals subscription
+    state across all workspaces (never optimistic; drift-healing only)."""
+    if "System Manager" not in frappe.get_roles():
+        frappe.throw("Only a System Manager can trigger reconciliation", frappe.PermissionError)
+    from wavedesk.billing import reconcile
+
+    return reconcile.reconcile_all()
+
+
 def _verify_token() -> None:
     expected = os.environ.get("ZOHO_WEBHOOK_TOKEN")
     got = frappe.get_request_header("X-Webhook-Token")

@@ -33,6 +33,7 @@ scheduler_events = {
         "wavedesk.wallet.ledger.reconcile_all_wallets",
         "wavedesk.analytics.compute_engagement_scores",
         "wavedesk.antiban.recompute_all_health",
+        "wavedesk.billing.reconcile.reconcile_all",
     ],
 }
 
