@@ -10,8 +10,24 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 5 (Phase 4 CODE-COMPLETE). 17 PRs (#1–#17) stacked, unmerged.
-Current epic: P5 OUTBOUND WEBHOOKS done, PR #17 stacked on feat/p5-public-api
+Phase: 5 (Phase 4 CODE-COMPLETE). 18 PRs (#1–#18) stacked, unmerged.
+Current epic: P5 PLATFORM SUPERADMIN PANEL done, PR #18 stacked on feat/p5-
+outbound-webhooks (#17). Master doc §Phase 5 feature 8. Cross-workspace operator
+console (System-Manager-only, NOT tenant-scoped). WD Workspace +suspended/
+suspended_reason/send_rate_clamp. admin/superadmin.py (all require System Manager):
+list_workspaces (+members/messages/subscription counts), workspace_detail,
+suspend/unsuspend, set_send_rate_clamp, set_ai_kill_switch, AUDITED impersonate
+(login_as; every mutation writes WD Audit Log admin.* against target ws).
+ENFORCEMENT: assert_can_send(ws) wired into pipeline/sender.queue_send (THE single
+outbound chokepoint) — suspended ws throws, over-daily-clamp throws; covers
+replies/broadcasts/schedules/AI alike. api/admin.py + whoami (SPA gate). Frontend
+AdminPage /admin (redirects non-admins→inbox): workspace table + suspend/unsuspend
++ inline clamp; nav 'Admin' shown only to platform admins (adminWhoami). api-client
+WdAdminWorkspace + methods. Tests 9 Frappe + 4 frontend; suites 409 Frappe +
+frontend(152) + api-client green, ruff/eslint/tsc clean. FULLY LIVE-VERIFIABLE.
+Deferred: spam-report queue doctype, feature-flag matrix, comp-plan/coupon admin.
+Shipped feat/p5-admin-panel.
+Previous epic: P5 OUTBOUND WEBHOOKS done, PR #17 stacked on feat/p5-public-api
 (#16). Master doc §Phase 5 feature 2. WD Webhook Endpoint (url + signing_secret +
 subscribed events + enabled) + WD Webhook Delivery (attempt log/retry/dead-letter;
 both tenancy-registered + fixtures). webhooks/events.py EVENT_TYPES catalog.
