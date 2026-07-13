@@ -10,6 +10,9 @@
   "owner_user",
   "settings",
   "ai_config",
+  "suspended",
+  "suspended_reason",
+  "send_rate_clamp",
   "members"
  ],
  "fields": [
@@ -41,6 +44,25 @@
    "fieldname": "ai_config",
    "fieldtype": "JSON",
    "label": "AI Config"
+  },
+  {
+   "fieldname": "suspended",
+   "fieldtype": "Check",
+   "label": "Suspended",
+   "default": "0",
+   "description": "Platform-operator suspension → workspace is read-only, cannot send (P5 admin)."
+  },
+  {
+   "fieldname": "suspended_reason",
+   "fieldtype": "Small Text",
+   "label": "Suspended Reason"
+  },
+  {
+   "fieldname": "send_rate_clamp",
+   "fieldtype": "Int",
+   "label": "Send Rate Clamp / day",
+   "default": "0",
+   "description": "Platform-operator daily outbound ceiling for this workspace (0 = no clamp)."
   },
   {
    "fieldname": "members",

@@ -245,6 +245,35 @@ export interface WdApiKeyCreated {
   full_key: string;
 }
 
+/** Cross-workspace summary row for the platform admin console (P5). */
+export interface WdAdminWorkspace {
+  name: string;
+  workspace_name: string;
+  plan: string | null;
+  owner_user: string | null;
+  suspended: boolean;
+  send_rate_clamp: number;
+  members: number;
+  messages_total: number;
+  subscription_status: string | null;
+  creation: string;
+}
+
+export interface WdAdminWorkspaceDetail {
+  name: string;
+  workspace_name: string;
+  plan: string | null;
+  owner_user: string | null;
+  suspended: boolean;
+  suspended_reason: string | null;
+  send_rate_clamp: number;
+  numbers: number;
+  contacts: number;
+  open_tickets: number;
+  sent_today: number;
+  kill_switch: boolean;
+}
+
 /** An outbound-webhook subscriber (P5). */
 export interface WdWebhookEndpoint {
   name: string;
@@ -1693,6 +1722,46 @@ export class WaveDeskClient {
 
   redeliverWebhook(delivery: string): Promise<{ delivery: string; status: string }> {
     return this.call('wavedesk.api.webhooks.redeliver', { delivery });
+  }
+
+  // --- platform admin / superadmin (Phase 5) ---
+  adminWhoami(): Promise<boolean> {
+    return this.call<{ is_platform_admin: boolean }>('wavedesk.api.admin.whoami').then(
+      (r) => r.is_platform_admin,
+    );
+  }
+
+  adminListWorkspaces(search?: string): Promise<WdAdminWorkspace[]> {
+    return this.call<{ workspaces: WdAdminWorkspace[] }>('wavedesk.api.admin.list_workspaces', {
+      ...(search ? { search } : {}),
+    }).then((r) => r.workspaces);
+  }
+
+  adminWorkspaceDetail(workspace: string): Promise<WdAdminWorkspaceDetail> {
+    return this.call('wavedesk.api.admin.workspace_detail', { workspace });
+  }
+
+  adminSuspendWorkspace(workspace: string, reason: string): Promise<{ suspended: boolean }> {
+    return this.call('wavedesk.api.admin.suspend_workspace', { workspace, reason });
+  }
+
+  adminUnsuspendWorkspace(workspace: string): Promise<{ suspended: boolean }> {
+    return this.call('wavedesk.api.admin.unsuspend_workspace', { workspace });
+  }
+
+  adminSetSendRateClamp(workspace: string, clamp: number): Promise<{ send_rate_clamp: number }> {
+    return this.call('wavedesk.api.admin.set_send_rate_clamp', { workspace, clamp });
+  }
+
+  adminSetKillSwitch(workspace: string, enabled: boolean): Promise<{ kill_switch: boolean }> {
+    return this.call('wavedesk.api.admin.set_ai_kill_switch', {
+      workspace,
+      enabled: enabled ? 1 : 0,
+    });
+  }
+
+  adminImpersonate(user: string): Promise<{ impersonating: string }> {
+    return this.call('wavedesk.api.admin.impersonate', { user });
   }
 
   // --- monitoring (Phase 2 feature 4) ---

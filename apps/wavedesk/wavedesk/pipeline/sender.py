@@ -34,6 +34,12 @@ def queue_send(chat_name: str, body: str, agent: str) -> dict:
     """Create the queued WD Message row + enqueue delivery. Caller has already
     permission-checked the chat (api layer)."""
     chat = frappe.get_doc("WD Chat", chat_name)
+    # Platform abuse controls (P5 admin): a suspended workspace or one over its
+    # daily send clamp cannot dispatch. This is the single outbound chokepoint,
+    # so it covers replies, broadcasts, schedules, and AI auto-replies alike.
+    from wavedesk.admin import superadmin
+
+    superadmin.assert_can_send(chat.workspace)
     if not chat.number:
         frappe.throw(
             "This chat has no sending number linked yet — reconnect the number "
