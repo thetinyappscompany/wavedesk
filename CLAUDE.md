@@ -10,15 +10,38 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 5 (started; Phase 4 code-complete except P4.5)
-Current epic: Phase 5 — Billing (Zoho) CORE DONE, PR #13. Phase 4 = 5/6 epics
-done; ONLY P4.5 (voice transcription) left, and it's HARD-BLOCKED on prereqs:
-(a) no media pipeline — the gateway doesn't download media/audio at all + WD
-Message has no transcript field, so there's no audio to transcribe; (b) the
-faster-whisper container (compose has an alpine placeholder only); (c) Docker
-Desktop (won't start headless — needs the founder's desktop; I launched it, it
-didn't stay up). So P4.5 = media-pipeline + whisper-container + Docker, all
-prereqs. Jumped to Phase 5 billing (Docker-free, high value, founder prepped Zoho).
+Phase: 5 (Phase 4 now CODE-COMPLETE incl. P4.5). 14 PRs (#1–#14) stacked, unmerged.
+Current epic: P4.5 (media pipeline + voice transcription) CODE-COMPLETE, PR #14
+stacked on feat/p5-billing-zoho (#13). This CLOSES Phase 4 (6/6 epics). Built the
+whole media pipeline (the P4.5 prereq) end-to-end + the transcription on top.
+GATEWAY: baileys/media.ts = MediaStorage (S3+memory) + extractMediaMeta (pure,
+unwraps ephemeral/viewOnce) + workspace-scoped sanitized mediaKey; socket.
+downloadMedia wraps Baileys downloadMediaMessage (reuploadRequest = re-fetch
+CDN-expired). SessionManager downloads INBOUND media (skips fromMe echoes) before
+publishing message.received → parks bytes in S3_MEDIA_BUCKET → attaches media ref
+to payload; download/store failure degrades to metadata-only (key=null). FRAPPE:
+WD Message +media_key/mimetype/filename/size/duration/is_voice/transcript;
+consumer._media_fields maps payload.media; pipeline/media_store.py = boto3
+presign+download (env-config, graceful if boto3/creds absent); api/media.media_url
+= workspace-scoped short-lived presigned URL (raw S3 key NEVER leaves server —
+messages API exposes only has_media). ai/transcription.py = voice note → faster-
+whisper container (POST /transcribe raw bytes) → store transcript → RE-RUN through
+flagging/auto-ticket/auto-agent so a voice note is treated like text; add-on +
+kill-switch gated, idempotent (skips if transcript set), NOT metered (self-hosted);
+consumer hook enqueues off-thread on is_voice+media_key. WHISPER CONTAINER
+(services/whisper): real faster-whisper FastAPI (/health,/transcribe) + Dockerfile;
+compose.dev.yml replaced the alpine placeholder, wired on :9010 (media bucket
+already provisioned by minio-init). FRONTEND: MediaContent bubble renders image/
+video/voice/document from a lazily-resolved presigned URL + shows voice transcript;
+api-client WdMessage media fields + WdMediaUrl + getMediaUrl. Tests: 5 gateway
+media + 5 Frappe media + 8 transcription + 2 frontend. Suites: 368 Frappe + 58
+gateway + frontend (ConversationPane 20) green; ruff/eslint/typecheck clean.
+⚠ LIVE S3/WHISPER ROUND-TRIP DOCKER-GATED (MinIO + faster-whisper image + Docker
+Desktop, still down/headless) — all logic unit-verified with store+container
+mocked, run against the real bench DB. Shipped feat/media-pipeline, PR #14.
+Previous: Phase 5 — Billing (Zoho) CORE DONE, PR #13 (355 Frappe). Jumped to it
+because P4.5 was infra-gated — since resolved by BUILDING the media pipeline +
+whisper container in code (only Docker/live round-trip remains).
 P5-billing: WD Invoice Ref (mirror; tenancy-registered). billing/zoho.py =
 entitlement state machine (non-negotiable #3, entitlements ONLY from verified
 webhooks): subscription created/activation/renewed→active, cancelled/expired→

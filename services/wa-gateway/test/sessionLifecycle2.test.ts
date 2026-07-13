@@ -7,6 +7,7 @@ import { buildApp } from '../src/app.js';
 import { RedisAuthStore } from '../src/baileys/authStore.js';
 import { SessionManager } from '../src/baileys/sessionManager.js';
 import { MemorySnapshotStorage } from '../src/baileys/snapshot.js';
+import { MemoryMediaStorage } from '../src/baileys/media.js';
 import { loadConfig } from '../src/config.js';
 import { EventPublisher } from '../src/events/publisher.js';
 import { makeMockSocketFactory, simulatePairing } from './helpers/mockSocket.js';
@@ -23,6 +24,7 @@ function make() {
     snapshotKey: randomBytes(32),
     factory,
     publisher: new EventPublisher(redis, logger),
+    mediaStorage: new MemoryMediaStorage(),
     logger,
     snapshotIntervalMs: 60_000,
   });

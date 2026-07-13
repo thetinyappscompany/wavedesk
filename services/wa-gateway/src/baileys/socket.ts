@@ -64,6 +64,9 @@ export interface GatewaySocket {
   groupRevokeInvite(jid: string): Promise<string | null>;
   /** Our own jid once paired (device suffix included), else null. */
   ownJid(): string | null;
+  /** Download an inbound media message's bytes from WhatsApp's CDN, or null if
+   * it carries no media / the download fails. */
+  downloadMedia(message: InboundMessage): Promise<Buffer | null>;
   sendMessage(
     jid: string,
     content: { text: string },

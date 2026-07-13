@@ -24,6 +24,13 @@ CLIENT_FIELDS = [
     "quoted_message",
     "flagged",
     "flag_reason",
+    "media_key",
+    "media_mimetype",
+    "media_filename",
+    "media_size",
+    "media_duration",
+    "is_voice",
+    "transcript",
     "creation",
 ]
 
@@ -90,6 +97,10 @@ def list_messages(chat: str, before: str | None = None, limit: int = 50) -> dict
         row["creation"] = str(row["creation"])
         row["quoted_body"] = quoted_bodies.get(row.quoted_message) if row.quoted_message else None
         row["flagged"] = bool(row["flagged"])
+        # Expose only whether media is fetchable — the raw S3 key stays server-side;
+        # the client resolves a presigned URL via api/media.media_url(message).
+        row["has_media"] = bool(row.pop("media_key", None))
+        row["is_voice"] = bool(row.get("is_voice"))
         _sender_display(row, masked)
 
     rows.reverse()  # ascending for rendering

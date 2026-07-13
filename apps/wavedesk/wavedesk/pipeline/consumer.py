@@ -183,6 +183,7 @@ def apply_event(event: dict) -> None:
             "message_type": message_type,
             "body": body,
             "sent_via": transport,
+            **_media_fields(payload),
         }
     )
     message.insert(ignore_permissions=True)
@@ -240,6 +241,12 @@ def apply_event(event: dict) -> None:
         from wavedesk.ai import flagging
 
         flagging.on_inbound(workspace, chat, message.name, body)
+        # Voice transcription (P4.5): a downloaded voice note is transcribed
+        # off-thread via faster-whisper, then re-run through the text AI
+        # pipelines (flagging/auto-ticket/auto-agent). Cheap gate (voice note?).
+        from wavedesk.ai import transcription
+
+        transcription.on_inbound(workspace, chat, message.name, chat_type)
         # AI Auto-Agent (P4.3): auto-answer customer DMs from the knowledge base,
         # or hand off to a human. Cheap gate; heavy answering runs off-thread.
         if chat_type == "dm":
@@ -343,6 +350,25 @@ def _extract(
     sender_jid = participant or (f"{phone}@s.whatsapp.net" if phone else None)
     sender_name = (raw.get("pushName") or "").strip() or None
     return phone, body, message_type, chat_type, direction, sender_jid, sender_name
+
+
+def _media_fields(payload: dict) -> dict:
+    """Map the gateway's downloaded-media ref (payload.media) → WD Message media
+    columns. Empty dict for non-media messages so update() is a no-op.
+
+    The gateway ships media metadata even when the download itself failed
+    (key=None) so the inbox can still show 'image'/'voice note' placeholders."""
+    media = payload.get("media") if isinstance(payload, dict) else None
+    if not isinstance(media, dict):
+        return {}
+    return {
+        "media_key": media.get("key"),
+        "media_mimetype": media.get("mimetype"),
+        "media_filename": media.get("filename"),
+        "media_size": media.get("size") or 0,
+        "media_duration": media.get("duration") or 0,
+        "is_voice": 1 if media.get("isVoice") else 0,
+    }
 
 
 def _unwrap_baileys_content(content: Any) -> dict | None:
