@@ -30,7 +30,7 @@ def ensure_wd_role(user: str, role: str) -> None:
 
 
 @frappe.whitelist()
-def create_workspace(workspace_name: str) -> dict:
+def create_workspace(workspace_name: str, vertical: str | None = None) -> dict:
     user = frappe.session.user
     if user == "Guest":
         frappe.throw(_("Sign in to create a workspace"), frappe.PermissionError)
@@ -52,6 +52,16 @@ def create_workspace(workspace_name: str) -> dict:
     ensure_wd_role(user, "Owner")
     frappe.local.wd_membership_cache = {}
     set_active_workspace(ws.name)
+
+    # Per-vertical starter pack (P5): seed labels/canned/automation at signup.
+    if vertical:
+        from wavedesk import verticals
+
+        try:
+            verticals.apply(ws.name, vertical)
+        except frappe.ValidationError:
+            pass  # unknown vertical — don't block workspace creation
+
     return {"workspace": ws.name, "workspace_name": ws.workspace_name}
 
 

@@ -10,8 +10,21 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 5 (Phase 4 CODE-COMPLETE). 20 PRs (#1–#20) stacked, unmerged.
-Current epic: P5 2FA (TOTP) + SESSION MGMT done, PR #20 stacked on feat/p5-dpdp-
+Phase: 5 (Phase 4 CODE-COMPLETE). 21 PRs (#1–#21) stacked, unmerged.
+Current epic: P5 PER-VERTICAL ONBOARDING STARTER PACKS done, PR #21 stacked on
+feat/p5-2fa-sessions (#20). Master doc §Phase 5 feature 4. wavedesk/verticals.py
+VERTICALS catalog (d2c/agency/community/support), each seeds curated labels +
+canned responses + keyword→add_label automation rules; apply(workspace,vertical)
+IDEMPOTENT (skips existing by title/shortcode/rule-name, never overwrites).
+api/verticals.py list_verticals (any member previews) + apply_vertical (Owner/
+Admin); onboarding.create_workspace gains optional `vertical` param → seed at
+signup (unknown vertical never blocks). Frontend StarterTemplatesCard in Settings
+(pick type→preview→apply); api-client WdVertical + methods. Tests 6 Frappe + 3
+frontend; suites 432 Frappe + frontend(163) + api-client green, ruff/eslint/tsc
+clean. FULLY LIVE-VERIFIABLE. Deferred: onboarding-wizard picker UI, sample
+dashboard presets, per-vertical AI knowledge seeds. Shipped feat/p5-vertical-
+templates.
+Previous epic: P5 2FA (TOTP) + SESSION MGMT done, PR #20 stacked on feat/p5-dpdp-
 privacy (#19). Master doc §Phase 5 feature 6 (security). WD User 2FA doctype
 (GLOBAL, SM-only; secret AES-256-GCM at rest via ai/crypto; recovery codes as
 SHA-256 hashes). auth/twofa.py = dependency-free RFC-6238 TOTP (HMAC-SHA1 30s
