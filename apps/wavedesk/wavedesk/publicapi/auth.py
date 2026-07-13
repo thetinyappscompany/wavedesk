@@ -71,6 +71,12 @@ def authenticate(scope: str) -> "frappe.Document":
     if scope not in granted:
         frappe.throw(f"API key lacks the '{scope}' scope", frappe.PermissionError)
 
+    # IP allowlist (P5, Business plan): reject calls from outside the workspace's
+    # configured IP/CIDR set (no-op when the workspace has no allowlist).
+    from wavedesk import access
+
+    access.enforce(row.workspace)
+
     _rate_limit(row.name, row.rate_limit_per_min or 120)
 
     # Bind the request to the key's workspace so tenant-scoped reads/writes land

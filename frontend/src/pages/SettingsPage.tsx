@@ -15,6 +15,7 @@ import WebhooksCard from '@/components/WebhooksCard';
 import PrivacyCard from '@/components/PrivacyCard';
 import SecurityCard from '@/components/SecurityCard';
 import StarterTemplatesCard from '@/components/StarterTemplatesCard';
+import AccessControlCard from '@/components/AccessControlCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -421,6 +422,7 @@ export default function SettingsPage(): React.JSX.Element {
       <PrivacyCard canManage={canManage} />
       <SecurityCard />
       <StarterTemplatesCard canManage={canManage} />
+      <AccessControlCard canManage={canManage} />
     </div>
   );
 }

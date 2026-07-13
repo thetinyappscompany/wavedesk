@@ -1861,6 +1861,17 @@ export class WaveDeskClient {
     return this.call('wavedesk.api.security.revoke_other_sessions');
   }
 
+  // --- IP allowlist (Phase 5, Business plan) ---
+  getIpAllowlist(): Promise<string[]> {
+    return this.call<{ ip_allowlist: string[] }>('wavedesk.api.access.get_ip_allowlist').then(
+      (r) => r.ip_allowlist,
+    );
+  }
+
+  setIpAllowlist(entries: string[]): Promise<{ ip_allowlist: string[] }> {
+    return this.call('wavedesk.api.access.set_ip_allowlist', { entries });
+  }
+
   // --- vertical starter packs (Phase 5) ---
   listVerticals(): Promise<WdVertical[]> {
     return this.call<{ verticals: WdVertical[] }>('wavedesk.api.verticals.list_verticals').then(
