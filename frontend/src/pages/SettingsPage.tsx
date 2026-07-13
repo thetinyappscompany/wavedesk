@@ -10,6 +10,7 @@ import BusinessHoursCard from '@/components/BusinessHoursCard';
 import SlaCard from '@/components/SlaCard';
 import AiAgentCard from '@/components/AiAgentCard';
 import AiFlaggingCard from '@/components/AiFlaggingCard';
+import ApiKeysCard from '@/components/ApiKeysCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -411,6 +412,7 @@ export default function SettingsPage(): React.JSX.Element {
       <MonitoringCard canManage={canManage} />
       <LabelsCard canManage={canManage} />
       <CannedCard canManage={canManage} />
+      <ApiKeysCard canManage={canManage} />
     </div>
   );
 }

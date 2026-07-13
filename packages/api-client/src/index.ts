@@ -223,6 +223,28 @@ export interface WdAiFlagRule {
   enabled: boolean;
 }
 
+/** A public-API credential (P5). The secret is shown once at creation only. */
+export interface WdApiKey {
+  name: string;
+  label: string;
+  key_prefix: string;
+  scopes: string[];
+  enabled: boolean;
+  rate_limit_per_min: number;
+  last_used_at: string | null;
+  creation: string;
+}
+
+/** Returned once at creation — full_key is never retrievable again. */
+export interface WdApiKeyCreated {
+  name: string;
+  label: string;
+  prefix: string;
+  scopes: string[];
+  rate_limit_per_min: number;
+  full_key: string;
+}
+
 /** One day's business-hours window; a day with no entry is closed (P3.2). */
 export interface WdBusinessHoursDay {
   open: string; // "HH:MM"
@@ -1568,6 +1590,35 @@ export class WaveDeskClient {
 
   deleteFlagRule(rule: string): Promise<{ deleted: string }> {
     return this.call('wavedesk.api.flagging.delete_rule', { rule });
+  }
+
+  // --- public API keys (Phase 5) ---
+  apiKeyScopes(): Promise<string[]> {
+    return this.call<{ scopes: string[] }>('wavedesk.api.publicapi.available_scopes').then(
+      (r) => r.scopes,
+    );
+  }
+
+  listApiKeys(): Promise<WdApiKey[]> {
+    return this.call<{ keys: WdApiKey[] }>('wavedesk.api.publicapi.list_api_keys').then(
+      (r) => r.keys,
+    );
+  }
+
+  createApiKey(
+    label: string,
+    scopes: string[],
+    rateLimitPerMin?: number,
+  ): Promise<WdApiKeyCreated> {
+    return this.call('wavedesk.api.publicapi.create_api_key', {
+      label,
+      scopes,
+      rate_limit_per_min: rateLimitPerMin,
+    });
+  }
+
+  revokeApiKey(name: string): Promise<{ name: string; enabled: boolean }> {
+    return this.call('wavedesk.api.publicapi.revoke_api_key', { name });
   }
 
   // --- monitoring (Phase 2 feature 4) ---

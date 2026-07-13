@@ -10,8 +10,27 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 5 (Phase 4 CODE-COMPLETE). 15 PRs (#1–#15) stacked, unmerged.
-Current epic: P5 billing — nightly Zoho↔WD RECONCILIATION NET done, PR #15 stacked
+Phase: 5 (Phase 4 CODE-COMPLETE). 16 PRs (#1–#16) stacked, unmerged.
+Current epic: P5 PUBLIC REST API v1 done, PR #16 stacked on feat/p5-billing-
+reconcile (#15). Master doc §Phase 5 feature 1. WD API Key doctype = key_prefix
+(public lookup) + key_hash (SHA-256 of secret; plaintext shown ONCE, never
+stored) + scopes JSON + enabled + rate_limit_per_min + last_used_at (tenancy-
+registered + fixture). publicapi/keys.py generate/parse/verify (constant-time;
+key form wdk_<prefix>_<secret>). publicapi/auth.py authenticate(scope) = THE
+chokepoint: parse bearer/X-API-Key header → resolve+verify key → reject disabled
+→ enforce scope → per-key Redis rate limit (60s window→429) → bind request to
+key's workspace (tenancy holds) → stamp last_used. api/v1.py (allow_guest,
+key-authed): send_message/list_chats/list_messages/list_contacts/create_contact/
+create_ticket/list_tickets + OpenAPI 3.1 at .openapi; every query explicitly
+scoped to key.workspace. api/publicapi.py (cookie-session, Owner/Admin): create/
+list/revoke + available_scopes (create returns full key ONCE, list never leaks
+hash). Frontend ApiKeysCard in Settings (create w/ scope checkboxes → one-time
+copyable reveal → list + revoke); api-client WdApiKey/WdApiKeyCreated + methods.
+Tests: 15 Frappe + 4 frontend; suites 390 Frappe + frontend(144) + api-client
+green, ruff/eslint/tsc clean. FULLY LIVE-VERIFIABLE (no external creds) — verified
+on real bench DB. Deferred: groups/broadcasts endpoints (same framework), hosted
+Redoc docs page, outbound webhooks (§P5 feature 2). Shipped feat/p5-public-api.
+Previous epic: P5 billing — nightly Zoho↔WD RECONCILIATION NET done, PR #15 stacked
 on feat/media-pipeline (#14). Completes the billing exit criterion (spec §5):
 billing/zoho_client.py = Zoho Self Client (server-to-server) minting 1-hr access
 tokens from the env refresh token (in-process cached) + get_subscription; secrets

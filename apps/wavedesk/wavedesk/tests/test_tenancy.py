@@ -122,6 +122,13 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         amount=1200,
         status="paid",
     )
+    insert(
+        "WD API Key",
+        label=f"key-{suffix}",
+        key_prefix=f"pfx{digits}",
+        key_hash="0" * 64,
+        scopes='["messages:write"]',
+    )
     insert("WD Audit Log", action="tenancy.fixture", entity=workspace)
     insert("WD Team", team_name=f"Team {suffix}")
     insert("WD Contact Import", file_name=f"import-{suffix}.csv")
