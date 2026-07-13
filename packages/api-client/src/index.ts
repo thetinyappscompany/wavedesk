@@ -245,6 +245,21 @@ export interface WdApiKeyCreated {
   full_key: string;
 }
 
+/** A 2FA enrollment challenge — secret + otpauth URI shown once (P5). */
+export interface WdTwoFactorEnroll {
+  secret: string;
+  otpauth_uri: string;
+}
+
+/** One of the caller's active login sessions (P5). */
+export interface WdSession {
+  sid_tail: string;
+  ip: string | null;
+  last_active: string | null;
+  status: string | null;
+  current: boolean;
+}
+
 /** A DPDP/GDPR data-portability export request (P5). */
 export interface WdDataExport {
   name: string;
@@ -1797,6 +1812,43 @@ export class WaveDeskClient {
 
   eraseContact(contact: string): Promise<{ contact: string; erased: boolean }> {
     return this.call('wavedesk.api.privacy.erase_contact', { contact });
+  }
+
+  // --- account security: 2FA + sessions (Phase 5) ---
+  twofaStatus(): Promise<boolean> {
+    return this.call<{ enabled: boolean }>('wavedesk.api.security.twofa_status').then(
+      (r) => r.enabled,
+    );
+  }
+
+  twofaBeginEnroll(): Promise<WdTwoFactorEnroll> {
+    return this.call('wavedesk.api.security.twofa_begin_enroll');
+  }
+
+  twofaConfirm(code: string): Promise<{ enabled: boolean; recovery_codes: string[] }> {
+    return this.call('wavedesk.api.security.twofa_confirm', { code });
+  }
+
+  twofaDisable(code: string): Promise<{ enabled: boolean }> {
+    return this.call('wavedesk.api.security.twofa_disable', { code });
+  }
+
+  twofaVerify(code: string): Promise<{ verified: boolean }> {
+    return this.call('wavedesk.api.security.twofa_verify', { code });
+  }
+
+  listSessions(): Promise<WdSession[]> {
+    return this.call<{ sessions: WdSession[] }>('wavedesk.api.security.list_sessions').then(
+      (r) => r.sessions,
+    );
+  }
+
+  revokeSession(sidTail: string): Promise<{ revoked: string }> {
+    return this.call('wavedesk.api.security.revoke_session', { sid_tail: sidTail });
+  }
+
+  revokeOtherSessions(): Promise<{ revoked: number }> {
+    return this.call('wavedesk.api.security.revoke_other_sessions');
   }
 
   // --- monitoring (Phase 2 feature 4) ---

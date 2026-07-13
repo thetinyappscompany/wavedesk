@@ -10,8 +10,22 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 5 (Phase 4 CODE-COMPLETE). 19 PRs (#1–#19) stacked, unmerged.
-Current epic: P5 DPDP/GDPR DATA CONTROLS done, PR #19 stacked on feat/p5-admin-
+Phase: 5 (Phase 4 CODE-COMPLETE). 20 PRs (#1–#20) stacked, unmerged.
+Current epic: P5 2FA (TOTP) + SESSION MGMT done, PR #20 stacked on feat/p5-dpdp-
+privacy (#19). Master doc §Phase 5 feature 6 (security). WD User 2FA doctype
+(GLOBAL, SM-only; secret AES-256-GCM at rest via ai/crypto; recovery codes as
+SHA-256 hashes). auth/twofa.py = dependency-free RFC-6238 TOTP (HMAC-SHA1 30s
+6-digit ±1 window) + begin_enroll/confirm_enroll(8 one-time recovery codes)/verify
+(TOTP OR consume-once recovery)/disable/status. auth/sessions.py = list/revoke/
+revoke-others over caller's tabSessions (sid masked to tail). api/security.py
+self-service (frappe.session.user only). Frontend SecurityCard in Settings (enable
+2FA secret+otpauth→confirm→recovery codes / disable; session list + per-device
+revoke + sign-out-others); api-client WdTwoFactorEnroll/WdSession + methods. Tests
+9 Frappe + 3 frontend; suites 426 Frappe + frontend(160) + api-client green,
+ruff/eslint/tsc clean. FULLY LIVE-VERIFIABLE. Deferred: hard login-flow gate (SPA
+calls twofa_verify post-login; enforcing across every API = follow-up), SSO/SAML,
+IP allowlist. Shipped feat/p5-2fa-sessions.
+Previous epic: P5 DPDP/GDPR DATA CONTROLS done, PR #19 stacked on feat/p5-admin-
 panel (#18). Master doc §Phase 5 feature 6. Three data-subject rights, workspace-
 scoped. WD Data Export doctype + WD Contact.erased flag (tenancy-registered +
 fixture). compliance/privacy.py: (1) EXPORT request_export()→build_export RQ

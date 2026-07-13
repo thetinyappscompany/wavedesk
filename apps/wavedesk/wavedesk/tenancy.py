@@ -63,6 +63,7 @@ TENANT_DOCTYPES: tuple[str, ...] = (
 GLOBAL_DOCTYPES: dict[str, str] = {
     "WD Plan": "shared plan catalog, read-only for workspace roles",
     "WD AI Pricing Config": "internal-only Single; System Manager perms, leak test enforced",
+    "WD User 2FA": "per-user auth secret (not workspace-scoped); System Manager perms",
 }
 
 WORKSPACE_ROLES: tuple[str, ...] = ("WD Owner", "WD Admin", "WD Agent")
