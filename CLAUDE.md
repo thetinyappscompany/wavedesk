@@ -10,8 +10,25 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 5 (Phase 4 now CODE-COMPLETE incl. P4.5). 14 PRs (#1–#14) stacked, unmerged.
-Current epic: P4.5 (media pipeline + voice transcription) CODE-COMPLETE, PR #14
+Phase: 5 (Phase 4 CODE-COMPLETE). 15 PRs (#1–#15) stacked, unmerged.
+Current epic: P5 billing — nightly Zoho↔WD RECONCILIATION NET done, PR #15 stacked
+on feat/media-pipeline (#14). Completes the billing exit criterion (spec §5):
+billing/zoho_client.py = Zoho Self Client (server-to-server) minting 1-hr access
+tokens from the env refresh token (in-process cached) + get_subscription; secrets
+env-only (#8), unconfigured/API-error→None so reconcile no-ops (never guesses
+entitlements). billing/reconcile.py reconcile_all() diffs every Zoho-linked WD
+Subscription vs live Zoho state → HEALS drift via zoho.apply_subscription
+(re-syncs status+plan+addons+period, identical to a webhook); NEVER optimistic
+(Zoho-unreachable/unknown-status → untouched); drift audited (WD Audit Log) +
+log_error on-call signal (spec §7). Zoho→WD status map (live/active→active,
+trial→trialing, past_due/unpaid/dunning→past_due, cancelled/expired→cancelled,
+suspended→suspended). Daily cron hook + api/billing.reconcile_now (System-Manager
+manual). Tests 7 Frappe (Zoho client mocked); suite 375 green, ruff clean.
+⚠ LIVE-GATED on the self-client refresh token + staging URL (same gate as the
+webhook). Remaining P5-billing deferred: hosted-checkout embed + customer-portal
+link (need refresh token + public URL) + invoice reconciliation. Shipped
+feat/p5-billing-reconcile, PR #15.
+Previous epic: P4.5 (media pipeline + voice transcription) CODE-COMPLETE, PR #14
 stacked on feat/p5-billing-zoho (#13). This CLOSES Phase 4 (6/6 epics). Built the
 whole media pipeline (the P4.5 prereq) end-to-end + the transcription on top.
 GATEWAY: baileys/media.ts = MediaStorage (S3+memory) + extractMediaMeta (pure,
