@@ -137,6 +137,16 @@ export default function ContactDrawer({
     },
   });
 
+  const [confirmErase, setConfirmErase] = useState(false);
+  const erase = useMutation({
+    mutationFn: () => client.eraseContact(contactName),
+    onSuccess: () => {
+      setConfirmErase(false);
+      void queryClient.invalidateQueries({ queryKey: ['contact', contactName] });
+      void queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    },
+  });
+
   const data: WdContactProfile | undefined = profile.data;
   const dirty =
     data && (draftName !== (data.full_name ?? '') || draftEmail !== (data.email ?? ''));
@@ -251,6 +261,38 @@ export default function ContactDrawer({
                   <p className="text-xs text-muted-foreground">No conversations yet.</p>
                 )}
               </div>
+            </section>
+
+            <section className="border-t pt-3" data-testid="contact-erase">
+              <h4 className="mb-1 text-xs font-medium uppercase text-destructive">Right to erasure</h4>
+              <p className="mb-2 text-xs text-muted-foreground">
+                Permanently scrubs this contact's name, phone, email, and message content
+                (DPDP/GDPR). This can't be undone.
+              </p>
+              {confirmErase ? (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={erase.isPending}
+                    onClick={() => erase.mutate()}
+                  >
+                    Confirm erase
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setConfirmErase(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setConfirmErase(true)}>
+                  Erase contact (GDPR)
+                </Button>
+              )}
+              {erase.isError && (
+                <p role="alert" className="mt-1 text-xs text-destructive">
+                  {erase.error instanceof Error ? erase.error.message : 'Erase failed'}
+                </p>
+              )}
             </section>
           </>
         )}
