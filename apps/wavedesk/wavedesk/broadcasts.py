@@ -248,6 +248,16 @@ def run_broadcast(name: str) -> int:
     _recount(bc.name)
     if not frappe.db.count("WD Broadcast Recipient", {"broadcast": bc.name, "status": "pending"}):
         set_status(bc.name, "completed")
+        # Outbound webhook (P5): broadcast.completed.
+        from wavedesk.webhooks import dispatch as webhooks
+
+        counts = frappe.db.get_value(
+            "WD Broadcast", bc.name, ["sent_count", "failed_count", "total_recipients"],
+            as_dict=True,
+        )
+        webhooks.safe_emit(bc.workspace, "broadcast.completed", {
+            "broadcast": bc.name, **(counts or {}),
+        })
     return dispatched
 
 

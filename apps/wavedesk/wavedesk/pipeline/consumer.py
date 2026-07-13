@@ -203,6 +203,13 @@ def apply_event(event: dict) -> None:
             "update `tabWD Chat` set unread_count = unread_count + 1 where name = %s",
             (chat,),
         )
+        # Outbound webhook (P5): message.received.
+        from wavedesk.webhooks import dispatch as webhooks
+
+        webhooks.safe_emit(workspace, "message.received", {
+            "chat": chat, "message": message.name, "wa_message_id": wa_message_id,
+            "message_type": message_type, "contact": contact,
+        })
         _auto_reopen(workspace, chat)
         # Out-of-office auto-reply (P3.2): a DM arriving outside business hours
         # gets one automated reply per window. Self-guards on settings/type.

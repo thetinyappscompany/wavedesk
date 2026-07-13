@@ -10,8 +10,27 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 5 (Phase 4 CODE-COMPLETE). 16 PRs (#1–#16) stacked, unmerged.
-Current epic: P5 PUBLIC REST API v1 done, PR #16 stacked on feat/p5-billing-
+Phase: 5 (Phase 4 CODE-COMPLETE). 17 PRs (#1–#17) stacked, unmerged.
+Current epic: P5 OUTBOUND WEBHOOKS done, PR #17 stacked on feat/p5-public-api
+(#16). Master doc §Phase 5 feature 2. WD Webhook Endpoint (url + signing_secret +
+subscribed events + enabled) + WD Webhook Delivery (attempt log/retry/dead-letter;
+both tenancy-registered + fixtures). webhooks/events.py EVENT_TYPES catalog.
+webhooks/dispatch.py: emit() fans event→every subscribed enabled endpoint (cheap
+gate→1 delivery/endpoint→enqueue); deliver() POSTs JSON w/ HMAC-SHA256 sig
+(X-WaveDesk-Signature), 2xx→delivered else exp backoff (30s→1h) then dead-letter
+after max_attempts; retry_due minutely cron re-enqueues elapsed; redeliver()
+manual. safe_emit() NEVER raises into pipeline (subscriber can't break ingestion),
+no bodies logged (#6). Wired emit: message.received (consumer), chat.assigned/
+chat.resolved (inbox), ticket.created (WD Ticket after_insert doc_event = catches
+ALL creators), broadcast.completed (driver); remaining catalog events (message.
+sent/failed, group.member_*, number.*) share the machinery — trivial follow-up
+emit sites. api/webhooks.py (Owner/Admin) endpoint CRUD + delivery/dead-letter
+feed + redeliver + event_catalog. Frontend WebhooksCard in Settings (CRUD w/ event
+checkboxes + toggle + recent deliveries + redeliver); api-client WdWebhookEndpoint/
+WdWebhookDelivery + methods. Tests 10 Frappe + 4 frontend; suites 400 Frappe +
+frontend(148) + api-client green, ruff/eslint/tsc clean. FULLY LIVE-VERIFIABLE —
+verified on real bench DB. Shipped feat/p5-outbound-webhooks.
+Previous epic: P5 PUBLIC REST API v1 done, PR #16 stacked on feat/p5-billing-
 reconcile (#15). Master doc §Phase 5 feature 1. WD API Key doctype = key_prefix
 (public lookup) + key_hash (SHA-256 of secret; plaintext shown ONCE, never
 stored) + scopes JSON + enabled + rate_limit_per_min + last_used_at (tenancy-
