@@ -8,6 +8,7 @@ os.environ.setdefault(
     "WD_DATABASE_URL",
     "postgresql+psycopg://postgres:wavedesk_pg@localhost:5432/wavedesk_backend_test",
 )
+os.environ["WD_TASK_INLINE"] = "1"  # RQ jobs run inline in tests
 
 import psycopg
 import pytest
