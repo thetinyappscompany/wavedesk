@@ -179,6 +179,11 @@ def apply_event(db, event: dict) -> None:
     if direction == "in":
         chat.unread_count = (chat.unread_count or 0) + 1
         _auto_reopen(db, chat)
+        if chat_type == "group":
+            # Needs Reply queue (P2.2): question-looking messages start the clock
+            from app import inbox
+
+            inbox.flag_pending_query(chat, body)
         # ── hook point: later-phase inbound side-channels (monitoring,
         #    automation, AI, webhooks) attach here in R3–R6, each isolated so
         #    a failing hook can never lose the persisted message.

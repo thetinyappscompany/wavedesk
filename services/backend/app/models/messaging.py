@@ -74,6 +74,9 @@ class Chat(UUIDPrimaryKey, Timestamps, Base):
     assigned_agent_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )
+    assigned_team_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("teams.id", ondelete="SET NULL")
+    )
     unread_count: Mapped[int] = mapped_column(Integer, default=0)
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     first_response_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

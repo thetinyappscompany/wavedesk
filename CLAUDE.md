@@ -34,9 +34,23 @@ assignee/search filters; labels/needs_reply keys stubbed for R2),
 messages.list_messages (ISO cursor)+mark_chat_read, contacts list/get/update,
 send.send_message/retry_message. 29 tests green vs real PG+Redis (RQ inline
 via WD_TASK_INLINE=1), ruff clean. GOTCHA: psycopg3 rejects timestamptz <
-varchar — parse cursors with datetime.fromisoformat first. Next: R2 (teams/
-assignment/inbox status/labels/canned/masking/needs-reply/onboarding invites
-+ socket.io server). CapRover kit PR #32 + hardening PR #31 + probe PR #30
+varchar — parse cursors with datetime.fromisoformat first. R2 DONE on
+rewrite/r2-inbox (stacked on R1): models Team/TeamMember/Label/ChatLabel/
+CannedResponse/Invite + Chat.assigned_team_id; app/inbox.py (set_status w/
+resolved_at stamps, assign_chat member/team-validated single chokepoint,
+unsnooze_due cron fn, looks_like_query EN+Hinglish heuristic, flag/clear
+pending query wired into consumer group-inbound + sender); app/masking.py
+(P1.9 parity, wired into list_chats + contacts list/get); workspace settings
+get/update (mask_numbers, needs_reply_minutes, Agent update blocked);
+invites (manager-issued 7-day single-use token, guest accept creates user +
+membership + auto-login); socket.io ASGI server (AsyncRedisManager rooms
+ws:<id>, sid-cookie auth on connect; write-only RedisManager emitter from
+workers; realtime.py safe_emit ids-only) — prod entrypoint uvicorn --factory
+app.main:create_asgi; labels/needs_reply/label-filter live in list_chats.
+39 tests green vs real PG+Redis, ruff clean. TEST GOTCHA: SQLAlchemy identity
+map returns stale instances for cross-session writes — db.expire_all()
+before asserting. Next: R3 (groups registry/actions/monitoring/analytics/
+tickets). CapRover kit PR #32 + hardening PR #31 + probe PR #30
 still open for the Frappe product (merge them — it remains the hostable
 product until parity).
 Previous epic: POSTGRES MIGRATION — DONE, PR #28 (feat/postgres-migration → main,

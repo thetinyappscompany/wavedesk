@@ -61,6 +61,7 @@ def queue_send(db, chat: Chat, body: str, agent_user_id: str | None) -> dict:
     chat.last_message_at = now
     if not chat.first_response_at:  # first-response analytics stamp
         chat.first_response_at = now
+    chat.pending_query_since = None  # team replied (P2.2)
     db.commit()
     db.refresh(message)  # server-generated created_at
 
