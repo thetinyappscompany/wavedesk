@@ -268,9 +268,12 @@ def workspace_dashboard(workspace: str, days: int = DEFAULT_WINDOW_DAYS) -> dict
     res_mins = _elapsed_minutes(workspace, "resolved_at", start)
 
     msg = frappe.qb.DocType("WD Message")
+    # order by the COUNT term itself — a bare "n" alias string gets qualified
+    # against the FROM table by pypika and breaks in joined queries.
+    row_count = Count("*")
     per_agent = (
         frappe.qb.from_(msg)
-        .select(msg.sender_agent.as_("agent"), Count("*").as_("n"))
+        .select(msg.sender_agent.as_("agent"), row_count.as_("n"))
         .where(
             (msg.workspace == workspace)
             & (msg.direction == "out")
@@ -278,7 +281,7 @@ def workspace_dashboard(workspace: str, days: int = DEFAULT_WINDOW_DAYS) -> dict
             & (msg.creation >= start)
         )
         .groupby(msg.sender_agent)
-        .orderby("n", order=Order.desc)
+        .orderby(row_count, order=Order.desc)
     ).run(as_dict=True)
 
     chat = frappe.qb.DocType("WD Chat")
@@ -287,10 +290,10 @@ def workspace_dashboard(workspace: str, days: int = DEFAULT_WINDOW_DAYS) -> dict
         frappe.qb.from_(msg)
         .join(chat).on(msg.chat == chat.name)
         .join(num).on(chat.number == num.name)
-        .select(num.name.as_("number"), num.display_name.as_("display_name"), Count("*").as_("n"))
+        .select(num.name.as_("number"), num.display_name.as_("display_name"), row_count.as_("n"))
         .where((chat.workspace == workspace) & (msg.creation >= start))
         .groupby(num.name, num.display_name)
-        .orderby("n", order=Order.desc)
+        .orderby(row_count, order=Order.desc)
     ).run(as_dict=True)
 
     return {
