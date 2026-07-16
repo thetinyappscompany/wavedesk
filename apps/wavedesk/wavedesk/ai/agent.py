@@ -39,11 +39,13 @@ def _system_prompt(persona: str | None, context: str) -> str:
     return "\n\n".join(parts)
 
 
-def answer(workspace: str, question: str) -> dict:
+def answer(workspace: str, question: str, idempotency_key: str | None = None) -> dict:
     """Decide reply vs handoff for one customer question.
 
     Returns {action: 'reply'|'handoff', text, reason?, top_score, hits}.
-    """
+    Job-driven callers pass a deterministic idempotency_key (derived from the
+    inbound message) so a retried RQ job never double-charges; interactive
+    callers (preview) omit it and are billed per invocation."""
     cfg = get_config(workspace)
     threshold = (
         float(cfg.confidence_threshold)
@@ -62,7 +64,8 @@ def answer(workspace: str, question: str) -> dict:
         workspace, task="reply",
         system=_system_prompt(cfg.persona_prompt if cfg else None, context),
         messages=[{"role": "user", "content": question}],
-        source="agent:reply", idempotency_key=frappe.generate_hash(length=12),
+        source="agent:reply",
+        idempotency_key=idempotency_key or frappe.generate_hash(length=12),
         max_tokens=500, cache_system=True,
     )
     text = (out["text"] or "").strip()
@@ -76,7 +79,9 @@ def answer(workspace: str, question: str) -> dict:
 # Inbound-DM auto-answering (wired into the consumer)
 # ---------------------------------------------------------------------------
 
-def on_inbound_dm(workspace: str, chat: str, chat_type: str, body: str) -> None:
+def on_inbound_dm(
+    workspace: str, chat: str, chat_type: str, body: str, message: str | None = None
+) -> None:
     """Consumer hook: cheap gate here, heavy answering off-thread. Only auto-answers
     customer DMs when the workspace has an enabled agent — otherwise a no-op so the
     pipeline stays fast."""
@@ -87,11 +92,13 @@ def on_inbound_dm(workspace: str, chat: str, chat_type: str, body: str) -> None:
         return
     frappe.enqueue(
         "wavedesk.ai.agent.handle_inbound", queue="short",
-        workspace=workspace, chat=chat, question=body,
+        workspace=workspace, chat=chat, question=body, message=message,
     )
 
 
-def handle_inbound(workspace: str, chat: str, question: str) -> dict | None:
+def handle_inbound(
+    workspace: str, chat: str, question: str, message: str | None = None
+) -> dict | None:
     """RQ job: gate → answer → dispatch (reply via queued sender, or hand off to a
     human). Best-effort — never raises into the worker."""
     from wavedesk.plan.gating import has_feature
@@ -110,7 +117,9 @@ def handle_inbound(workspace: str, chat: str, question: str) -> dict | None:
         if routing.within_business_hours(workspace):
             return None  # AI only answers outside business hours
 
-    result = answer(workspace, question)
+    result = answer(
+        workspace, question, idempotency_key=f"agent:{message}" if message else None
+    )
     if result["action"] == "reply" and result.get("text"):
         _dispatch_reply(chat, result["text"])
     else:

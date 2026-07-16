@@ -115,5 +115,5 @@ def _rerun_text_pipelines(
         from wavedesk.ai import agent as ai_agent
         from wavedesk.ai import autoticket
 
-        ai_agent.on_inbound_dm(workspace, chat, chat_type, text)
+        ai_agent.on_inbound_dm(workspace, chat, chat_type, text, message)
         autoticket.on_inbound(workspace, chat, message, text)

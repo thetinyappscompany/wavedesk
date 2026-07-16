@@ -36,8 +36,12 @@ def _parse_keys(text: str, valid: set[str]) -> list[str]:
     return [k for k in keys if isinstance(k, str) and k in valid]
 
 
-def classify(workspace: str, body: str) -> list[str]:
-    """Return the flag keys whose criteria the message matches (one mini-tier call)."""
+def classify(workspace: str, body: str, idempotency_key: str | None = None) -> list[str]:
+    """Return the flag keys whose criteria the message matches (one mini-tier call).
+
+    Job-driven callers pass a deterministic idempotency_key (derived from the
+    message) so a retried RQ job never double-charges; interactive callers omit
+    it and are billed per invocation."""
     rules = get_rules(workspace)
     if not rules or not (body or "").strip():
         return []
@@ -50,7 +54,9 @@ def classify(workspace: str, body: str) -> list[str]:
     out = provider.complete(
         workspace, task="flag", system=system,
         messages=[{"role": "user", "content": f"FLAGS:\n{defs}\n\nMESSAGE:\n{body}"}],
-        source="flagging", idempotency_key=frappe.generate_hash(length=12), max_tokens=120,
+        source="flagging",
+        idempotency_key=idempotency_key or frappe.generate_hash(length=12),
+        max_tokens=120,
     )
     return _parse_keys(out["text"], {r.flag_key for r in rules})
 
@@ -75,7 +81,7 @@ def evaluate(workspace: str, chat: str, message: str, body: str) -> list[str]:
         return []
     if provider.workspace_ai_config(workspace).get("kill_switch"):
         return []
-    matched = classify(workspace, body)
+    matched = classify(workspace, body, idempotency_key=f"flag:{message}")
     if not matched:
         return []
     rules = {r.flag_key: r for r in get_rules(workspace)}

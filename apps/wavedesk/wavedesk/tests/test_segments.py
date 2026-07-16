@@ -183,6 +183,23 @@ class TestSegments(IntegrationTestCase):
         updated = update_segment(created["name"], match_type="any")
         self.assertEqual(updated["match_type"], "any")
 
+    def test_preview_masked_for_agents(self):
+        raw = "919000008002"
+        _contact(self.ws, raw, full_name="Asha Traders", email="asha@x.test")
+        seg = create_segment("Emails", "all", [{"type": "has_email", "value": True}])
+        frappe.db.set_value(
+            "WD Workspace", self.ws, "settings", frappe.as_json({"mask_numbers": True})
+        )
+        self._as(self.agent)
+        out = preview_segment(seg["name"])
+        self.assertEqual(out["count"], 1)
+        self.assertNotIn(raw, out["sample"][0]["phone"] or "")
+        self.assertEqual(out["sample"][0]["full_name"], "Asha Traders")
+        # owner: role permits full numbers
+        self._as(self.owner)
+        out = preview_segment(seg["name"])
+        self.assertEqual(out["sample"][0]["phone"], raw)
+
     def test_api_requires_manager(self):
         self._as(self.agent)
         with self.assertRaises(frappe.PermissionError):

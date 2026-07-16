@@ -107,6 +107,19 @@ class TestAutoTicket(IntegrationTestCase):
         self.assertEqual(t.priority, "high")
         self.assertEqual(t.chat, chat)
 
+    def test_classify_retry_charges_once(self):
+        """The deterministic idempotency key from evaluate() means a retried
+        job never double-charges the workspace."""
+        ws = _workspace()
+        e1, e2, _ = self._model('{"actionable": true, "title": "Broken", "priority": "low"}')
+        with e1, e2:
+            autoticket.classify(ws, "it broke", idempotency_key="autoticket:MSG-RETRY")
+            autoticket.classify(ws, "it broke", idempotency_key="autoticket:MSG-RETRY")
+        rows = frappe.get_all(
+            "WD Usage Record", filters={"idempotency_key": "autoticket:MSG-RETRY"}
+        )
+        self.assertEqual(len(rows), 1)
+
     def test_evaluate_dedupes_open_ticket(self):
         ws = _workspace()
         chat, msg = _message(ws, "still broken")

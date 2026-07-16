@@ -136,6 +136,32 @@ class TestBroadcasts(IntegrationTestCase):
         bc = self._make(audience_type="group_members", audience_ref=group.name)
         self.assertEqual(bc["total_recipients"], 2)
 
+    def test_group_members_audience_cross_workspace_rejected(self):
+        """A broadcast may only reference a group inside its own workspace —
+        a foreign group name must never resolve another tenant's members."""
+        other_ws = _workspace([(self.owner, "Owner")])
+        group = frappe.get_doc(
+            {"doctype": "WD Group", "workspace": other_ws,
+             "wa_group_id": f"g{uuid.uuid4().hex[:8]}@g.us", "subject": "Other tenant"}
+        ).insert(ignore_permissions=True)
+        with self.assertRaises(frappe.ValidationError):
+            self._make(audience_type="group_members", audience_ref=group.name)
+
+    def test_delivery_report_masked_for_agents(self):
+        bc = self._make(audience=[{"phone": "919000000031", "name": "Asha Traders"}])
+        frappe.db.set_value(
+            "WD Workspace", self.ws, "settings", frappe.as_json({"mask_numbers": True})
+        )
+        self._as(self.agent)
+        rows = delivery_report(bc["name"])["recipients"]
+        self.assertNotIn("919000000031", rows[0]["phone"])
+        self.assertIn("•", rows[0]["phone"])
+        self.assertEqual(rows[0]["recipient_name"], "Asha Traders", "real names stay visible")
+        # owner: role permits full numbers
+        self._as(self.owner)
+        rows = delivery_report(bc["name"])["recipients"]
+        self.assertEqual(rows[0]["phone"], "919000000031")
+
     def test_segment_audience_not_supported(self):
         with self.assertRaises(frappe.ValidationError):
             self._make(audience_type="segment")
