@@ -118,11 +118,21 @@ def _handle_entries(r: redis_lib.Redis, stream: str, entries: list) -> int:
 # ---------------------------------------------------------------------------
 
 
+GROUP_EVENT_TYPES = ("group.upsert", "group.update", "group.participants")
+
+
 def apply_event(db, event: dict) -> None:
+    if event.get("type") in GROUP_EVENT_TYPES:
+        from app.pipeline import group_sync
+
+        group_sync.apply_group_event(db, event)
+        if event.get("type") == "group.participants":
+            _member_change_alerts(db, event)
+        return
     if event.get("type") != "message.received":
-        return  # group.* events land in R3; session/message.status later
-    workspace_hint = event.get("workspace_hint")
-    workspace = _resolve_workspace(db, workspace_hint)
+        return  # session.status / message.status land later
+
+    workspace = _resolve_workspace(db, event.get("workspace_hint"))
     if workspace is None:
         return  # unroutable
 
@@ -181,14 +191,37 @@ def apply_event(db, event: dict) -> None:
         _auto_reopen(db, chat)
         if chat_type == "group":
             # Needs Reply queue (P2.2): question-looking messages start the clock
-            from app import inbox
+            from app import inbox, monitoring
 
             inbox.flag_pending_query(chat, body)
-        # ── hook point: later-phase inbound side-channels (monitoring,
-        #    automation, AI, webhooks) attach here in R3–R6, each isolated so
-        #    a failing hook can never lose the persisted message.
+            # Monitoring rules (P2.4): keyword/link/phone alerts
+            monitoring.evaluate_message(db, chat, message, body)
+        # ── hook point: later-phase inbound side-channels (automation, AI,
+        #    webhooks) attach here in R4–R6, each isolated so a failing hook
+        #    can never lose the persisted message.
     else:
         chat.pending_query_since = None  # a reply from the phone answers it
+
+
+def _member_change_alerts(db, event: dict) -> None:
+    from app import monitoring
+    from app.models import Group
+
+    workspace = _resolve_workspace(db, event.get("workspace_hint"))
+    payload = event.get("payload") or {}
+    if workspace is None or not payload.get("id"):
+        return
+    group = db.execute(
+        select(Group).where(
+            Group.workspace_id == workspace.id, Group.wa_group_id == payload["id"]
+        )
+    ).scalar_one_or_none()
+    if group is None:
+        return
+    monitoring.member_change_alert(
+        db, workspace.id, group.id,
+        payload.get("action") or "", len(payload.get("participants") or []),
+    )
 
 
 def _auto_reopen(db, chat: Chat) -> None:
@@ -361,6 +394,16 @@ def _upsert_chat(
             contact_id=contact.id if contact else None,
             number_id=number.id if number else None,
         )
+        if chat_type == "group":
+            from app.models import Group
+
+            group = db.execute(
+                select(Group).where(
+                    Group.workspace_id == workspace_id, Group.wa_group_id == wa_chat_id
+                )
+            ).scalar_one_or_none()
+            if group:
+                chat.group_id = group.id
         db.add(chat)
         db.flush()
         return chat

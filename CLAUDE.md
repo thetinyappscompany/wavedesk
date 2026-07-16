@@ -49,8 +49,22 @@ workers; realtime.py safe_emit ids-only) — prod entrypoint uvicorn --factory
 app.main:create_asgi; labels/needs_reply/label-filter live in list_chats.
 39 tests green vs real PG+Redis, ruff clean. TEST GOTCHA: SQLAlchemy identity
 map returns stale instances for cross-session writes — db.expire_all()
-before asserting. Next: R3 (groups registry/actions/monitoring/analytics/
-tickets). CapRover kit PR #32 + hardening PR #31 + probe PR #30
+before asserting. R3 DONE on rewrite/r3-groups (stacked on R2): models
+Group/GroupMember/MonitoringRule/Alert/Ticket + Chat.group_id +
+Message.flagged; pipeline/group_sync.py (group.upsert/update/participants,
+left_at history, contacts linked never created, member_count, chat
+backlink — consumer also backlinks group on chat CREATE); app/monitoring.py
+(keyword/link/phone on group inbound → flag+Alert; member_change on
+add/remove); groups API (list/get w/ masked member display/update/
+participants/revoke-invite via gateway + send_to_groups bulk RQ long job w/
+3-8s jitter through the protected sender); monitoring API (rule CRUD, alerts
+feed + unseen + mark seen); tickets API (auto-title from source message,
+filters, lifecycle); analytics API (dashboard live tiles + Python-bucketed
+trend + first-response/resolution avg&p90 + per-agent/number, CSV export via
+Response passthrough in compat dispatcher, group_analytics contributors +
+workspace rollup). 48 tests green vs real PG+Redis, ruff clean. Next: R4
+(automation rules engine, routing/presence, SLA, broadcasts, schedules,
+antiban, segments, templates). CapRover kit PR #32 + hardening PR #31 + probe PR #30
 still open for the Frappe product (merge them — it remains the hostable
 product until parity).
 Previous epic: POSTGRES MIGRATION — DONE, PR #28 (feat/postgres-migration → main,
