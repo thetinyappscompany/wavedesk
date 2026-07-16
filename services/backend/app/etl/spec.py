@@ -121,7 +121,11 @@ SPECS: list[Spec] = [
          ("snoozed_until", "snoozed_until", "D"),
          ("pending_query_since", "pending_query_since", "D"),
          ("resolved_at", "resolved_at", "D"),
-         ("sla_policy_id", "sla_policy", "L:WD SLA Policy"),
+         # NB: sla_policy is intentionally NOT mapped — WD SLA Policy is in
+         # NOT_MIGRATED (policies are re-created on the new backend), so mapping
+         # the Link would point sla_policy_id at a non-existent sla_policies row
+         # and the FK would abort the whole chats load. The due-time stamps below
+         # still migrate; re-attaching a policy is a post-cutover config step.
          ("first_response_due", "first_response_due", "D"),
          ("resolution_due", "resolution_due", "D"),
          ("first_response_breached", "first_response_breached", "B"),

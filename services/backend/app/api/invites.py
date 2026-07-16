@@ -86,7 +86,10 @@ def accept_invite(ctx: Ctx) -> dict:
         raise HTTPException(400, "This invite link has expired")
 
     user = ctx.db.execute(select(User).where(User.email == row.email)).scalar_one_or_none()
+    issue_session = False
     if user is None:
+        # Brand-new account: the invitee sets their own password and we log them
+        # in. The token authenticates the account it creates.
         password = ctx.params.get("password") or ""
         if len(password) < 8:
             raise HTTPException(400, "Password must be at least 8 characters")
@@ -97,6 +100,18 @@ def accept_invite(ctx: Ctx) -> dict:
         )
         ctx.db.add(user)
         ctx.db.flush()
+        issue_session = True
+    else:
+        # The email already belongs to a WaveDesk user. The token must NOT
+        # authenticate that account — a manager can read invite tokens
+        # (invite_member/list_invites return them), so auto-login here would let
+        # anyone holding the token take over an existing user's session. Require
+        # the invitee to already be signed in as themselves; we only add the
+        # membership.
+        if ctx.user_id is None or str(ctx.user_id) != str(user.id):
+            raise HTTPException(
+                401, f"Please sign in as {row.email} to accept this invite"
+            )
 
     already = ctx.db.execute(
         select(WorkspaceMember).where(
@@ -111,13 +126,16 @@ def accept_invite(ctx: Ctx) -> dict:
     row.status = "accepted"  # single-use
 
     ws = ctx.db.get(Workspace, row.workspace_id)
-    sid = sessions.create(str(user.id), user.email)
-    sessions.update(sid, active_workspace=str(row.workspace_id))
-    ctx.response.set_cookie(
-        "sid", sid, httponly=True, samesite="lax",
-        secure=get_settings().cookie_secure,
-        max_age=get_settings().session_ttl_hours * 3600,
-    )
+    if issue_session:
+        # Only a freshly-created account gets a new session here; an existing
+        # user is already authenticated as themselves (checked above).
+        sid = sessions.create(str(user.id), user.email)
+        sessions.update(sid, active_workspace=str(row.workspace_id))
+        ctx.response.set_cookie(
+            "sid", sid, httponly=True, samesite="lax",
+            secure=get_settings().cookie_secure,
+            max_age=get_settings().session_ttl_hours * 3600,
+        )
     return {
         "workspace": str(row.workspace_id),
         "workspace_name": ws.name if ws else None,

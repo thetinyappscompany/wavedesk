@@ -190,3 +190,22 @@ def test_rerun_is_idempotent(frappe_data, db):
 def test_empty_source_is_noop(db):
     counts = migrate(DictSource({}), db)
     assert sum(counts.values()) == 0
+
+
+def test_chat_with_sla_policy_does_not_dangle(db):
+    """A chat that had an SLA policy attached must migrate with sla_policy_id
+    NULL — WD SLA Policy is in NOT_MIGRATED, so mapping the Link would point at
+    a non-existent sla_policies row and abort the whole chats load."""
+    src = DictSource({
+        "tabWD Workspace": [_row("WS-SLA", workspace_name="SLA Co", plan="Trial")],
+        "tabWD Chat": [
+            _row("CHAT-SLA", workspace="WS-SLA", chat_type="dm",
+                 wa_chat_id="919000000009@s.whatsapp.net", status="open",
+                 sla_policy="SLAP-1", first_response_breached=0, resolution_breached=0),
+        ],
+    })
+    migrate(src, db)  # must not raise a FK violation
+    db.expire_all()
+    chat = db.get(Chat, to_uuid("WD Chat", "CHAT-SLA"))
+    assert chat is not None
+    assert chat.sla_policy_id is None  # link dropped, no dangling FK

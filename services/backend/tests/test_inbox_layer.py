@@ -198,6 +198,27 @@ def test_invite_accept_creates_member_and_logs_in(authed, client):
           token=invite["token"], password="riya-pass-123", expect=400)
 
 
+def test_invite_existing_user_requires_self_auth(authed, client, make_user):
+    """A token for an already-existing account must NOT auto-log-in — managers
+    can read invite tokens, so auto-login would be account takeover."""
+    _, ws = authed
+    victim = make_user()  # an existing WaveDesk user
+    invite = _call(client, "wavedesk.api.invites.invite_member",
+                   email=victim.email, role="Agent")
+
+    # Guest holding the token cannot become the existing user.
+    client.cookies.clear()
+    _call(client, "wavedesk.api.invites.accept_invite",
+          token=invite["token"], expect=401)
+
+    # The existing user, signed in as themselves, can accept (membership added).
+    r = client.post("/api/method/login", json={"usr": victim.email, "pwd": "s3cret-pass"})
+    assert r.status_code == 200, r.text
+    out = _call(client, "wavedesk.api.invites.accept_invite", token=invite["token"])
+    assert out["role"] == "Agent"
+    assert _call(client, "frappe.auth.get_logged_user") == victim.email
+
+
 def test_revoked_invite_rejected(authed, client):
     _, _ = authed
     invite = _call(client, "wavedesk.api.invites.invite_member",

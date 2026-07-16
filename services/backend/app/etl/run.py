@@ -13,6 +13,7 @@ import json
 import uuid
 from collections.abc import Iterable, Mapping
 from datetime import date, datetime
+from functools import lru_cache
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -66,6 +67,29 @@ def _convert(kind: str, val: object) -> object:
     return val  # scalars / numbers / datetimes pass through
 
 
+@lru_cache
+def _nonnull_defaults(model: type) -> dict:
+    """Model defaults for NOT NULL columns that have a Python-side default and no
+    server default. A raw upsert doesn't run ORM defaults, so a Frappe column
+    that is NULL in the source (e.g. an empty settings/suspended) would otherwise
+    violate NOT NULL. We fill these in ourselves."""
+    out: dict = {}
+    for col in model.__table__.columns:  # type: ignore[attr-defined]
+        if col.nullable or col.primary_key or col.server_default is not None:
+            continue
+        if col.default is None:
+            continue
+        arg = col.default.arg
+        if callable(arg):
+            try:
+                out[col.name] = arg()
+            except TypeError:
+                out[col.name] = arg(None)
+        else:
+            out[col.name] = arg
+    return out
+
+
 def _build_values(spec: Spec, row: Mapping) -> dict:
     vals: dict = {"id": to_uuid(spec.doctype, row["name"])}
 
@@ -86,6 +110,12 @@ def _build_values(spec: Spec, row: Mapping) -> dict:
         ts = row.get(src_col)
         if isinstance(ts, (datetime, date, str)) and ts:
             vals[dst_col] = ts
+
+    # Fill NOT NULL columns the source left empty with the model's own default,
+    # so a raw upsert doesn't hit a null-violation (ORM defaults don't run here).
+    for col_name, dflt in _nonnull_defaults(spec.model).items():
+        if vals.get(col_name) is None:
+            vals[col_name] = dflt
     return vals
 
 
