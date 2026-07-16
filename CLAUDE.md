@@ -126,10 +126,27 @@ set_ai_kill_switch/impersonate, webhooks.update_endpoint/redeliver. GUARD:
 tests/test_contract_parity.py reads index.ts + asserts every this.call is
 registered — CI fails on future drift. Doc: docs/rewrite/contract-parity.md.
 94 tests green vs real PG+Redis, ruff clean, ZERO drift. Rewrite R0–R7 all
-shipped as stacked PRs #33–#40. ONLY R8 LEFT = data cutover (staging site on
-new backend + live SPA smoke + one-time ETL tabWD*→snake_case + DNS flip) —
-staging-gated, founder-run. The Frappe product stays the deployable fallback
-until R8 cutover. CapRover kit PR #32 + hardening PR #31 + probe PR #30
+shipped as stacked PRs #33–#40.
+R8 DATA-ETL DONE on rewrite/r8-cutover (stacked on R7), PR #41: the
+migration HALF of the cutover is built + tested — services/backend/app/etl/
+(idmap.py deterministic uuid5("<doctype>:<name>") so every Frappe Link
+resolves to the new UUID PK from the referent name alone, no lookup table,
+re-runnable; spec.py declarative SPECS in FK order covering the durable
+business graph incl. the APPEND-ONLY wallet ledger [running_balance dropped,
+balance re-derived, non-neg #2] + NOT_MIGRATED list of regenerable/ephemeral
+doctypes; run.py pluggable source [PgSource live Frappe-PG DSN / any rows()
+provider for tests], Check→bool + Long Text JSON→JSONB + Link→uuid + child
+parent→FK conversion, ON CONFLICT DO UPDATE upsert, per-table commit
+crash-safe resume; __main__.py `python -m app.etl --source <dsn>` CLI).
+tests/test_etl.py = FK-remap full chain + JSON/bool/datetime + wallet
+append-only + idempotent re-run + empty no-op (4 tests, 98 total green vs
+real PG, ruff clean). HONEST LIMITS: passwords DON'T transfer (Frappe pbkdf2
+vs new bcrypt → unusable placeholder + mandatory reset), RAG vectors
+re-embed, Cloud/BYOK secrets re-enter, Baileys sessions re-pair — all in
+docs/rewrite/r8-cutover-runbook.md. STILL FOUNDER-RUN (infra, not
+automatable): provision staging on new backend + live SPA smoke + gateway
+cutover + DNS flip + decommission (runbook has the full sequence + rollback).
+The Frappe product stays the deployable fallback until the DNS flip succeeds. CapRover kit PR #32 + hardening PR #31 + probe PR #30
 still open for the Frappe product (merge them — it remains the hostable
 product until parity).
 Previous epic: POSTGRES MIGRATION — DONE, PR #28 (feat/postgres-migration → main,
