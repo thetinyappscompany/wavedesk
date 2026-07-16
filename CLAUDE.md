@@ -31,14 +31,17 @@ WD Message.name (native uuid on PG) to varchar Links — two bounded queries;
 by this work: ("is","set") on WD Broadcast Recipient.message returned ZERO
 rows → delivery-failure reconcile never ran; fixed (Python truthiness filter).
 LESSON re-learned: module-level test runs hide cross-module regressions — full
-suite on BOTH backends before declaring green. Founder review queue: PR #25
-(hosting blockers: consumer hook isolation + proxy-aware IP allowlist — merge
-BEFORE hosting), #26 (deployment guide Frappe Cloud vs CapRover), #27 (platform
-stats overview /admin), #28 (Postgres). Open review findings NOT yet ordered
-fixed: AI retry double-charge, cross-tenant group broadcast audience, masking
-bypass preview_segment/delivery_report, recovery-code replay race, BYOK crypto
-fail-closed, broadcast daily_cap lifetime-vs-daily, install.py pricing clobber,
-Zoho out-of-order webhook.
+suite on BOTH backends before declaring green. ✅ Founder merged PRs #24–#28
+(probes, hosting blockers, deploy guide, platform stats, Postgres) — main is
+current. NEXT UP: PR #29 (fix/money-isolation-findings) fixes the 3 priority
+review findings: AI retry double-charge (deterministic idempotency keys
+flag:/autoticket:/agent:<msg> threaded through consumer+transcription; copilot
+stays per-click), cross-tenant group broadcast audience (workspace guard in
+_audience_rows), masking bypass in preview_segment + delivery_report (P1.9
+mask rules applied). +6 tests; 449/449 on BOTH backends, ruff clean. Remaining
+review findings (lower urgency, not ordered): recovery-code replay race, BYOK
+crypto fail-closed, broadcast daily_cap lifetime-vs-daily, install.py pricing
+clobber, Zoho out-of-order webhook.
 Previous epic: GO-LIVE PUSH (2026-07-16). ✅ MERGED: PR #23
 landed — origin/main = 3623731 = FULL PRODUCT (P0→P5). Founder said "use same
 key" (no rotation); classifier still blocks transcript key-recovery, founder
