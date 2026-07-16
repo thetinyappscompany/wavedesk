@@ -6,7 +6,8 @@ import { makeEvent } from '../events/envelope.js';
 import type { EventPublisher } from '../events/publisher.js';
 import { logFields } from '../logger.js';
 import { RedisAuthStore } from './authStore.js';
-import type { GatewaySocket, GroupMetadataLite, SocketFactory } from './socket.js';
+import { type MediaRef, type MediaStorage, extractMediaMeta, mediaKey } from './media.js';
+import type { GatewaySocket, GroupMetadataLite, InboundMessage, SocketFactory } from './socket.js';
 
 export type SessionStatus = 'connecting' | 'connected' | 'disconnected';
 
@@ -66,6 +67,8 @@ export interface SessionManagerDeps {
   snapshotKey: Buffer | undefined;
   factory: SocketFactory;
   publisher: EventPublisher;
+  /** Object store for inbound WhatsApp media (P4.5 prerequisite). */
+  mediaStorage: MediaStorage;
   logger: Logger;
   snapshotIntervalMs: number;
 }
@@ -198,16 +201,7 @@ export class SessionManager {
 
     socket.onMessagesUpsert(({ messages }) => {
       for (const message of messages) {
-        void this.deps.publisher.publish(
-          makeEvent({
-            transport: 'baileys',
-            type: 'message.received',
-            workspace_hint: info.workspace,
-            wa_chat_id: message.key.remoteJid ?? null,
-            wa_message_id: message.key.id ?? null,
-            payload: { session_id: info.id, message },
-          }),
-        );
+        void this.handleInboundMessage(session, message);
       }
     });
 
@@ -246,6 +240,63 @@ export class SessionManager {
         }),
       );
     });
+  }
+
+  /** Publish one inbound message. For media (image/video/voice/document/sticker)
+   * we first download the bytes from WhatsApp's CDN and park them in the object
+   * store, attaching a media ref to the payload so Frappe — which never touches
+   * WhatsApp — can serve them to the SPA and transcribe voice notes (P4.5).
+   * Download failures degrade gracefully: the metadata still ships with key=null. */
+  private async handleInboundMessage(
+    session: ManagedSession,
+    message: InboundMessage,
+  ): Promise<void> {
+    const { socket, info } = session;
+    const waMessageId = message.key.id ?? null;
+    const meta = extractMediaMeta(message);
+    let media: MediaRef | undefined;
+
+    // Download inbound media only — outbound echoes are the team's own sends.
+    if (meta && waMessageId && !message.key.fromMe) {
+      const key = mediaKey(info.workspace, waMessageId);
+      try {
+        const bytes = await socket.downloadMedia(message);
+        if (bytes) {
+          await this.deps.mediaStorage.put(
+            key,
+            bytes,
+            meta.mimetype ?? 'application/octet-stream',
+          );
+          media = { ...meta, key };
+        } else {
+          media = { ...meta, key: null }; // expired/undownloadable — metadata only
+        }
+      } catch (err: unknown) {
+        this.deps.logger.warn(
+          logFields({
+            session_id: info.id,
+            wa_message_id: waMessageId,
+            media_type: meta.type,
+            err_type: String(err),
+          }),
+          'inbound media download/store failed — publishing metadata only',
+        );
+        media = { ...meta, key: null };
+      }
+    } else if (meta) {
+      media = { ...meta, key: null }; // outbound / id-less media — metadata only
+    }
+
+    await this.deps.publisher.publish(
+      makeEvent({
+        transport: 'baileys',
+        type: 'message.received',
+        workspace_hint: info.workspace,
+        wa_chat_id: message.key.remoteJid ?? null,
+        wa_message_id: waMessageId,
+        payload: { session_id: info.id, message, ...(media ? { media } : {}) },
+      }),
+    );
   }
 
   /** Full registry sync — one groupFetchAllParticipating call covers subject,

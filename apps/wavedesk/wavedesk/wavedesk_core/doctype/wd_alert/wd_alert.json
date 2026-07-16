@@ -42,7 +42,7 @@
    "fieldname": "kind",
    "fieldtype": "Select",
    "label": "Kind",
-   "options": "keyword\nlink\nphone_number\nmember_change",
+   "options": "keyword\nlink\nphone_number\nmember_change\nsla_breach",
    "in_list_view": 1
   },
   {
@@ -79,7 +79,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-09 03:00:00.000000",
+ "modified": "2026-07-09 18:30:00.000000",
  "modified_by": "Administrator",
  "module": "WaveDesk Core",
  "name": "WD Alert",

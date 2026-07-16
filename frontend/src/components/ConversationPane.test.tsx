@@ -22,6 +22,7 @@ vi.mock('@/lib/client', () => ({
     listLabels: vi.fn(),
     setChatLabels: vi.fn(),
     createTicket: vi.fn(),
+    getMediaUrl: vi.fn(),
   },
 }));
 vi.mock('@/lib/realtime', () => ({
@@ -45,6 +46,13 @@ function message(overrides: Partial<WdMessage>): WdMessage {
     quoted_body: null,
     flagged: false,
     flag_reason: null,
+    has_media: false,
+    media_mimetype: null,
+    media_filename: null,
+    media_size: null,
+    media_duration: null,
+    is_voice: false,
+    transcript: null,
     creation: '2026-07-07 12:00:00',
     ...overrides,
   };
@@ -164,11 +172,11 @@ describe('ConversationPane', () => {
     expect(screen.queryByTestId('sender-name')).not.toBeInTheDocument();
   });
 
-  it('renders quoted snippets and media placeholders', async () => {
+  it('renders quoted snippets and a media placeholder when media is not downloaded', async () => {
     vi.mocked(client.listMessages).mockResolvedValue({
       messages: [
         message({ name: 'M1', quoted_message: 'M0', quoted_body: 'original', body: 'reply' }),
-        message({ name: 'M2', message_type: 'audio', body: null }),
+        message({ name: 'M2', message_type: 'audio', body: null, has_media: false }),
       ],
       has_more: false,
       next_before: null,
@@ -177,8 +185,42 @@ describe('ConversationPane', () => {
 
     expect(await screen.findByText('original')).toBeInTheDocument();
     expect(screen.getByText('reply')).toBeInTheDocument();
+    // No downloaded media → labelled placeholder, no getMediaUrl call.
     expect(screen.getByText(/Voice message/)).toBeInTheDocument();
-    expect(screen.getByText(/media preview lands/)).toBeInTheDocument();
+    expect(client.getMediaUrl).not.toHaveBeenCalled();
+  });
+
+  it('renders a voice note player with its transcript from a presigned URL', async () => {
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [
+        message({
+          name: 'M9',
+          message_type: 'audio',
+          body: null,
+          has_media: true,
+          is_voice: true,
+          transcript: 'please send the invoice',
+        }),
+      ],
+      has_more: false,
+      next_before: null,
+    });
+    vi.mocked(client.getMediaUrl).mockResolvedValue({
+      message: 'M9',
+      message_type: 'audio',
+      url: 'https://minio/signed/audio.ogg',
+      mimetype: 'audio/ogg',
+      filename: null,
+      size: 1024,
+      duration: 5,
+      is_voice: true,
+      available: true,
+    });
+    renderPane();
+
+    expect(await screen.findByTestId('media-content')).toBeInTheDocument();
+    expect(screen.getByTestId('voice-transcript')).toHaveTextContent('please send the invoice');
+    expect(client.getMediaUrl).toHaveBeenCalledWith('M9');
   });
 
   it('sends a message on Enter through the queued pipeline', async () => {

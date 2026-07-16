@@ -2,12 +2,17 @@ import { Navigate, Route, Routes } from 'react-router';
 import AppShell from '@/components/AppShell';
 import AlertsPage from '@/pages/AlertsPage';
 import AutomationPage from '@/pages/AutomationPage';
+import BroadcastsPage from '@/pages/BroadcastsPage';
+import SchedulesPage from '@/pages/SchedulesPage';
+import SegmentsPage from '@/pages/SegmentsPage';
+import TemplatesPage from '@/pages/TemplatesPage';
 import ContactsPage from '@/pages/ContactsPage';
 import DashboardPage from '@/pages/DashboardPage';
 import GroupsPage from '@/pages/GroupsPage';
 import InboxPage from '@/pages/InboxPage';
 import InvitePage from '@/pages/InvitePage';
 import LoginPage from '@/pages/LoginPage';
+import AdminPage from '@/pages/AdminPage';
 import NumbersPage from '@/pages/NumbersPage';
 import OnboardingPage from '@/pages/OnboardingPage';
 import SettingsPage from '@/pages/SettingsPage';
@@ -27,8 +32,13 @@ export default function App(): React.JSX.Element {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/tickets" element={<TicketsPage />} />
         <Route path="/automation" element={<AutomationPage />} />
+        <Route path="/broadcasts" element={<BroadcastsPage />} />
+        <Route path="/schedules" element={<SchedulesPage />} />
+        <Route path="/segments" element={<SegmentsPage />} />
+        <Route path="/templates" element={<TemplatesPage />} />
         <Route path="/numbers" element={<NumbersPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

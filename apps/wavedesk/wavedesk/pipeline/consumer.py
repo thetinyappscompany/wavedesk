@@ -183,6 +183,7 @@ def apply_event(event: dict) -> None:
             "message_type": message_type,
             "body": body,
             "sent_via": transport,
+            **_media_fields(payload),
         }
     )
     message.insert(ignore_permissions=True)
@@ -202,12 +203,24 @@ def apply_event(event: dict) -> None:
             "update `tabWD Chat` set unread_count = unread_count + 1 where name = %s",
             (chat,),
         )
+        # Outbound webhook (P5): message.received.
+        from wavedesk.webhooks import dispatch as webhooks
+
+        webhooks.safe_emit(workspace, "message.received", {
+            "chat": chat, "message": message.name, "wa_message_id": wa_message_id,
+            "message_type": message_type, "contact": contact,
+        })
         _auto_reopen(workspace, chat)
         # Out-of-office auto-reply (P3.2): a DM arriving outside business hours
         # gets one automated reply per window. Self-guards on settings/type.
         from wavedesk import routing
 
         routing.maybe_ooo_reply(workspace, chat, chat_type)
+        # Broadcast opt-out (P3.4): a 'STOP' reply suppresses future broadcasts.
+        if chat_type == "dm" and contact:
+            from wavedesk import broadcasts
+
+            broadcasts.process_opt_out(workspace, contact, body)
         if chat_type == "group":
             # Needs Reply queue (P2.2): question-looking messages start the clock
             inbox.flag_pending_query(workspace, chat, body)
@@ -230,6 +243,26 @@ def apply_event(event: dict) -> None:
             chat,
             {"body": body, "message": message.name, "trigger": "message_received"},
         )
+        # AI message flagging (P4.4): custom per-workspace flag rules on every
+        # inbound message (dm + group). Cheap gate; classify runs off-thread.
+        from wavedesk.ai import flagging
+
+        flagging.on_inbound(workspace, chat, message.name, body)
+        # Voice transcription (P4.5): a downloaded voice note is transcribed
+        # off-thread via faster-whisper, then re-run through the text AI
+        # pipelines (flagging/auto-ticket/auto-agent). Cheap gate (voice note?).
+        from wavedesk.ai import transcription
+
+        transcription.on_inbound(workspace, chat, message.name, chat_type)
+        # AI Auto-Agent (P4.3): auto-answer customer DMs from the knowledge base,
+        # or hand off to a human. Cheap gate; heavy answering runs off-thread.
+        if chat_type == "dm":
+            from wavedesk.ai import agent as ai_agent
+            from wavedesk.ai import autoticket
+
+            ai_agent.on_inbound_dm(workspace, chat, chat_type, body)
+            # AI auto-ticket (P4.6): open a ticket for actionable issues.
+            autoticket.on_inbound(workspace, chat, message.name, body)
     else:
         # a reply from the phone itself also answers the pending question
         inbox.clear_pending_query(workspace, chat)
@@ -324,6 +357,25 @@ def _extract(
     sender_jid = participant or (f"{phone}@s.whatsapp.net" if phone else None)
     sender_name = (raw.get("pushName") or "").strip() or None
     return phone, body, message_type, chat_type, direction, sender_jid, sender_name
+
+
+def _media_fields(payload: dict) -> dict:
+    """Map the gateway's downloaded-media ref (payload.media) → WD Message media
+    columns. Empty dict for non-media messages so update() is a no-op.
+
+    The gateway ships media metadata even when the download itself failed
+    (key=None) so the inbox can still show 'image'/'voice note' placeholders."""
+    media = payload.get("media") if isinstance(payload, dict) else None
+    if not isinstance(media, dict):
+        return {}
+    return {
+        "media_key": media.get("key"),
+        "media_mimetype": media.get("mimetype"),
+        "media_filename": media.get("filename"),
+        "media_size": media.get("size") or 0,
+        "media_duration": media.get("duration") or 0,
+        "is_voice": 1 if media.get("isVoice") else 0,
+    }
 
 
 def _unwrap_baileys_content(content: Any) -> dict | None:

@@ -4,6 +4,7 @@ import { realSocketFactory } from './baileys/realSocket.js';
 import { loadCloudApiConfig } from './cloudapi/config.js';
 import { GraphClient } from './cloudapi/graphClient.js';
 import { SessionManager } from './baileys/sessionManager.js';
+import { S3MediaStorage } from './baileys/media.js';
 import { S3SnapshotStorage } from './baileys/snapshot.js';
 import { loadConfig } from './config.js';
 import { parseKey } from './crypto/secretbox.js';
@@ -23,6 +24,7 @@ const manager = new SessionManager({
   snapshotKey: config.sessionSnapshotKey ? parseKey(config.sessionSnapshotKey) : undefined,
   factory: realSocketFactory,
   publisher,
+  mediaStorage: new S3MediaStorage(config.s3, config.mediaBucket),
   logger,
   snapshotIntervalMs: config.snapshotIntervalMs,
 });

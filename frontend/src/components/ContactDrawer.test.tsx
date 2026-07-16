@@ -7,7 +7,7 @@ import ContactDrawer from './ContactDrawer';
 import { client } from '@/lib/client';
 
 vi.mock('@/lib/client', () => ({
-  client: { getContact: vi.fn(), updateContact: vi.fn() },
+  client: { getContact: vi.fn(), updateContact: vi.fn(), eraseContact: vi.fn() },
 }));
 
 function profile(overrides: Partial<WdContactProfile> = {}): WdContactProfile {
@@ -64,7 +64,9 @@ describe('ContactDrawer', () => {
 
   it('shows contact fields and cross-number conversations', async () => {
     renderDrawer();
-    expect(await screen.findByLabelText('Contact name')).toHaveValue('Asha Traders');
+    await waitFor(() =>
+      expect(screen.getByLabelText('Contact name')).toHaveValue('Asha Traders'),
+    );
     expect(screen.getByText('+919111100001')).toBeInTheDocument();
     expect(screen.getByLabelText('Contact email')).toHaveValue('asha@x.test');
     expect(screen.getByText('Surat')).toBeInTheDocument();
@@ -87,6 +89,17 @@ describe('ContactDrawer', () => {
         email: 'asha@x.test',
       });
     });
+  });
+
+  it('erases a contact after confirmation (GDPR)', async () => {
+    const user = userEvent.setup();
+    vi.mocked(client.eraseContact).mockResolvedValue({ contact: 'CONT-1', erased: true });
+    renderDrawer();
+    await user.click(await screen.findByRole('button', { name: 'Erase contact (GDPR)' }));
+    // two-step confirm — nothing sent yet
+    expect(client.eraseContact).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Confirm erase' }));
+    await waitFor(() => expect(client.eraseContact).toHaveBeenCalledWith('CONT-1'));
   });
 
   it('adds a custom attribute', async () => {

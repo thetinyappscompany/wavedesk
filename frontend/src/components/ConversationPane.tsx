@@ -13,6 +13,7 @@ import {
   CheckCheck,
   Clock,
   Flag,
+  Paperclip,
   RotateCcw,
   SendHorizontal,
   Tag,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import type { WdCannedResponse, WdChat, WdMessage } from '@wavedesk/api-client';
 import { substituteVariables } from '@/lib/canned';
+import { AiCopilotBar } from '@/components/AiCopilotBar';
 import { client } from '@/lib/client';
 import { useChatPresence } from '@/lib/realtime';
 import { Button } from '@/components/ui/button';
@@ -79,6 +81,74 @@ function timeLabel(creation: string): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+/** Renders a media message (image/video/voice/document). Resolves a short-lived
+ * presigned URL lazily via the media API; the raw S3 key never reaches the client.
+ * Voice notes also show their transcript (P4.5) once available. */
+function MediaContent({ message }: { message: WdMessage }): React.JSX.Element {
+  const label = MEDIA_LABEL[message.message_type] ?? message.message_type;
+  const { data, isLoading } = useQuery({
+    queryKey: ['media-url', message.name],
+    queryFn: () => client.getMediaUrl(message.name),
+    enabled: message.has_media,
+    // Presigned URLs live ~10 min; refetch before expiry.
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const caption = message.body ? (
+    <p className="mt-1 whitespace-pre-wrap break-words">{message.body}</p>
+  ) : null;
+  const transcript = message.transcript ? (
+    <p
+      data-testid="voice-transcript"
+      className="mt-1 rounded bg-background/60 px-2 py-1 text-xs italic text-muted-foreground"
+    >
+      “{message.transcript}”
+    </p>
+  ) : null;
+
+  // Media never downloaded (or object store unconfigured) — labelled placeholder.
+  if (!message.has_media || data?.available === false) {
+    return (
+      <div className="italic text-muted-foreground">
+        {label}
+        {message.body ? ` — ${message.body}` : ''}
+        {transcript}
+      </div>
+    );
+  }
+  if (isLoading || !data?.url) {
+    return <p className="italic text-muted-foreground">{label}…</p>;
+  }
+
+  const url = data.url;
+  let media: React.JSX.Element;
+  if (message.message_type === 'image' || message.message_type === 'sticker') {
+    media = <img src={url} alt={label} className="max-h-72 max-w-full rounded" />;
+  } else if (message.message_type === 'video') {
+    media = <video src={url} controls className="max-h-72 max-w-full rounded" />;
+  } else if (message.message_type === 'audio') {
+    media = <audio src={url} controls className="w-56 max-w-full" />;
+  } else {
+    media = (
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1 text-primary underline"
+      >
+        <Paperclip className="h-3.5 w-3.5" /> {message.media_filename ?? label}
+      </a>
+    );
+  }
+  return (
+    <div data-testid="media-content">
+      {media}
+      {caption}
+      {transcript}
+    </div>
+  );
+}
+
 function Bubble({
   message,
   showSender,
@@ -124,11 +194,7 @@ function Bubble({
         {message.message_type === 'text' ? (
           <p className="whitespace-pre-wrap break-words">{message.body}</p>
         ) : (
-          <p className="italic text-muted-foreground">
-            {MEDIA_LABEL[message.message_type] ?? message.message_type}
-            {message.body ? ` — ${message.body}` : ''}
-            <span className="block text-xs">(media preview lands with the media pipeline)</span>
-          </p>
+          <MediaContent message={message} />
         )}
         <div className="mt-1 flex items-center justify-end gap-1 text-xs text-muted-foreground">
           <span>{timeLabel(message.creation)}</span>
@@ -554,6 +620,7 @@ export default function ConversationPane({
       </div>
 
       <footer className="border-t p-3">
+        <AiCopilotBar chatName={chatName} draft={draft} setDraft={setDraft} />
         {cannedOpen && cannedItems.length > 0 && (
           <div
             data-testid="canned-menu"

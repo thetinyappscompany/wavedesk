@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { SessionManager } from '../src/baileys/sessionManager.js';
 import { MemorySnapshotStorage } from '../src/baileys/snapshot.js';
+import { MemoryMediaStorage } from '../src/baileys/media.js';
 import { loadConfig } from '../src/config.js';
 import { EventPublisher } from '../src/events/publisher.js';
 import { INTERNAL_SECRET_HEADER } from '../src/auth/internal.js';
@@ -21,6 +22,7 @@ function makeAppWithManager(env: NodeJS.ProcessEnv = {}) {
     snapshotKey: randomBytes(32),
     factory,
     publisher: new EventPublisher(redis, logger),
+    mediaStorage: new MemoryMediaStorage(),
     logger,
     snapshotIntervalMs: 60_000,
   });

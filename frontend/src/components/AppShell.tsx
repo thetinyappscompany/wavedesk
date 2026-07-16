@@ -3,10 +3,15 @@ import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
   Bell,
+  Clock,
+  FileText,
+  Filter,
   Inbox,
+  Megaphone,
   MessagesSquare,
   Phone,
   Settings,
+  Shield,
   Ticket,
   UsersRound,
   Zap,
@@ -20,6 +25,10 @@ const NAV = [
   { to: '/groups', label: 'Groups', icon: MessagesSquare },
   { to: '/tickets', label: 'Tickets', icon: Ticket },
   { to: '/automation', label: 'Automation', icon: Zap },
+  { to: '/broadcasts', label: 'Broadcasts', icon: Megaphone },
+  { to: '/schedules', label: 'Schedules', icon: Clock },
+  { to: '/segments', label: 'Segments', icon: Filter },
+  { to: '/templates', label: 'Templates', icon: FileText },
   { to: '/alerts', label: 'Alerts', icon: Bell },
   { to: '/dashboard', label: 'Analytics', icon: BarChart3 },
   { to: '/contacts', label: 'Contacts', icon: UsersRound },
@@ -36,6 +45,11 @@ export default function AppShell(): React.JSX.Element {
     refetchInterval: 60_000,
   });
   const unseen = alerts.data?.unseen ?? 0;
+  // Platform-admin (superadmin) nav item is shown only to System Managers (P5).
+  const admin = useQuery({ queryKey: ['admin-whoami'], queryFn: () => client.adminWhoami() });
+  const nav = admin.data
+    ? [...NAV, { to: '/admin', label: 'Admin', icon: Shield }]
+    : NAV;
   return (
     <div className="flex h-screen">
       <nav className="flex w-14 shrink-0 flex-col border-r bg-muted/30 p-3 md:w-48">
@@ -43,7 +57,7 @@ export default function AppShell(): React.JSX.Element {
           <span className="md:hidden">W</span>
           <span className="hidden md:inline">WaveDesk</span>
         </div>
-        {NAV.map(({ to, label, icon: Icon }) => (
+        {nav.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}

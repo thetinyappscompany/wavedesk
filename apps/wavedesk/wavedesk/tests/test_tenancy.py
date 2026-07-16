@@ -35,6 +35,12 @@ from wavedesk.tenancy import (
 USER_A = f"tenancy-a-{uuid.uuid4().hex[:10]}@wavedesk.test"
 USER_B = f"tenancy-b-{uuid.uuid4().hex[:10]}@wavedesk.test"
 
+# Tenant doctypes that are internal-only (System Manager reads; workspace members
+# cannot see even their OWN rows — e.g. WD Usage Record holds confidential raw USD
+# cost). Isolation still applies to them; only the member-can-read positive control
+# is skipped/inverted below.
+INTERNAL_ONLY_DOCTYPES = {"WD Usage Record"}
+
 
 def _make_user(email: str) -> None:
     if frappe.db.exists("User", email):
@@ -103,6 +109,42 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         running_balance=10,
         idempotency_key=f"idem-{workspace}-{suffix}",
     )
+    insert(
+        "WD Usage Record",
+        metric="ai_cost_usd",
+        quantity=0.01,
+        period="2026-07",
+        idempotency_key=f"usg-{workspace}-{suffix}",
+    )
+    insert(
+        "WD Invoice Ref",
+        zoho_invoice_id=f"INV-{workspace}-{suffix}",
+        amount=1200,
+        status="paid",
+    )
+    insert(
+        "WD API Key",
+        label=f"key-{suffix}",
+        key_prefix=f"pfx{digits}",
+        key_hash="0" * 64,
+        scopes='["messages:write"]',
+    )
+    endpoint = insert(
+        "WD Webhook Endpoint",
+        label=f"hook-{suffix}",
+        url="https://example.test/hook",
+        signing_secret="s3cret",
+        events='["ticket.created"]',
+    )
+    insert(
+        "WD Webhook Delivery",
+        endpoint=endpoint,
+        event_type="ticket.created",
+        event_id=f"evt-{digits}",
+        payload="{}",
+        status="pending",
+    )
+    insert("WD Data Export", requested_by="Administrator", status="pending")
     insert("WD Audit Log", action="tenancy.fixture", entity=workspace)
     insert("WD Team", team_name=f"Team {suffix}")
     insert("WD Contact Import", file_name=f"import-{suffix}.csv")
@@ -131,6 +173,53 @@ def _build_fixture_docs(workspace: str) -> dict[str, str]:
         actions='[{"type": "add_label", "label": "x"}]',
     )
     insert("WD Automation Log", rule_name=f"auto-{suffix}", trigger_event="message_received")
+    policy = insert(
+        "WD SLA Policy", policy_name=f"sla-{suffix}", first_response_mins=10, resolution_mins=60
+    )
+    insert("WD SLA Event", policy=policy, metric="first_response", outcome="breached")
+    broadcast = insert(
+        "WD Broadcast",
+        broadcast_name=f"bc-{suffix}",
+        number=docs["WD WhatsApp Number"],
+        message_template="Hi {{name}}",
+        audience_type="all_contacts",
+    )
+    insert("WD Broadcast Recipient", broadcast=broadcast, phone=f"9188{digits}", status="pending")
+    insert(
+        "WD Scheduled Message",
+        title=f"sched-{suffix}",
+        target_type="chat",
+        target=chat,
+        body="scheduled hi",
+        schedule_type="once",
+        scheduled_at="2030-01-01 09:00:00",
+    )
+    insert(
+        "WD Segment",
+        segment_name=f"seg-{suffix}",
+        match_type="all",
+        filters='[{"type": "opted_out", "value": false}]',
+    )
+    insert(
+        "WD Message Template",
+        template_name=f"tpl_{digits}",
+        category="utility",
+        body_text="Hello {{1}}",
+    )
+    insert("WD AI Agent Config", enabled=0, confidence_threshold=0.6)
+    insert(
+        "WD Knowledge Doc",
+        title=f"kb-{suffix}",
+        source_type="text",
+        content="Our return policy is 7 days.",
+    )
+    insert(
+        "WD AI Flag Rule",
+        flag_key=f"flag_{digits}",
+        label="Purchase intent",
+        prompt="Customer wants to buy",
+        action="flag",
+    )
     return docs
 
 
@@ -227,6 +316,15 @@ class TestCrossTenantIsolation(IntegrationTestCase):
         frappe.set_user(USER_A)
         for dt in TENANT_DOCTYPES:
             with self.subTest(doctype=dt):
+                if dt in INTERNAL_ONLY_DOCTYPES:
+                    # Members can't enumerate internal-only rows at all (raise or empty).
+                    try:
+                        names = frappe.get_list(dt, pluck="name", limit=0)
+                    except frappe.PermissionError:
+                        continue
+                    self.assertNotIn(self.docs_a[dt], names, f"{dt}: internal doc leaked to member")
+                    self.assertNotIn(self.docs_b[dt], names, f"{dt}: CROSS-TENANT LEAK")
+                    continue
                 names = frappe.get_list(dt, pluck="name", limit=0)
                 self.assertIn(self.docs_a[dt], names, f"{dt}: own doc missing (positive control)")
                 self.assertNotIn(self.docs_b[dt], names, f"{dt}: CROSS-TENANT LEAK in list query")
@@ -244,7 +342,13 @@ class TestCrossTenantIsolation(IntegrationTestCase):
         for dt in TENANT_DOCTYPES:
             with self.subTest(doctype=dt):
                 own = frappe.get_doc(dt, self.docs_a[dt])
-                self.assertTrue(own.has_permission("read"), f"{dt}: cannot read own doc")
+                if dt in INTERNAL_ONLY_DOCTYPES:
+                    # Internal-only: members can't read even their own row.
+                    self.assertFalse(
+                        own.has_permission("read"), f"{dt}: internal-only doc must not be member-readable"
+                    )
+                else:
+                    self.assertTrue(own.has_permission("read"), f"{dt}: cannot read own doc")
                 foreign = frappe.get_doc(dt, self.docs_b[dt])
                 self.assertFalse(
                     foreign.has_permission("read"), f"{dt}: CROSS-TENANT LEAK on direct get"
@@ -278,7 +382,12 @@ class TestCrossTenantIsolation(IntegrationTestCase):
         frappe.set_user(USER_A)
         for dt in TENANT_DOCTYPES:
             with self.subTest(doctype=dt):
-                rows = client_get_list(dt, fields='["name"]', limit_page_length=0)
+                try:
+                    rows = client_get_list(dt, fields='["name"]', limit_page_length=0)
+                except frappe.PermissionError:
+                    # Internal-only doctypes reject listing outright — strongest isolation.
+                    self.assertIn(dt, INTERNAL_ONLY_DOCTYPES, f"{dt}: unexpected list denial")
+                    continue
                 names = {r["name"] for r in rows}
                 self.assertNotIn(self.docs_b[dt], names, f"{dt}: leak via /api/resource list")
 

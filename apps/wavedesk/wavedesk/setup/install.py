@@ -69,12 +69,15 @@ PLANS: list[dict] = [
     },
 ]
 
-# Placeholder provider rates (USD per MTok) — real values reviewed quarterly (§3.2 internal).
+# Provider rates (USD per MTok) — keyed by the exact model ID the AI router sends
+# (wavedesk/ai/provider.py). Placeholders, reviewed quarterly (§3.2 internal); safe
+# to refresh on migrate. Anthropic-only metered path (founder decision 2026-07-10):
+# Haiku for classification/copilot, Sonnet for customer-facing replies; NVIDIA embed
+# rate kept for the P4.3 RAG path.
 DEFAULT_MODEL_RATES: dict = {
-    "anthropic:claude-sonnet": {"input_per_mtok_usd": 3.0, "output_per_mtok_usd": 15.0},
-    "anthropic:claude-haiku": {"input_per_mtok_usd": 0.8, "output_per_mtok_usd": 4.0},
-    "mini:flash-lite": {"input_per_mtok_usd": 0.075, "output_per_mtok_usd": 0.3},
-    "embeddings:small": {"input_per_mtok_usd": 0.02, "output_per_mtok_usd": 0.0},
+    "claude-sonnet-5": {"input_per_mtok_usd": 3.0, "output_per_mtok_usd": 15.0},
+    "claude-haiku-4-5": {"input_per_mtok_usd": 1.0, "output_per_mtok_usd": 5.0},
+    "nvidia:embed": {"input_per_mtok_usd": 0.02, "output_per_mtok_usd": 0.0},
 }
 
 # Client-facing pack price is flat INR; deliverable token value derives internally:
@@ -126,12 +129,18 @@ def _seed_plans() -> None:
 
 def _seed_ai_pricing_config() -> None:
     config = frappe.get_single("WD AI Pricing Config")
-    if config.fx_rate_inr_per_usd:  # already seeded
-        return
-    config.markup_multiplier = 1.25
-    config.allowance_usd = 5.0
-    config.fx_rate_inr_per_usd = 84.0
-    config.fx_buffer_pct = 3.0
-    config.model_rates = json.dumps(DEFAULT_MODEL_RATES)
-    config.credit_packs = json.dumps(DEFAULT_CREDIT_PACKS)
-    config.save(ignore_permissions=True)
+    changed = False
+    if not config.fx_rate_inr_per_usd:  # scalar config only seeded once
+        config.markup_multiplier = 1.25
+        config.allowance_usd = 5.0
+        config.fx_rate_inr_per_usd = 84.0
+        config.fx_buffer_pct = 3.0
+        config.credit_packs = json.dumps(DEFAULT_CREDIT_PACKS)
+        changed = True
+    # Model rates track the current routing table — refresh on every migrate.
+    rates = json.dumps(DEFAULT_MODEL_RATES)
+    if config.model_rates != rates:
+        config.model_rates = rates
+        changed = True
+    if changed:
+        config.save(ignore_permissions=True)

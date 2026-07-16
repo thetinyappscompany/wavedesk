@@ -7,6 +7,15 @@ import InvitePanel from '@/components/InvitePanel';
 import MonitoringCard from '@/components/MonitoringCard';
 import RoutingCard from '@/components/RoutingCard';
 import BusinessHoursCard from '@/components/BusinessHoursCard';
+import SlaCard from '@/components/SlaCard';
+import AiAgentCard from '@/components/AiAgentCard';
+import AiFlaggingCard from '@/components/AiFlaggingCard';
+import ApiKeysCard from '@/components/ApiKeysCard';
+import WebhooksCard from '@/components/WebhooksCard';
+import PrivacyCard from '@/components/PrivacyCard';
+import SecurityCard from '@/components/SecurityCard';
+import StarterTemplatesCard from '@/components/StarterTemplatesCard';
+import AccessControlCard from '@/components/AccessControlCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -399,10 +408,21 @@ export default function SettingsPage(): React.JSX.Element {
 
       <RoutingCard canManage={canManage} settings={settings.data} />
       {settings.data && <BusinessHoursCard canManage={canManage} settings={settings.data} />}
+      <SlaCard canManage={canManage} />
+
+      <AiAgentCard canManage={canManage} />
+
+      <AiFlaggingCard canManage={canManage} />
 
       <MonitoringCard canManage={canManage} />
       <LabelsCard canManage={canManage} />
       <CannedCard canManage={canManage} />
+      <ApiKeysCard canManage={canManage} />
+      <WebhooksCard canManage={canManage} />
+      <PrivacyCard canManage={canManage} />
+      <SecurityCard />
+      <StarterTemplatesCard canManage={canManage} />
+      <AccessControlCard canManage={canManage} />
     </div>
   );
 }

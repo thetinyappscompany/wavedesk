@@ -10,8 +10,457 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 3
-Current epic: Phase 3 — epic 2 (Auto-assignment & routing) DONE
+Phase: 5 (Phase 4 CODE-COMPLETE). 22 PRs (#1–#22) stacked, unmerged.
+Current epic: GO-LIVE PUSH (2026-07-16, founder wants EOD). ⚠ KEY DISCOVERY:
+all 22 stacked PRs show MERGED but they merged into INTERMEDIATE branches —
+origin/main is STILL at P3.2 (4a2e854). Fix = consolidation PR #23
+(feat/p5-ip-allowlist → main, zero conflicts, CI GREEN) — OPEN, awaiting the
+founder's merge click (agent-merge-to-main blocked by review policy; runbook
+docs/runbooks/merge-and-staging.md §2, then close nothing — #16-22 already
+show merged). LIVE VERIFICATION DONE LOCALLY (docker-ce installed INSIDE WSL —
+Docker Desktop still dies headless; compose minio/qdrant/whisper up): media
+round-trip (put→presign→GET→download_bytes vs real MinIO), whisper (real TTS
+speech WAV→S3→transcribe_bytes→correct transcript; build caught+fixed missing
+`requests` dep in services/whisper/requirements.txt), Qdrant vector layer via
+rag.py (ensure/upsert/search/delete_doc), wallet double-charge idempotency
+(real DB, rolled back). Probes = wavedesk/_live_probe.py (bench execute
+wavedesk._live_probe.run / run_qdrant / run_wallet) — reuse on staging.
+boto3 now bench-pip-installed. LESSON: bench console via stdin CONTINUES past
+errors — a trailing success print LIES; always use `bench execute` for probes.
+STILL FOUNDER-ONLY for go-live: merge PR #23; put NVIDIA_API_KEY +
+ANTHROPIC_API_KEY (+ WAVEDESK_AI_SECRET) in bench/staging env (keys are NOT in
+any env file — classifier rightly blocked me recovering them from the
+transcript); staging VM + public HTTPS URL; Zoho self-client refresh token +
+webhook registration; Meta Business Verification; rotate the pasted keys.
+Previous epic: P5 IP ALLOWLIST (Business-plan access control) done, PR #22 stacked
+on feat/p5-vertical-templates (#21). Master doc §Phase 5 feature 6 last buildable
+security control. wavedesk/access.py: normalize (validate+canonicalize IP/CIDR,
+dedupe), is_ip_allowed (ipaddress CIDR match; empty=allow-all), get/set on WD
+Workspace.settings.ip_allowlist, enforce(ws,ip)→PermissionError when request IP
+outside allowlist. Enforced in publicapi/auth.authenticate (API-key calls refused
+from outside allowlist; low-risk chokepoint, doesn't touch SPA session). api/
+access.py (Owner/Admin) get/set_ip_allowlist. Frontend AccessControlCard in
+Settings (CIDR textarea+save); api-client get/setIpAllowlist. Tests 6 Frappe + 2
+frontend; suites 438 Frappe + frontend(165) + api-client green, ruff/eslint/tsc
+clean. FULLY LIVE-VERIFIABLE. Deferred (lockout-risk, needs staging): SPA-session
+before_request IP gate; plan-tier gating (Business-only) once catalog seeds an
+ip_allowlist entitlement. Shipped feat/p5-ip-allowlist.
+⚠ ALL 118 TRACKED TASKS COMPLETE. Remaining P5 work is founder-gated (Slack/
+Sheets/Zapier need their OAuth creds; hosted checkout/load-test/pen-test/K8s/
+status-page need staging) OR the 22-PR stack merge + Meta verification + Docker/
+staging bring-up. Repeatedly recommended pausing to merge+unblock.
+Previous epic: P5 PER-VERTICAL ONBOARDING STARTER PACKS done, PR #21 stacked on
+feat/p5-2fa-sessions (#20). Master doc §Phase 5 feature 4. wavedesk/verticals.py
+VERTICALS catalog (d2c/agency/community/support), each seeds curated labels +
+canned responses + keyword→add_label automation rules; apply(workspace,vertical)
+IDEMPOTENT (skips existing by title/shortcode/rule-name, never overwrites).
+api/verticals.py list_verticals (any member previews) + apply_vertical (Owner/
+Admin); onboarding.create_workspace gains optional `vertical` param → seed at
+signup (unknown vertical never blocks). Frontend StarterTemplatesCard in Settings
+(pick type→preview→apply); api-client WdVertical + methods. Tests 6 Frappe + 3
+frontend; suites 432 Frappe + frontend(163) + api-client green, ruff/eslint/tsc
+clean. FULLY LIVE-VERIFIABLE. Deferred: onboarding-wizard picker UI, sample
+dashboard presets, per-vertical AI knowledge seeds. Shipped feat/p5-vertical-
+templates.
+Previous epic: P5 2FA (TOTP) + SESSION MGMT done, PR #20 stacked on feat/p5-dpdp-
+privacy (#19). Master doc §Phase 5 feature 6 (security). WD User 2FA doctype
+(GLOBAL, SM-only; secret AES-256-GCM at rest via ai/crypto; recovery codes as
+SHA-256 hashes). auth/twofa.py = dependency-free RFC-6238 TOTP (HMAC-SHA1 30s
+6-digit ±1 window) + begin_enroll/confirm_enroll(8 one-time recovery codes)/verify
+(TOTP OR consume-once recovery)/disable/status. auth/sessions.py = list/revoke/
+revoke-others over caller's tabSessions (sid masked to tail). api/security.py
+self-service (frappe.session.user only). Frontend SecurityCard in Settings (enable
+2FA secret+otpauth→confirm→recovery codes / disable; session list + per-device
+revoke + sign-out-others); api-client WdTwoFactorEnroll/WdSession + methods. Tests
+9 Frappe + 3 frontend; suites 426 Frappe + frontend(160) + api-client green,
+ruff/eslint/tsc clean. FULLY LIVE-VERIFIABLE. Deferred: hard login-flow gate (SPA
+calls twofa_verify post-login; enforcing across every API = follow-up), SSO/SAML,
+IP allowlist. Shipped feat/p5-2fa-sessions.
+Previous epic: P5 DPDP/GDPR DATA CONTROLS done, PR #19 stacked on feat/p5-admin-
+panel (#18). Master doc §Phase 5 feature 6. Three data-subject rights, workspace-
+scoped. WD Data Export doctype + WD Contact.erased flag (tenancy-registered +
+fixture). compliance/privacy.py: (1) EXPORT request_export()→build_export RQ
+bundles contacts/chats/messages/tickets/groups→private JSON File (pending→
+processing→ready/failed + counts); (2) ERASURE erase_contact() scrubs PII
+(name/phone/email + message bodies + sender identity) in place, keeps refs, flags
+erased, audited, idempotent (PII via db.set_value to bypass Phone validator);
+(3) RETENTION apply_retention() nightly cron purges WD Messages older than
+settings.retention_days (0=keep forever). api/privacy.py (Owner/Admin) request/
+list export + erase_contact + get/set retention; daily cron hook. Frontend
+PrivacyCard in Settings (retention + request export + download) + right-to-erasure
+two-step confirm on ContactDrawer; api-client WdDataExport + methods. Tests 8
+Frappe + 5 frontend; suites 417 Frappe + frontend(157) + api-client green,
+ruff/eslint/tsc clean. FULLY LIVE-VERIFIABLE. Deferred: consent-record doctype
+(opt-out already enforced), per-doctype retention windows, DPA template doc.
+Shipped feat/p5-dpdp-privacy.
+Previous epic: P5 PLATFORM SUPERADMIN PANEL done, PR #18 stacked on feat/p5-
+outbound-webhooks (#17). Master doc §Phase 5 feature 8. Cross-workspace operator
+console (System-Manager-only, NOT tenant-scoped). WD Workspace +suspended/
+suspended_reason/send_rate_clamp. admin/superadmin.py (all require System Manager):
+list_workspaces (+members/messages/subscription counts), workspace_detail,
+suspend/unsuspend, set_send_rate_clamp, set_ai_kill_switch, AUDITED impersonate
+(login_as; every mutation writes WD Audit Log admin.* against target ws).
+ENFORCEMENT: assert_can_send(ws) wired into pipeline/sender.queue_send (THE single
+outbound chokepoint) — suspended ws throws, over-daily-clamp throws; covers
+replies/broadcasts/schedules/AI alike. api/admin.py + whoami (SPA gate). Frontend
+AdminPage /admin (redirects non-admins→inbox): workspace table + suspend/unsuspend
++ inline clamp; nav 'Admin' shown only to platform admins (adminWhoami). api-client
+WdAdminWorkspace + methods. Tests 9 Frappe + 4 frontend; suites 409 Frappe +
+frontend(152) + api-client green, ruff/eslint/tsc clean. FULLY LIVE-VERIFIABLE.
+Deferred: spam-report queue doctype, feature-flag matrix, comp-plan/coupon admin.
+Shipped feat/p5-admin-panel.
+Previous epic: P5 OUTBOUND WEBHOOKS done, PR #17 stacked on feat/p5-public-api
+(#16). Master doc §Phase 5 feature 2. WD Webhook Endpoint (url + signing_secret +
+subscribed events + enabled) + WD Webhook Delivery (attempt log/retry/dead-letter;
+both tenancy-registered + fixtures). webhooks/events.py EVENT_TYPES catalog.
+webhooks/dispatch.py: emit() fans event→every subscribed enabled endpoint (cheap
+gate→1 delivery/endpoint→enqueue); deliver() POSTs JSON w/ HMAC-SHA256 sig
+(X-WaveDesk-Signature), 2xx→delivered else exp backoff (30s→1h) then dead-letter
+after max_attempts; retry_due minutely cron re-enqueues elapsed; redeliver()
+manual. safe_emit() NEVER raises into pipeline (subscriber can't break ingestion),
+no bodies logged (#6). Wired emit: message.received (consumer), chat.assigned/
+chat.resolved (inbox), ticket.created (WD Ticket after_insert doc_event = catches
+ALL creators), broadcast.completed (driver); remaining catalog events (message.
+sent/failed, group.member_*, number.*) share the machinery — trivial follow-up
+emit sites. api/webhooks.py (Owner/Admin) endpoint CRUD + delivery/dead-letter
+feed + redeliver + event_catalog. Frontend WebhooksCard in Settings (CRUD w/ event
+checkboxes + toggle + recent deliveries + redeliver); api-client WdWebhookEndpoint/
+WdWebhookDelivery + methods. Tests 10 Frappe + 4 frontend; suites 400 Frappe +
+frontend(148) + api-client green, ruff/eslint/tsc clean. FULLY LIVE-VERIFIABLE —
+verified on real bench DB. Shipped feat/p5-outbound-webhooks.
+Previous epic: P5 PUBLIC REST API v1 done, PR #16 stacked on feat/p5-billing-
+reconcile (#15). Master doc §Phase 5 feature 1. WD API Key doctype = key_prefix
+(public lookup) + key_hash (SHA-256 of secret; plaintext shown ONCE, never
+stored) + scopes JSON + enabled + rate_limit_per_min + last_used_at (tenancy-
+registered + fixture). publicapi/keys.py generate/parse/verify (constant-time;
+key form wdk_<prefix>_<secret>). publicapi/auth.py authenticate(scope) = THE
+chokepoint: parse bearer/X-API-Key header → resolve+verify key → reject disabled
+→ enforce scope → per-key Redis rate limit (60s window→429) → bind request to
+key's workspace (tenancy holds) → stamp last_used. api/v1.py (allow_guest,
+key-authed): send_message/list_chats/list_messages/list_contacts/create_contact/
+create_ticket/list_tickets + OpenAPI 3.1 at .openapi; every query explicitly
+scoped to key.workspace. api/publicapi.py (cookie-session, Owner/Admin): create/
+list/revoke + available_scopes (create returns full key ONCE, list never leaks
+hash). Frontend ApiKeysCard in Settings (create w/ scope checkboxes → one-time
+copyable reveal → list + revoke); api-client WdApiKey/WdApiKeyCreated + methods.
+Tests: 15 Frappe + 4 frontend; suites 390 Frappe + frontend(144) + api-client
+green, ruff/eslint/tsc clean. FULLY LIVE-VERIFIABLE (no external creds) — verified
+on real bench DB. Deferred: groups/broadcasts endpoints (same framework), hosted
+Redoc docs page, outbound webhooks (§P5 feature 2). Shipped feat/p5-public-api.
+Previous epic: P5 billing — nightly Zoho↔WD RECONCILIATION NET done, PR #15 stacked
+on feat/media-pipeline (#14). Completes the billing exit criterion (spec §5):
+billing/zoho_client.py = Zoho Self Client (server-to-server) minting 1-hr access
+tokens from the env refresh token (in-process cached) + get_subscription; secrets
+env-only (#8), unconfigured/API-error→None so reconcile no-ops (never guesses
+entitlements). billing/reconcile.py reconcile_all() diffs every Zoho-linked WD
+Subscription vs live Zoho state → HEALS drift via zoho.apply_subscription
+(re-syncs status+plan+addons+period, identical to a webhook); NEVER optimistic
+(Zoho-unreachable/unknown-status → untouched); drift audited (WD Audit Log) +
+log_error on-call signal (spec §7). Zoho→WD status map (live/active→active,
+trial→trialing, past_due/unpaid/dunning→past_due, cancelled/expired→cancelled,
+suspended→suspended). Daily cron hook + api/billing.reconcile_now (System-Manager
+manual). Tests 7 Frappe (Zoho client mocked); suite 375 green, ruff clean.
+⚠ LIVE-GATED on the self-client refresh token + staging URL (same gate as the
+webhook). Remaining P5-billing deferred: hosted-checkout embed + customer-portal
+link (need refresh token + public URL) + invoice reconciliation. Shipped
+feat/p5-billing-reconcile, PR #15.
+Previous epic: P4.5 (media pipeline + voice transcription) CODE-COMPLETE, PR #14
+stacked on feat/p5-billing-zoho (#13). This CLOSES Phase 4 (6/6 epics). Built the
+whole media pipeline (the P4.5 prereq) end-to-end + the transcription on top.
+GATEWAY: baileys/media.ts = MediaStorage (S3+memory) + extractMediaMeta (pure,
+unwraps ephemeral/viewOnce) + workspace-scoped sanitized mediaKey; socket.
+downloadMedia wraps Baileys downloadMediaMessage (reuploadRequest = re-fetch
+CDN-expired). SessionManager downloads INBOUND media (skips fromMe echoes) before
+publishing message.received → parks bytes in S3_MEDIA_BUCKET → attaches media ref
+to payload; download/store failure degrades to metadata-only (key=null). FRAPPE:
+WD Message +media_key/mimetype/filename/size/duration/is_voice/transcript;
+consumer._media_fields maps payload.media; pipeline/media_store.py = boto3
+presign+download (env-config, graceful if boto3/creds absent); api/media.media_url
+= workspace-scoped short-lived presigned URL (raw S3 key NEVER leaves server —
+messages API exposes only has_media). ai/transcription.py = voice note → faster-
+whisper container (POST /transcribe raw bytes) → store transcript → RE-RUN through
+flagging/auto-ticket/auto-agent so a voice note is treated like text; add-on +
+kill-switch gated, idempotent (skips if transcript set), NOT metered (self-hosted);
+consumer hook enqueues off-thread on is_voice+media_key. WHISPER CONTAINER
+(services/whisper): real faster-whisper FastAPI (/health,/transcribe) + Dockerfile;
+compose.dev.yml replaced the alpine placeholder, wired on :9010 (media bucket
+already provisioned by minio-init). FRONTEND: MediaContent bubble renders image/
+video/voice/document from a lazily-resolved presigned URL + shows voice transcript;
+api-client WdMessage media fields + WdMediaUrl + getMediaUrl. Tests: 5 gateway
+media + 5 Frappe media + 8 transcription + 2 frontend. Suites: 368 Frappe + 58
+gateway + frontend (ConversationPane 20) green; ruff/eslint/typecheck clean.
+⚠ LIVE S3/WHISPER ROUND-TRIP DOCKER-GATED (MinIO + faster-whisper image + Docker
+Desktop, still down/headless) — all logic unit-verified with store+container
+mocked, run against the real bench DB. Shipped feat/media-pipeline, PR #14.
+Previous: Phase 5 — Billing (Zoho) CORE DONE, PR #13 (355 Frappe). Jumped to it
+because P4.5 was infra-gated — since resolved by BUILDING the media pipeline +
+whisper container in code (only Docker/live round-trip remains).
+P5-billing: WD Invoice Ref (mirror; tenancy-registered). billing/zoho.py =
+entitlement state machine (non-negotiable #3, entitlements ONLY from verified
+webhooks): subscription created/activation/renewed→active, cancelled/expired→
+cancelled, payment_declined/failed→past_due; addon-code→entitlement mapping
+(reverse of WD Plan.zoho_addon_codes) flips ai_addon; invoice→mirror WD Invoice
+Ref (idempotent by zoho_invoice_id); top-up invoice→wallet.credit idempotent by
+invoice id (retried webhook never double-credits, #2). api/billing.zoho_webhook =
+allow_guest receiver, X-Webhook-Token verify (env ZOHO_WEBHOOK_TOKEN), normalizes
+raw Zoho payload→internal event contract (field extraction finalized at staging),
+dispatches billing/zoho.process. Tests: 9 Frappe; full suite 355 green, ruff
+clean. ⚠ LIVE webhook STAGING-GATED (Zoho can't reach localhost). Deferred:
+nightly Zoho API reconciliation sync + hosted-checkout API (need self-client
+refresh token + public URL). Shipped feat/p5-billing-zoho, PR #13 stacked on
+feat/p4.6-autoticket (#12). 13 PRs (#1–#13) stacked, unmerged.
+Previous: Phase 4 — epic 6 (AI auto-ticket) DONE, PR #12. ONLY P4.5 (voice
+transcription, self-hosted faster-whisper) LEFT in Phase 4 — it's infra-gated
+(needs the faster-whisper container; compose has a placeholder + Docker was down).
+P4.6: WD AI Agent Config gains auto_ticket flag. ai/autoticket.py = one mini-tier
+(Haiku, task=classify) call per inbound DM → JSON {actionable, title<=140,
+priority}; opens a WD Ticket w/ AI title+priority; DEDUPED vs an existing open
+ticket on the chat (no token spent). on_inbound consumer hook (enqueue only when
+auto_ticket on) + evaluate RQ job (add-on + kill-switch gated); wired into
+consumer dm path alongside the auto-agent. api/agent.py auto_ticket in config
+get/update. AiAgentCard 'Auto-create tickets' toggle + api-client type/method.
+Tests: 8 Frappe; full suites 346 Frappe + frontend green, ruff/typecheck/lint
+clean. Shipped on feat/p4.6-autoticket, PR #12 stacked on feat/p4.4-flagging
+(#11). NB built P4.6 before P4.5 because Whisper is infra-gated (Docker down).
+Previous: Phase 4 — epic 4 (AI message flagging) DONE, PR #11.
+P4.4: WD AI Flag Rule (workspace, flag_key, label, prompt/criteria, action
+flag|ticket, priority, enabled; tenancy-registered). ai/flagging.py = ONE
+mini-tier (Haiku) call per inbound msg classifies against ALL enabled rules →
+JSON keys (tolerant parse); matches set P2.4 flag fields on WD Message + open a
+WD Ticket per ticket-action rule. on_inbound consumer hook (cheap 'any rules?'
+gate → enqueue) + evaluate RQ job (add-on + kill-switch gated). Wired into
+consumer inbound (dm+group). api/flagging.py rule CRUD. Frontend AiFlaggingCard
+in Settings (list + enable toggle + add/delete; button 'Add flag rule' to avoid
+collision w/ MonitoringCard). Tests: 7 Frappe + 4 frontend; full suites 338
+Frappe + frontend green, ruff/typecheck/lint clean. Shipped on feat/p4.4-
+flagging, PR #11 stacked on feat/p4.3-autoagent (#10).
+Previous: Phase 4 — epic 3 (AI Auto-Agent + RAG) DONE, PR #10.
+P4.3: WD Knowledge Doc + WD AI Agent Config doctypes (tenancy-registered).
+ai/embeddings.py = NVIDIA OpenAI-compatible embeddings (Anthropic has none —
+NVIDIA scoped to embeddings; env NVIDIA_API_KEY). ai/rag.py = workspace-scoped
+Qdrant collections (thin HTTP client, QDRANT_URL default :6333) — chunk/embed/
+upsert (deterministic point ids → idempotent) + top-k cosine search. ai/agent.py
+= answer(): retrieve top-k → below confidence_threshold or no hits ⇒ HANDOFF
+(no token spent) → else Sonnet answers ONLY from context w/ prompt caching +
+guardrails (never invent prices; [[HANDOFF]] marker → human). on_inbound_dm
+(consumer hook, cheap gate, enqueues) + handle_inbound (RQ job: gate enabled/
+add-on/kill-switch/human-assigned/after-hours → answer → reply via queued sender
+OR handoff = assign handoff_team + set pending + internal note). ai/ingest.py RQ
+job embeds a KB doc + stamps status; controller enqueues on content change,
+deletes vectors on trash. api/agent.py config get/update + knowledge CRUD +
+gated preview_answer. Frontend: AiAgentCard in Settings (enable/persona/
+threshold/handoff-team/after-hours + knowledge add/list/delete + live preview;
+locked without add-on) + api-client agent methods. Qdrant already in
+compose.dev.yml (:6333). Tests: 16 Frappe + 5 frontend; full suites 331 Frappe +
+frontend green, ruff/typecheck/lint clean. ⚠ LIVE QDRANT/NVIDIA ROUND-TRIP NOT
+YET RUN — Docker Desktop was down + needs NVIDIA key in bench env; logic fully
+unit-verified with Qdrant/NVIDIA/provider mocked. Shipped on feat/p4.3-autoagent,
+PR #10 stacked on feat/p4.2-copilot (#9).
+Previous: Phase 4 — epic 2 (Agent Copilot) DONE, PR #9.
+P4.2: ai/copilot.py = Haiku-tier assists over the P4.1 gated+metered provider —
+suggest_reply (drafts next reply from chat transcript), rewrite polish/expand/
+shorten, translate (auto-detect→target), summarize (chat/group, optional since);
+fresh idempotency key per call (interactive → billed each click). api/copilot.py
+whitelisted + add-on-gated + workspace-scoped. api-client gained copilot methods +
+AI settings/usage methods (WdAiSettings/WdAiUsageMeter). Frontend: AiCopilotBar in
+the conversation composer — hidden unless workspace has ai_addon; Suggest/Polish/
+Shorten/Translate replace the draft, Summarize opens a dismissible panel. Tests: 7
+Frappe + 5 frontend; full suites 315 Frappe + frontend green, ruff/typecheck/lint
+clean. Shipped on feat/p4.2-copilot, PR #9 stacked on feat/p4.1-ai-provider (#8).
+Previous: Phase 4 — epic 1 (AI provider abstraction) DONE, VERIFIED LIVE, PR
+#8. Phase 4 = the AI layer; P4.1 is the add-on-gated foundation every later AI
+feature sits on.
+P4.1: wavedesk/ai/provider.py = single gated entry (has_feature('ai_addon') →
+per-workspace kill switch → BYOK→pooled key resolve, NO silent fallback → 2-tier
+routing: claude-haiku-4-5 for classify/copilot/summaries, claude-sonnet-5 for
+customer replies → pre-flight pause → post-call metering). ai/metering.py = real
+USD cost from WD AI Pricing Config → $5 monthly allowance → wallet credits at
+cost×1.25 (FX-buffered) → AIPaused when exhausted; append-only + idempotent (no
+double-charge on RQ retry), 80% soft-warn. ai/crypto.py = AES-256-GCM BYOK
+key-at-rest (env WAVEDESK_AI_SECRET, sha256 dev fallback). WD Usage Record =
+append-only AI metering store, System-Manager-ONLY (raw USD never client-facing;
+tenancy has a new INTERNAL_ONLY_DOCTYPES concept for it). api/ai.py = friendly
+usage_meter (allowance % + credits ₹, NEVER tokens/rates/USD — leak test extended)
++ BYOK set/validate/revoke + kill-switch toggle. Seed model_rates now keyed by
+real model IDs; anthropic>=0.116 added as app dep (`bench pip install`). FOUNDER
+DECISIONS (2026-07-11): Anthropic-only metered path (NVIDIA scoped to embeddings
+in P4.3, since Anthropic has no embeddings API); pause-with-CTA on exhaustion.
+Tests: 16 AI + tenancy/leak updates; full suite 308 Frappe green, ruff clean.
+VERIFIED LIVE (real DB, rolled back): Haiku call covered by allowance; Sonnet
+overflow charged ₹64.89 (0.6 USD×FX×1.25); usage_meter leaked zero confidential
+keys; gate blocked no-add-on workspace. Shipped on feat/p4.1-ai-provider (commit
+23344ac), PR #8 stacked on feat/p3.8-templates.
+⚠ DEV-DB RECOVERY 2026-07-11: dev MariaDB was reset — site DB `_068a2b26893bfb76`
+was gone + root password-locked. Recovered via skip-grant-tables (founder ran it
+as root; classifier blocks this autonomously), restored today's 11:30 backup
+(direct import as site user), recreated DB+user, reset root to unix_socket. To run
+bench again: MariaDB + system redis(6379) up; start bench redis via
+`redis-server ~/bench/config/redis_cache.conf --daemonize yes` (13001) and
+redis_queue.conf (11001) before migrate/tests. `wsl -u root` gives root w/o sudo.
+Previous: Phase 3 — epic 8 (Message templates) LOCAL HALF DONE. Phase 3 is
+CODE-COMPLETE for everything buildable without Meta. Remaining P3.8 pieces
+(Cloud API embedded signup, LIVE template submission to Meta, approval-status
+webhook sync) stay GATED on Meta Business Verification (still not started).
+⚠ INCIDENT 2026-07-10: the founder's REAL paired number was put "Account in
+review" by WhatsApp (ToS/trust-and-safety). Root cause = Baileys (unofficial
+protocol) on a real personal SIM + bulk/automation + syncing 7812 group members
+— the predicted failure mode of testing on a live personal number. Our system
+was NOT actively sending at the time (0 active broadcasts, schedules parked at
+2030, warm-up idle, gateway idle ~24h). Guidance given: unlink the WaveDesk
+linked device while under review, no bulk from that number, use WhatsApp
+organically, and — critically — the sanctioned path for at-scale broadcast is
+the Cloud API (P3.8), which makes Meta Business Verification URGENT. NEVER test
+on a real personal number again; use a Cloud API sandbox number or a burner SIM.
+NB: dev DB is cluttered with test-fixture cruft (258 WD WhatsApp Number rows,
+~100 stale 'connecting'; test-fixture workspaces w/o owners; WD Workspace Member
+is a CHILD table — filter by `parent`, it has NO `workspace` column) — offered
+cleanup (clear stale numbers/schedules, stop idle gateway) pending founder OK.
+P3.8: WD Message Template (workspace, template_name, category marketing/utility/
+authentication, language, header/body/footer_text, buttons JSON, variable_count,
+status draft/pending/approved/rejected, meta_template_id, rejection_reason).
+validate() normalizes name (lower, spaces→underscores), enforces ^[a-z0-9_]+$
+(rejects other punctuation), requires body, rejects non-sequential positional
+{{n}} vars (Meta rule), derives variable_count. wavedesk/templates.py:
+variable_count, render (positional {{1}}.. fill; missing value keeps the
+placeholder), submit_template — LOCAL path saves pending + gating note when NO
+Cloud API number connected (Meta-gated), LIVE path posts via gateway_client.
+submit_template. api/templates.py CRUD + preview + submit (Owner/Admin gate;
+only draft/rejected editable/submittable). Tenancy-registered + fixture.
+Frontend: /templates page (Templates nav, FileText) — Builder + list w/ status
+badges + submit (surfaces gating note) + delete; api-client WdMessageTemplate
+types+methods. Tests: 9 Frappe + 3 frontend; suites 292 Frappe + 125 frontend
+green, ruff clean. VERIFIED LIVE (zero WA traffic): template inserted on real
+workspace WS-90359, render filled positional vars (missing value kept
+placeholder), submit → pending/live=False w/ Cloud-API gating note, name
+validation rejected punctuation; probe cleaned up. Shipped on feat/p3.8-
+templates (commit 4012f77), stacked on the P3.7 PR — PR #7 pending push.
+Previous: Phase 3 — epic 7 (Segments) DONE
+P3.7: WD Segment (segment_name, description, match_type all/any, filters JSON).
+wavedesk/segments.py: matching_contacts evaluated LIVE (never materialized) —
+match_type all=intersect / any=union over per-condition resolvers: has_tag
+(tags Small Text like), attribute (custom_attributes JSON key==value, Python
+filter), opted_out, has_email, name_contains, phone_prefix, last_seen_days
+(distinct contact w/ inbound msg within N days via chat join), in_group (WD Group
+Member.contact). WIRED: broadcasts._audience_rows segment branch (replaces the
+P3.4 throw stub — build_recipients now resolves a segment to contacts);
+automation._check in_segment condition (chat.contact ∈ segment) + wd_automation_
+rule CONDITION_TYPES gained in_segment. api/segments.py CRUD + preview (live
+count + sample). Tenancy-registered + fixtures. Frontend: /segments page +
+Filter nav (list w/ live PreviewCount + Builder: match type + dynamic condition
+rows, attribute-key + bool/text value inputs); Broadcast composer gained a
+'segment' audience option + segment picker; AutomationPage conditions gained
+in_segment. api-client WdSegment/WdSegmentCondition + methods; WdAutomation
+Condition type union gained in_segment. Tests: 11 Frappe + 3 frontend; suites
+283 Frappe + 122 frontend green, ruff clean. VERIFIED LIVE: has_tag segment
+matched exactly the tagged contact (not the untagged one); broadcast segment
+audience built 1 recipient; probe cleaned up. Shipped on feat/p3.7-segments,
+stacked on the P3.6 PR. Deferred: numeric/relative operators, last-seen on
+outbound, segment analytics.
+Previous: Phase 3 — epic 6 (Anti-ban intelligence) DONE
+P3.6: WD WhatsApp Number gains warmup_started_on/risk_level/health_checked_at
+(reusing the Phase-0 health_score/daily_send_limit/warmup_stage placeholders).
+wavedesk/antiban.py: WARM-UP = per-number daily cap ramping day1 (20) → day30
+(full target daily_send_limit, or 1000 ceiling if unset) via warmup_cap/
+daily_cap_for; sent_today (outbound WD Message today joined via chat.number);
+can_dispatch (sent_today < cap; None cap = unlimited), WIRED into the broadcast
+driver run_broadcast so a bulk run auto-pauses when the number hits its warm-up
+cap (resume next day to keep ramping). HEALTH = compute_health scores 0-100 from
+the 7-day outbound failure rate (100 - round(rate*60)) + status penalty
+(disconnected -20, banned→0), derives risk low/medium/high (_risk_from), stores
+score/risk/health_checked_at; nightly cron recompute_all_health refreshes all
+numbers + warmup_stage. api/antiban.py: number_health (per-number score/risk/
+warmup_day/daily_cap/sent_today/warming) + start_warmup/stop_warmup (Owner/Admin)
++ refresh_health. Frontend: NumbersPage per-number HealthStrip (risk badge +
+score + sent/cap today + warm-up day + Start/Stop warm-up w/ target input);
+api-client WdNumberHealth + methods. Humanized VARIABLE DELAYS already in the
+broadcast jitter; typing-presence-before-send is gateway-side (deferred). Tests:
+13 Frappe + 1 frontend; suites 272 Frappe + 119 frontend green, ruff clean.
+VERIFIED LIVE: probe number w/ 25% failure rate → score 85/medium; warm-up day1
+cap 20 (sent 4 < 20 → can_dispatch true); day30 ramp → full 1000; probe cleaned
+up. Shipped on feat/p3.6-antiban, stacked on the P3.5 PR. Deferred: typing-
+presence humanization (gateway), disconnect-frequency signal (no status history),
+per-number sending windows.
+Previous: Phase 3 — epic 5 (Scheduled messages) DONE
+P3.5: WD Scheduled Message (title, target_type chat/group/broadcast, target,
+number, body, schedule_type once/recurring, scheduled_at, recurrence JSON
+{frequency daily|weekly, time HH:MM, weekdays [0-6]}, timezone, next_run_at,
+last_run_at, run_count, status scheduled/sent/cancelled/failed, enabled);
+tenancy-registered + fixtures. wavedesk/schedules.py: TIME MODEL = all schedule
+datetimes are NAIVE, interpreted in the schedule's own timezone (self-consistent
+regardless of server tz); compute_next_run (once=scheduled_at; recurring via
+_next_occurrence rolling forward to next daily/weekly slot), run_due_schedules
+MINUTELY cron (per-row compares next_run_at <= datetime.now(sched.tz)), _fire →
+_dispatch (chat/group via sender.queue_send [group chat ensured via
+groups._ensure_group_chat], broadcast via broadcasts.start) then _advance (once→
+sent + next_run None; recurring→next occurrence, stays scheduled; failed once→
+failed, failed recurrence→skip occurrence). Controller validate recomputes
+next_run_at when scheduled+enabled, clears it otherwise. api/schedules.py CRUD +
+cancel + run_now (manual fire), Owner/Admin manage. hooks cron gained
+run_due_schedules. Frontend: /schedules page + Clock nav — Composer (target
+type+id, body, once datetime-local OR recurring frequency/time/weekday-toggle
+picker), list with run-now/enable/cancel/delete + recurrence summary. api-client
+types+methods. Tests: 12 Frappe + 3 frontend; suites 259 Frappe + 118 frontend
+green, ruff clean. VERIFIED LIVE: a due one-time schedule fired → status sent,
+run_count 1, real outbound WD Message queued through the pipeline; probe cleaned
+up. Shipped on feat/p3.5-schedules, stacked on the P3.4 PR. Deferred: friendly
+target pickers (raw ids for now), monthly/custom-cron recurrence.
+Previous: Phase 3 — epic 4 (Broadcasts) DONE
+P3.4: WD Broadcast (number, message_template, status draft/sending/paused/
+completed/cancelled, audience_type, counts, daily_cap, min/max_interval_sec,
+failure_pause_pct) + WD Broadcast Recipient (contact/phone/recipient_name/
+wa_chat_id/status pending|sent|failed|opted_out|skipped/message/error); both
+tenancy-registered + fixtures. wavedesk/broadcasts.py: build_recipients (audience
+csv rows / group_members / all_contacts — dedupe by phone, skip opted-out;
+segment throws → P3.7), render_template ({{name}}/{{phone}}), run_broadcast
+DRIVER (RQ long job): randomized inter-send gaps, per-run daily_cap (warm-up),
+failure auto-pause once FAILURE_MIN_SAMPLE dispatched and failed% > threshold
+(ban signal), each send via pipeline.sender.queue_send (non-negotiable #7),
+_ensure_dm_chat creates the outbound DM chat, _reconcile flips dispatched
+recipients whose WD Message ultimately FAILED so the REAL failure rate drives
+auto-pause. STOP/UNSUBSCRIBE/CANCEL reply → WD Contact.opt_out (process_opt_out
+wired in consumer inbound DM), suppressed at build AND dispatch. Lifecycle
+start/pause/resume/cancel/retry_failed. api/broadcasts.py CRUD + start/pause/
+resume/cancel/retry + preview (rendered) + delivery_report (per-recipient joined
+to WD Message status + counts); 5k recipient cap (exit criterion). Frontend:
+/broadcasts page + Megaphone nav — Composer (number select, audience picker w/
+CSV textarea + group ref, message + variables, daily cap), broadcast list with
+inline start/pause/resume/cancel/retry + status/progress, expandable delivery
+Report (counts + per-recipient rows). api-client types+methods. Tests: 15 Frappe
++ 4 frontend; suites 247 Frappe + 115 frontend green, ruff clean. VERIFIED LIVE
+on WS-50210: CSV audience deduped 3->2, driver dispatched both through the REAL
+pipeline (real WD Message rows, status sent), STOP set opt_out; probe cleaned up.
+Shipped on feat/p3.4-broadcasts, stacked on the P3.3 PR. Deferred: media
+broadcasts (no media pipeline), segment audiences (P3.7), delivered/read receipts
+(await gateway message.status consumption), calendar-day cap windowing (P3.6).
+Previous: Phase 3 — epic 3 (SLA engine) DONE
+P3.3: WD SLA Policy (policy_name, enabled, first_response_mins, resolution_mins,
+escalation_chain JSON [{after_mins,target agent|team|owner|slack|webhook,url?}])
++ WD SLA Event (chat/policy/metric/outcome breached|escalated/target/detail);
+both tenancy-registered + coverage fixtures. WD Chat gains sla_policy +
+first_response_due/resolution_due/first_response_breached/resolution_breached/
+sla_escalation_level; WD Alert kind gains sla_breach. wavedesk/sla.py:
+apply_policy stamps due times (0-min target = no SLA for that metric; skips
+first-response if already answered); check_breaches (MINUTELY cron) detects
+breaches by comparing due vs the EXISTING first_response_at/resolved_at stamps
+(P2.6) — no new hooks in sender/inbox — marks the breach flag, raises a WD Alert,
+logs a WD SLA Event, emits wd:chat/wd:alert; then _run_escalations walks the
+chain firing steps whose after_mins elapsed since due, idempotent via
+sla_escalation_level (agent/team/owner → in-app alert; slack/webhook →
+monitoring._enqueue_post). CRITICAL BUG FOUND+FIXED: a plain get_all filter
+(due_field, '<=', now) ALSO matches rows where due IS NULL in Frappe's query
+builder — would false-breach every SLA-less chat; fixed with an explicit
+(due_field,'is','set') guard using list-form filters. Automation gains a set_sla
+action. api/sla.py: policy CRUD (Owner/Admin) + attach_policy + list_breaches
+feed. Dashboard live tiles gain sla_breached. Frontend: SlaCard in Settings
+(policy CRUD + escalation-chain builder) + SLA-breached dashboard tile; api-client
+types+methods. Tests: 17 Frappe + 4 frontend; suites 232 Frappe + 111 frontend
+green, ruff clean. VERIFIED LIVE on WS-64165: policy attached → backdated due →
+breach marked + owner escalation fired + alert/event logged; probe cleaned up.
+Shipped on feat/p3.3-sla, stacked on the P3.2 PR (base feat/p3.2-routing).
+Deferred: business-hours-aware SLA clock (v1 = calendar minutes, which is what
+the "breach within 60s of due" exit criterion tests), per-chat SLA badge in the
+inbox list, breach analytics trend (only the live tile so far).
+Previous: Phase 3 — epic 2 (Auto-assignment & routing) DONE
 P3.2: WD Team gains capacity_per_agent (0=unlimited) + routing validated
 (manual/round_robin/load_based). wavedesk/routing.py = the engine:
 availability (Redis online HEARTBEAT 60s TTL via api/routing.heartbeat +

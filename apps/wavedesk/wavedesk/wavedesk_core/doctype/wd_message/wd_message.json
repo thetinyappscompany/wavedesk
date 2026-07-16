@@ -16,6 +16,13 @@
   "message_type",
   "body",
   "media_ref",
+  "media_key",
+  "media_mimetype",
+  "media_filename",
+  "media_size",
+  "media_duration",
+  "is_voice",
+  "transcript",
   "quoted_message",
   "status",
   "flagged",
@@ -94,6 +101,44 @@
    "fieldname": "media_ref",
    "fieldtype": "Data",
    "label": "Media Ref"
+  },
+  {
+   "fieldname": "media_key",
+   "fieldtype": "Data",
+   "label": "Media Key",
+   "description": "Object-store key of the downloaded WhatsApp media (P4.5)."
+  },
+  {
+   "fieldname": "media_mimetype",
+   "fieldtype": "Data",
+   "label": "Media MIME Type"
+  },
+  {
+   "fieldname": "media_filename",
+   "fieldtype": "Data",
+   "label": "Media Filename"
+  },
+  {
+   "fieldname": "media_size",
+   "fieldtype": "Int",
+   "label": "Media Size (bytes)"
+  },
+  {
+   "fieldname": "media_duration",
+   "fieldtype": "Int",
+   "label": "Media Duration (s)"
+  },
+  {
+   "fieldname": "is_voice",
+   "fieldtype": "Check",
+   "label": "Is Voice Note",
+   "default": "0"
+  },
+  {
+   "fieldname": "transcript",
+   "fieldtype": "Long Text",
+   "label": "Transcript",
+   "description": "Speech-to-text of a voice note (P4.5 Whisper)."
   },
   {
    "fieldname": "quoted_message",

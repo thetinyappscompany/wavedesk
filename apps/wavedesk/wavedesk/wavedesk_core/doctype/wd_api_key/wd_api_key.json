@@ -1,0 +1,99 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-07-11 13:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "workspace",
+  "label",
+  "key_prefix",
+  "key_hash",
+  "scopes",
+  "enabled",
+  "rate_limit_per_min",
+  "last_used_at",
+  "created_by_user"
+ ],
+ "fields": [
+  {
+   "fieldname": "workspace",
+   "fieldtype": "Link",
+   "label": "Workspace",
+   "options": "WD Workspace",
+   "reqd": 1,
+   "search_index": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "label",
+   "fieldtype": "Data",
+   "label": "Label",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "key_prefix",
+   "fieldtype": "Data",
+   "label": "Key Prefix",
+   "reqd": 1,
+   "unique": 1,
+   "search_index": 1,
+   "in_list_view": 1,
+   "description": "Public lookup id (the secret half is never stored, only its hash)."
+  },
+  {
+   "fieldname": "key_hash",
+   "fieldtype": "Data",
+   "label": "Key Hash",
+   "reqd": 1,
+   "description": "SHA-256 of the secret half — the plaintext key is shown once at creation."
+  },
+  {
+   "fieldname": "scopes",
+   "fieldtype": "Small Text",
+   "label": "Scopes",
+   "description": "JSON array of granted scopes (e.g. messages:write, contacts:read)."
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "default": "1"
+  },
+  {
+   "fieldname": "rate_limit_per_min",
+   "fieldtype": "Int",
+   "label": "Rate Limit / min",
+   "default": "120"
+  },
+  {
+   "fieldname": "last_used_at",
+   "fieldtype": "Datetime",
+   "label": "Last Used At"
+  },
+  {
+   "fieldname": "created_by_user",
+   "fieldtype": "Link",
+   "label": "Created By User",
+   "options": "User"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-11 13:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "WaveDesk Core",
+ "name": "WD API Key",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "share": 1, "write": 1},
+  {"role": "WD Owner", "read": 1, "export": 1, "print": 1, "report": 1},
+  {"role": "WD Admin", "read": 1, "export": 1, "print": 1, "report": 1}
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "format:APIKEY-{##########}",
+ "naming_rule": "Expression"
+}

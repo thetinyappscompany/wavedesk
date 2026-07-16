@@ -1,7 +1,15 @@
 /** Real Baileys socket factory. Version PINNED at 6.7.23 (root guide pitfall #3):
  * bumps happen deliberately, tested on canary numbers — never via semver range. */
-import makeWASocket, { fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
-import type { GatewaySocket, GroupMetadataLite, SocketFactory } from './socket.js';
+import makeWASocket, {
+  downloadMediaMessage,
+  fetchLatestBaileysVersion,
+} from '@whiskeysockets/baileys';
+import type { WAMessage } from '@whiskeysockets/baileys';
+import { createLogger } from '../logger.js';
+import type { GatewaySocket, GroupMetadataLite, InboundMessage, SocketFactory } from './socket.js';
+
+// Baileys' media downloader wants a pino-like logger; reuse our redacting one.
+const mediaLogger = createLogger(process.env.LOG_LEVEL ?? 'info');
 
 type WaVersion = [number, number, number];
 
@@ -95,6 +103,20 @@ export const realSocketFactory: SocketFactory = async ({ state }) => {
     },
     ownJid() {
       return sock.user?.id ?? null;
+    },
+    async downloadMedia(message: InboundMessage) {
+      try {
+        const buffer = await downloadMediaMessage(
+          message as unknown as WAMessage,
+          'buffer',
+          {},
+          // reuploadRequest lets Baileys re-fetch media that aged out of the CDN.
+          { logger: mediaLogger, reuploadRequest: sock.updateMediaMessage },
+        );
+        return buffer;
+      } catch {
+        return null; // expired media / non-media / decrypt failure — caller ships metadata only
+      }
     },
     async groupParticipantsAction(jid, participants, action) {
       await sock.groupParticipantsUpdate(jid, participants, action);

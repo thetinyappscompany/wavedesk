@@ -87,6 +87,14 @@ def assign_chat(chat_doc, agent: str | None, team: str | None) -> None:
     chat_doc.save(ignore_permissions=True)
     emit_chat_updated(chat_doc.workspace, chat_doc.name)
 
+    # Outbound webhook (P5): chat.assigned.
+    from wavedesk.webhooks import dispatch as webhooks
+
+    webhooks.safe_emit(chat_doc.workspace, "chat.assigned", {
+        "chat": chat_doc.name, "agent": chat_doc.assigned_agent,
+        "team": chat_doc.assigned_team,
+    })
+
     # Auto-assignment & routing (P3.2): a team with round-robin/load-based
     # routing and no explicit agent picks one now. No-op for manual teams or
     # when the caller already named an agent.
@@ -116,6 +124,12 @@ def set_status(chat_doc, status: str, snoozed_until: str | None = None) -> None:
     chat_doc.status = status
     chat_doc.save(ignore_permissions=True)
     emit_chat_updated(chat_doc.workspace, chat_doc.name)
+
+    # Outbound webhook (P5): chat.resolved.
+    if status == "resolved":
+        from wavedesk.webhooks import dispatch as webhooks
+
+        webhooks.safe_emit(chat_doc.workspace, "chat.resolved", {"chat": chat_doc.name})
 
     # Automation rules (P3.1): status_change trigger. The engine's re-entrancy
     # guard stops an automation-driven set_status from looping back here.

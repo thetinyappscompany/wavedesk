@@ -8,6 +8,7 @@ import { pino } from 'pino';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { SessionManager } from '../src/baileys/sessionManager.js';
 import { MemorySnapshotStorage } from '../src/baileys/snapshot.js';
+import { MemoryMediaStorage } from '../src/baileys/media.js';
 import type { GroupMetadataLite } from '../src/baileys/socket.js';
 import { WA_EVENTS_STREAM, type WaEvent } from '../src/events/envelope.js';
 import { EventPublisher } from '../src/events/publisher.js';
@@ -24,6 +25,7 @@ function makeManager() {
     snapshotKey: randomBytes(32),
     factory,
     publisher: new EventPublisher(redis, logger),
+    mediaStorage: new MemoryMediaStorage(),
     logger,
     snapshotIntervalMs: 60_000,
   });

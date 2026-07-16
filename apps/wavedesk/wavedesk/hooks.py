@@ -15,6 +15,11 @@ doc_events = {
         # §3.2: trial subscription + wallet + AI preview, same transaction as insert
         "after_insert": "wavedesk.plan.provisioning.provision_workspace",
     },
+    # Outbound webhook (P5): ticket.created fires for EVERY creator (API, AI
+    # flagging, auto-ticket, public API) via one after_insert hook.
+    "WD Ticket": {
+        "after_insert": "wavedesk.webhooks.dispatch.on_ticket_created",
+    },
 }
 
 # --- Scheduler ---------------------------------------------------------------
@@ -25,11 +30,17 @@ scheduler_events = {
         "* * * * *": [
             "wavedesk.pipeline.consumer.process_wa_events",
             "wavedesk.inbox.unsnooze_due_chats",
+            "wavedesk.sla.check_breaches",
+            "wavedesk.schedules.run_due_schedules",
+            "wavedesk.webhooks.dispatch.retry_due",
         ],
     },
     "daily": [
         "wavedesk.wallet.ledger.reconcile_all_wallets",
         "wavedesk.analytics.compute_engagement_scores",
+        "wavedesk.antiban.recompute_all_health",
+        "wavedesk.billing.reconcile.reconcile_all",
+        "wavedesk.compliance.privacy.apply_retention",
     ],
 }
 

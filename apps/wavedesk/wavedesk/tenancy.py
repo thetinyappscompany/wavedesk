@@ -37,9 +37,25 @@ TENANT_DOCTYPES: tuple[str, ...] = (
     "WD Ticket",
     "WD Automation Rule",
     "WD Automation Log",
+    "WD SLA Policy",
+    "WD SLA Event",
+    "WD Broadcast",
+    "WD Broadcast Recipient",
+    "WD Scheduled Message",
+    "WD Segment",
+    "WD Message Template",
     "WD Subscription",
     "WD Wallet",
     "WD Wallet Transaction",
+    "WD Invoice Ref",
+    "WD API Key",
+    "WD Webhook Endpoint",
+    "WD Webhook Delivery",
+    "WD Data Export",
+    "WD Usage Record",
+    "WD AI Agent Config",
+    "WD Knowledge Doc",
+    "WD AI Flag Rule",
     "WD Audit Log",
 )
 
@@ -47,6 +63,7 @@ TENANT_DOCTYPES: tuple[str, ...] = (
 GLOBAL_DOCTYPES: dict[str, str] = {
     "WD Plan": "shared plan catalog, read-only for workspace roles",
     "WD AI Pricing Config": "internal-only Single; System Manager perms, leak test enforced",
+    "WD User 2FA": "per-user auth secret (not workspace-scoped); System Manager perms",
 }
 
 WORKSPACE_ROLES: tuple[str, ...] = ("WD Owner", "WD Admin", "WD Agent")

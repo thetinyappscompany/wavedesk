@@ -8,7 +8,9 @@ from frappe import _
 from frappe.model.document import Document
 
 TRIGGERS = ("message_received", "chat_created", "status_change")
-CONDITION_TYPES = ("is_group", "is_dm", "has_label", "number", "first_time_contact", "keyword")
+CONDITION_TYPES = (
+    "is_group", "is_dm", "has_label", "number", "first_time_contact", "keyword", "in_segment"
+)
 ACTION_TYPES = (
     "assign_agent",
     "assign_team",
@@ -19,6 +21,7 @@ ACTION_TYPES = (
     "send_webhook",
     "notify_slack",
     "auto_reply",
+    "set_sla",
 )
 
 

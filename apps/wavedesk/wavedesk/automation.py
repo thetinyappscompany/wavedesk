@@ -109,6 +109,15 @@ def _check(workspace: str, chat: str, cond: dict, context: dict) -> bool:
     if ctype == "keyword":
         body = (context.get("body") or "").lower()
         return bool(value) and value.lower() in body
+    if ctype == "in_segment":
+        if not value or not chat_row.contact:
+            return False
+        from wavedesk import segments
+
+        seg = frappe.db.get_value("WD Segment", value, "workspace")
+        if seg != workspace:
+            return False
+        return chat_row.contact in set(segments.matching_contacts(frappe.get_doc("WD Segment", value)))
     return False
 
 
@@ -172,6 +181,14 @@ def _run_one(workspace: str, chat: str, action: dict, context: dict) -> str:
             }
         ).insert(ignore_permissions=True)
         return f"ticket {doc.name}"
+    if atype == "set_sla":
+        from wavedesk import sla
+
+        policy = action.get("policy")
+        if not policy:
+            return "no policy"
+        sla.apply_policy(chat_doc, policy)
+        return f"sla {policy}"
     if atype == "auto_reply":
         return _auto_reply(chat_doc, action.get("body") or "")
     if atype in ("send_webhook", "notify_slack"):
