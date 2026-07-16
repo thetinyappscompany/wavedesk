@@ -110,6 +110,23 @@ def run_rag():
             pass
 
 
+def run_zoho():
+    """Live Zoho Billing round-trip through billing/zoho_client.py: refresh-token
+    -> access-token mint -> real API call with the org header. Read-only."""
+    import requests
+
+    from wavedesk.billing import zoho_client
+
+    assert zoho_client.is_configured(), "Zoho env incomplete (id/secret/refresh/org)"
+    headers = zoho_client._headers()
+    assert headers, "access-token mint failed"
+    resp = requests.get(f"{zoho_client._api_base()}/plans", headers=headers, timeout=30)
+    resp.raise_for_status()
+    plans = (resp.json() or {}).get("plans", [])
+    print(f"ZOHO-PROBE-PASS :: token minted + /plans returned {len(plans)} plan(s) "
+          f"for org (API + org header accepted)")
+
+
 def run_anthropic():
     """Minimal Anthropic key sanity ping (1-token Haiku call, ~zero cost).
     Bypasses the metered provider on purpose — this validates the KEY, not billing."""
