@@ -10,12 +10,24 @@ import { client } from '@/lib/client';
 vi.mock('@/lib/client', () => ({
   client: {
     adminWhoami: vi.fn(),
+    adminPlatformStats: vi.fn(),
     adminListWorkspaces: vi.fn(),
     adminSuspendWorkspace: vi.fn(),
     adminUnsuspendWorkspace: vi.fn(),
     adminSetSendRateClamp: vi.fn(),
   },
 }));
+
+const STATS = {
+  totals: { workspaces: 7, users: 12, messages: 3400, contacts: 890, numbers: 5 },
+  operational: { suspended: 1 },
+  by_subscription_status: { active: 3, trialing: 2, past_due: 1, suspended: 0, cancelled: 1, none: 0 },
+  trial_vs_paid: { trial: 2, paid: 3, past_due: 1 },
+  by_plan: [
+    { plan: 'Pro', count: 4 },
+    { plan: 'Trial', count: 3 },
+  ],
+};
 
 const WS = {
   name: 'WS-00001',
@@ -48,6 +60,7 @@ describe('AdminPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(client.adminListWorkspaces).mockResolvedValue([WS]);
+    vi.mocked(client.adminPlatformStats).mockResolvedValue(STATS);
   });
 
   it('redirects non-admins to the inbox', async () => {
@@ -62,6 +75,18 @@ describe('AdminPage', () => {
     renderPage();
     expect(await screen.findByText('Acme')).toBeInTheDocument();
     expect(screen.getByText('WS-00001')).toBeInTheDocument();
+  });
+
+  it('shows the platform-stats overview', async () => {
+    vi.mocked(client.adminWhoami).mockResolvedValue(true);
+    renderPage();
+    // totals
+    expect(await screen.findByText('Workspaces')).toBeInTheDocument();
+    expect(screen.getByText('3,400')).toBeInTheDocument(); // messages, locale-formatted
+    expect(screen.getByText('Users')).toBeInTheDocument();
+    // breakdown line
+    expect(screen.getByText('paid')).toBeInTheDocument();
+    expect(screen.getByText(/Pro:/)).toBeInTheDocument();
   });
 
   it('suspends a workspace', async () => {

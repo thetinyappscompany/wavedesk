@@ -294,6 +294,21 @@ export interface WdAdminWorkspace {
   creation: string;
 }
 
+/** Platform-wide roll-up for the SaaS-provider overview (P5). */
+export interface WdPlatformStats {
+  totals: {
+    workspaces: number;
+    users: number;
+    messages: number;
+    contacts: number;
+    numbers: number;
+  };
+  operational: { suspended: number };
+  by_subscription_status: Record<string, number>;
+  trial_vs_paid: { trial: number; paid: number; past_due: number };
+  by_plan: Array<{ plan: string; count: number }>;
+}
+
 export interface WdAdminWorkspaceDetail {
   name: string;
   workspace_name: string;
@@ -1764,6 +1779,10 @@ export class WaveDeskClient {
     return this.call<{ is_platform_admin: boolean }>('wavedesk.api.admin.whoami').then(
       (r) => r.is_platform_admin,
     );
+  }
+
+  adminPlatformStats(): Promise<WdPlatformStats> {
+    return this.call<WdPlatformStats>('wavedesk.api.admin.platform_stats');
   }
 
   adminListWorkspaces(search?: string): Promise<WdAdminWorkspace[]> {

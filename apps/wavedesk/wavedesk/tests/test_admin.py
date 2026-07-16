@@ -56,6 +56,34 @@ class TestSuperadmin(IntegrationTestCase):
         self.assertEqual(row["subscription_status"], "trialing")
         self.assertFalse(row["suspended"])
 
+    def test_platform_stats_requires_platform_admin(self):
+        with patch("frappe.get_roles", return_value=["WD Owner"]):
+            with self.assertRaises(frappe.PermissionError):
+                superadmin.platform_stats()
+
+    def test_platform_stats_rolls_up_totals_and_breakdowns(self):
+        ws = _workspace()
+        _outbound(ws)
+        stats = superadmin.platform_stats()
+
+        # totals are platform-wide, so >= this workspace's contribution
+        self.assertGreaterEqual(stats["totals"]["workspaces"], 1)
+        self.assertGreaterEqual(stats["totals"]["users"], 1)
+        self.assertGreaterEqual(stats["totals"]["messages"], 1)
+        # trial provisioning gives a 'trialing' subscription → counted as trial
+        self.assertGreaterEqual(stats["trial_vs_paid"]["trial"], 1)
+        self.assertIn("active", stats["by_subscription_status"])
+        # plan breakdown includes the Trial plan we created under
+        plans = {p["plan"] for p in stats["by_plan"]}
+        self.assertIn("Trial", plans)
+
+    def test_platform_stats_counts_operator_suspended(self):
+        ws = _workspace()
+        before = superadmin.platform_stats()["operational"]["suspended"]
+        superadmin.suspend_workspace(ws, "abuse")
+        after = superadmin.platform_stats()["operational"]["suspended"]
+        self.assertEqual(after, before + 1)
+
     def test_suspend_and_unsuspend_with_audit(self):
         ws = _workspace()
         superadmin.suspend_workspace(ws, "spam reports")

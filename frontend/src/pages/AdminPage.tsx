@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router';
-import type { WdAdminWorkspace } from '@wavedesk/api-client';
+import type { WdAdminWorkspace, WdPlatformStats } from '@wavedesk/api-client';
 
 import { client } from '@/lib/client';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,51 @@ import { Input } from '@/components/ui/input';
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : 'Request failed';
+}
+
+function StatCard({ label, value }: { label: string; value: number }): React.JSX.Element {
+  return (
+    <div className="rounded-lg border bg-card px-3 py-2" data-testid="admin-stat">
+      <div className="text-lg font-semibold tabular-nums">{value.toLocaleString()}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+/** SaaS-provider overview strip: platform totals + status/plan breakdowns. */
+function PlatformOverview({ stats }: { stats: WdPlatformStats }): React.JSX.Element {
+  const { totals, trial_vs_paid, operational, by_plan } = stats;
+  return (
+    <div className="mb-5" data-testid="admin-overview">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        <StatCard label="Workspaces" value={totals.workspaces} />
+        <StatCard label="Users" value={totals.users} />
+        <StatCard label="Messages" value={totals.messages} />
+        <StatCard label="Contacts" value={totals.contacts} />
+        <StatCard label="Numbers" value={totals.numbers} />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <span>
+          <span className="font-medium text-emerald-600">{trial_vs_paid.paid}</span> paid
+        </span>
+        <span>
+          <span className="font-medium text-foreground">{trial_vs_paid.trial}</span> trial
+        </span>
+        <span>
+          <span className="font-medium text-amber-600">{trial_vs_paid.past_due}</span> past due
+        </span>
+        <span>
+          <span className="font-medium text-destructive">{operational.suspended}</span> suspended
+        </span>
+        <span className="text-border">|</span>
+        {by_plan.map((p) => (
+          <span key={p.plan}>
+            {p.plan}: <span className="font-medium text-foreground">{p.count}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function WorkspaceRow({ ws, onChange }: { ws: WdAdminWorkspace; onChange: () => void }): React.JSX.Element {
@@ -73,6 +118,11 @@ export default function AdminPage(): React.JSX.Element {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const admin = useQuery({ queryKey: ['admin-whoami'], queryFn: () => client.adminWhoami() });
+  const stats = useQuery({
+    queryKey: ['admin-platform-stats'],
+    queryFn: () => client.adminPlatformStats(),
+    enabled: admin.data === true,
+  });
   const workspaces = useQuery({
     queryKey: ['admin-workspaces', search],
     queryFn: () => client.adminListWorkspaces(search || undefined),
@@ -97,6 +147,8 @@ export default function AdminPage(): React.JSX.Element {
         Every workspace on the platform. Suspend abusers (read-only + no sends) or clamp a
         workspace's daily outbound volume. Actions are audited.
       </p>
+
+      {stats.data && <PlatformOverview stats={stats.data} />}
 
       <Input
         aria-label="Search workspaces"
