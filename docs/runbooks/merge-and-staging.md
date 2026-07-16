@@ -85,11 +85,29 @@ staging lets each be verified for real.
 - [ ] `WHISPER_URL` (defaults to `http://whisper:9010` in compose).
 
 ### Live verifications to run once staging is up
-- [ ] **Media pipeline (P4.5):** inbound image/voice → gateway downloads → MinIO
-      → `api/media.media_url` presigns → bubble renders; voice note → whisper
-      transcript stored → re-run through flagging/auto-ticket.
-- [ ] **RAG (P4.3):** Qdrant/NVIDIA round-trip — ingest a KB doc, ask a question,
-      confirm answer-or-handoff.
+
+> **2026-07-16 — partially verified locally** (docker-ce inside WSL; MinIO +
+> Qdrant + whisper up from compose.dev.yml). Re-run on staging via
+> `bench --site <site> execute wavedesk._live_probe.run` (+ `run_qdrant`,
+> `run_wallet`) with `S3_*`/`WHISPER_URL`/`QDRANT_URL` in env.
+
+- [x] **Media store round-trip:** put → presign → GET → `download_bytes`
+      through `pipeline/media_store.py` against real MinIO. *(Local pass
+      2026-07-16.)* Still pending on staging: inbound media via a real
+      gateway-downloaded message.
+- [x] **Whisper transcription:** real speech WAV → S3 → `transcription.
+      transcribe_bytes` → correct transcript from the faster-whisper container.
+      *(Local pass 2026-07-16; the build surfaced + fixed a missing `requests`
+      dep in services/whisper/requirements.txt.)*
+- [x] **Qdrant vector layer:** `rag.ensure_collection` + upsert + cosine search
+      + `delete_doc` live against Qdrant. *(Local pass 2026-07-16.)* NVIDIA
+      embedding call still key-gated — put `NVIDIA_API_KEY` in env, then run a
+      full `index_doc`/`search` with real text.
+- [x] **Wallet double-charge:** retried credit+charge with the same idempotency
+      key wrote exactly one ledger row each (real DB, rolled back). *(Local
+      pass 2026-07-16.)*
+- [ ] **RAG end-to-end (P4.3):** NVIDIA embeddings + answer-or-handoff — needs
+      `NVIDIA_API_KEY` + `ANTHROPIC_API_KEY` in env.
 - [ ] **Zoho billing (P5):** register the webhook at the public URL; run
       signup → checkout → `subscription_activation` webhook → entitlement flips;
       `payment_success` top-up → idempotent wallet credit; nightly

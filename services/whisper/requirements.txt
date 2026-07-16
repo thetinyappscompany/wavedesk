@@ -1,3 +1,6 @@
 faster-whisper==1.0.3
 fastapi==0.115.6
 uvicorn==0.34.0
+# faster-whisper 1.x imports requests at module load but no longer gets it
+# transitively — without this pin the container dies on ModuleNotFoundError.
+requests==2.32.3
