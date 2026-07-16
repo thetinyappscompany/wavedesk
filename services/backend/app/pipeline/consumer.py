@@ -218,7 +218,23 @@ def apply_event(db, event: dict) -> None:
         if chat_created:
             _run_hook(db, "automation_created", automation.run_trigger,
                       db, workspace.id, "chat_created", chat, {"body": body})
-        # ── hook point: AI + outbound-webhook side-channels attach in R5/R6.
+        # AI flagging (P4.4): custom flag rules on every inbound (dm + group)
+        from app import gating
+
+        if gating.has_feature(db, workspace.id, "ai_addon"):
+            from app.ai import flagging
+
+            _run_hook(db, "ai_flagging", flagging.evaluate,
+                      db, workspace.id, chat, str(message.id), body)
+            if chat_type == "dm":
+                # AI auto-agent (P4.3) + auto-ticket (P4.6)
+                from app.ai import agent as ai_agent
+
+                _run_hook(db, "ai_agent", ai_agent.handle_inbound,
+                          db, workspace.id, chat, body, str(message.id))
+                _run_hook(db, "autoticket", flagging.auto_ticket,
+                          db, workspace.id, chat, str(message.id), body)
+        # ── hook point: outbound-webhook emit attaches in R6.
     else:
         chat.pending_query_since = None  # a reply from the phone answers it
 

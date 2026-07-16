@@ -80,9 +80,26 @@ resolvers has_tag/attribute/opted_out/has_email/name_contains/phone_prefix);
 templates (name+sequential-var validation, positional render, local-vs-live
 submit). API: app/api/phase3.py registers ALL dotted names (automation/
 routing/sla/broadcasts/schedules/antiban/segments/templates). 63 tests green
-vs real PG+Redis, ruff clean. Next: R5 (wallet ledger + plan gating + AI
-layer: provider/metering/crypto/copilot/rag/agent/flagging/transcription/
-autoticket + media). CapRover kit PR #32 + hardening PR #31 + probe PR #30
+vs real PG+Redis, ruff clean. R5 DONE on rewrite/r5-ai (stacked on R4): models Subscription/
+WalletTransaction(append-only)/UsageRecord/KnowledgeDoc/AiAgentConfig/
+AiFlagRule/PricingConfig. app/wallet.py (append-only, unique idempotency key,
+derived balance, savepoint race-catch, InsufficientBalance), app/gating.py
+(ensure_subscription trial auto-provision wired into create_workspace,
+has_feature webhook-only). AI: crypto (AES-GCM, fail-closed w/o WD_AI_SECRET
+outside test/dev), metering ($5 allowance→wallet at cost×markup×FX,
+idempotent), provider (gate→kill→BYOK/pooled→2-tier→preflight→meter),
+rag (Qdrant+NVIDIA httpx), agent (retrieve→handoff-below-threshold-no-token
+→Sonnet from-context-only), flagging+auto_ticket (deterministic keys), copilot
+(fresh keys per click), media_store (boto3 presign, graceful). api/ai.py:
+ai_settings/usage_meter(LEAK-GUARDED %+₹ only)/set-revoke_byok/kill_switch/
+copilot ×4/agent config+knowledge/flag rules/media_url. Consumer wires
+ai_flagging+ai_agent+autoticket behind has_feature gate. 12 tests (75 total)
+vs real PG+Redis (provider mocked): wallet idempotency, insufficient,
+trial-provision+gate, provider gate/meter/kill, metering retry idempotent,
+crypto fail-closed, usage_meter leak guard, copilot gated, flagging via
+consumer, agent handoff no-token. anthropic/cryptography/boto3 added to deps.
+Next: R6 (billing Zoho webhook+reconcile, public API v1, outbound webhooks,
+admin panel, DPDP, 2FA, verticals, IP allowlist). CapRover kit PR #32 + hardening PR #31 + probe PR #30
 still open for the Frappe product (merge them — it remains the hostable
 product until parity).
 Previous epic: POSTGRES MIGRATION — DONE, PR #28 (feat/postgres-migration → main,

@@ -22,6 +22,9 @@ def create_workspace(ctx: Ctx) -> dict:
     ctx.db.add(
         WorkspaceMember(workspace_id=ws.id, user_id=uuid.UUID(ctx.user_id), role="Owner")
     )
+    from app.gating import ensure_subscription
+
+    ensure_subscription(ctx.db, ws.id)  # trial auto-provision
     sessions.update(ctx.sid, active_workspace=str(ws.id))
     return {"workspace": str(ws.id), "workspace_name": ws.name, "role": "Owner"}
 
