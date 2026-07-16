@@ -98,8 +98,24 @@ vs real PG+Redis (provider mocked): wallet idempotency, insufficient,
 trial-provision+gate, provider gate/meter/kill, metering retry idempotent,
 crypto fail-closed, usage_meter leak guard, copilot gated, flagging via
 consumer, agent handoff no-token. anthropic/cryptography/boto3 added to deps.
-Next: R6 (billing Zoho webhook+reconcile, public API v1, outbound webhooks,
-admin panel, DPDP, 2FA, verticals, IP allowlist). CapRover kit PR #32 + hardening PR #31 + probe PR #30
+R6 DONE on rewrite/r6-platform (stacked on R5): models ApiKey/
+WebhookEndpoint/WebhookDelivery/DataExport/UserTwoFactor/InvoiceRef.
+billing.py (Zoho→entitlement state machine, out-of-order watermark, topup
+idempotent by invoice), auth_twofa.py (RFC-6238 TOTP + recovery codes,
+flag_modified JSONB tracking), publicapi.py (wdk_<prefix>_<secret>,
+constant-time verify, scope + Redis rate-limit; parse split maxsplit=2 so
+secrets containing _ work), webhooks.py (emit→delivery→HMAC-SHA256 POST,
+safe_emit never raises into pipeline, wired message.received in consumer),
+access.py (IP allowlist, proxy-aware client_ip, enforced on v1 calls),
+compliance.py (export/erase/retention), admin.py (platform stats +
+assert_can_send suspended-guard wired into sender), verticals.py (idempotent
+starter packs, applied at signup). api/platform.py = ALL Phase-5 dotted names
+(publicapi/v1/webhooks/admin/privacy/security/verticals/access/billing
+webhook). compat dispatcher now maps PermissionError→403. 15 tests (87 total)
+vs real PG+Redis. ⭐ FEATURE PARITY COMPLETE: Phases 0–5 all rebuilt on
+FastAPI+Postgres, 87 tests green, ruff clean, zero Frappe. Next: R7
+(contract-parity audit — point the real SPA + api-client + e2e suites at the
+new backend, fix drift) then R8 (data cutover). CapRover kit PR #32 + hardening PR #31 + probe PR #30
 still open for the Frappe product (merge them — it remains the hostable
 product until parity).
 Previous epic: POSTGRES MIGRATION — DONE, PR #28 (feat/postgres-migration → main,
