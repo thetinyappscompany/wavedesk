@@ -5,10 +5,11 @@ with clean snake_case columns. Every table carries workspace_id
 (non-negotiable #1)."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -38,6 +39,11 @@ class WhatsAppNumber(UUIDPrimaryKey, Timestamps, Base):
     phone: Mapped[str | None] = mapped_column(String(20))
     phone_number_id: Mapped[str | None] = mapped_column(String(64))  # cloud api
     waba_id: Mapped[str | None] = mapped_column(String(64))
+    # anti-ban warm-up (R4)
+    warmup_started_on: Mapped[date | None] = mapped_column(Date)
+    daily_send_limit: Mapped[int | None] = mapped_column(Integer)  # warm-up target
+    health_score: Mapped[int | None] = mapped_column(Integer)
+    risk_level: Mapped[str | None] = mapped_column(String(10))
 
 
 class Contact(UUIDPrimaryKey, Timestamps, Base):
@@ -52,6 +58,7 @@ class Contact(UUIDPrimaryKey, Timestamps, Base):
     email: Mapped[str | None] = mapped_column(String(255))
     opt_out: Mapped[bool] = mapped_column(Boolean, default=False)
     erased: Mapped[bool] = mapped_column(Boolean, default=False)
+    tags: Mapped[str | None] = mapped_column(String(500))  # comma-separated (segments)
     custom_attributes: Mapped[dict] = mapped_column(JSONB, default=dict)
 
 
@@ -86,6 +93,14 @@ class Chat(UUIDPrimaryKey, Timestamps, Base):
     snoozed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     pending_query_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # SLA (R4)
+    sla_policy_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sla_policies.id", ondelete="SET NULL")
+    )
+    first_response_due: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolution_due: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_response_breached: Mapped[bool] = mapped_column(Boolean, default=False)
+    resolution_breached: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Message(UUIDPrimaryKey, Timestamps, Base):

@@ -62,9 +62,27 @@ feed + unseen + mark seen); tickets API (auto-title from source message,
 filters, lifecycle); analytics API (dashboard live tiles + Python-bucketed
 trend + first-response/resolution avg&p90 + per-agent/number, CSV export via
 Response passthrough in compat dispatcher, group_analytics contributors +
-workspace rollup). 48 tests green vs real PG+Redis, ruff clean. Next: R4
-(automation rules engine, routing/presence, SLA, broadcasts, schedules,
-antiban, segments, templates). CapRover kit PR #32 + hardening PR #31 + probe PR #30
+workspace rollup). 48 tests green vs real PG+Redis, ruff clean. R4 DONE on rewrite/r4-automation (stacked on R3): models AutomationRule/Log,
+SlaPolicy, Broadcast/Recipient, ScheduledMessage, Segment, MessageTemplate +
+Chat SLA fields + Contact.tags + number warm-up fields. Engines: automation
+(contextvar re-entrancy guard, conditions AND, best-effort actions incl.
+auto_reply via sender; wired message_received/chat_created in consumer via
+_run_hook try/except + status_change in inbox.set_status); routing (Redis
+heartbeat/availability, round_robin cursor + load_based, capacity,
+auto_route in inbox.assign_chat team path, route_new_chat default team, OOO
+Redis-dedup); sla (due stamps, minutely check_breaches vs existing stamps,
+Alert kind sla_breach, idempotent); broadcasts (audience csv/group/all/
+segment w/ cross-ws guard, dedupe+optout, {{var}} render, driver w/ per-day
+cap + antiban gate + failure auto-pause + reconcile, STOP in consumer);
+schedules (once/recurring compute_next_run, run_due_schedules); antiban
+(warmup ramp day1=20→day30, can_dispatch, health score); segments (live
+resolvers has_tag/attribute/opted_out/has_email/name_contains/phone_prefix);
+templates (name+sequential-var validation, positional render, local-vs-live
+submit). API: app/api/phase3.py registers ALL dotted names (automation/
+routing/sla/broadcasts/schedules/antiban/segments/templates). 63 tests green
+vs real PG+Redis, ruff clean. Next: R5 (wallet ledger + plan gating + AI
+layer: provider/metering/crypto/copilot/rag/agent/flagging/transcription/
+autoticket + media). CapRover kit PR #32 + hardening PR #31 + probe PR #30
 still open for the Frappe product (merge them — it remains the hostable
 product until parity).
 Previous epic: POSTGRES MIGRATION — DONE, PR #28 (feat/postgres-migration → main,

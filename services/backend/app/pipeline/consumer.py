@@ -188,6 +188,7 @@ def apply_event(db, event: dict) -> None:
 
     if direction == "in":
         chat.unread_count = (chat.unread_count or 0) + 1
+        chat_created = getattr(chat, "_wd_created", False)
         _auto_reopen(db, chat)
         if chat_type == "group":
             # Needs Reply queue (P2.2): question-looking messages start the clock
@@ -196,11 +197,41 @@ def apply_event(db, event: dict) -> None:
             inbox.flag_pending_query(chat, body)
             # Monitoring rules (P2.4): keyword/link/phone alerts
             monitoring.evaluate_message(db, chat, message, body)
-        # ── hook point: later-phase inbound side-channels (automation, AI,
-        #    webhooks) attach here in R4–R6, each isolated so a failing hook
-        #    can never lose the persisted message.
+        # Broadcast opt-out (P3.4): STOP reply suppresses future broadcasts
+        if chat_type == "dm" and contact is not None:
+            from app import broadcasts
+
+            _run_hook(db, "opt_out", broadcasts.process_opt_out,
+                      db, workspace.id, contact.id, body)
+        # Default-team routing (P3.2): brand-new DMs land on the default team
+        if chat_created and chat_type == "dm":
+            from app import routing
+
+            _run_hook(db, "route_new_chat", routing.route_new_chat, db, chat)
+            _run_hook(db, "ooo_reply", routing.maybe_ooo_reply, db, workspace, chat)
+        # Automation (P3.1): message_received (+ chat_created) triggers
+        from app import automation
+
+        _run_hook(db, "automation", automation.run_trigger,
+                  db, workspace.id, "message_received", chat,
+                  {"body": body, "message": str(message.id)})
+        if chat_created:
+            _run_hook(db, "automation_created", automation.run_trigger,
+                      db, workspace.id, "chat_created", chat, {"body": body})
+        # ── hook point: AI + outbound-webhook side-channels attach in R5/R6.
     else:
         chat.pending_query_since = None  # a reply from the phone answers it
+
+
+def _run_hook(db, label: str, fn, *args, **kwargs) -> None:
+    """Best-effort inbound side-channel — a failing hook must never park the
+    event on the poison stream or lose the persisted message (principle #1).
+    Hooks are individually small/atomic; sends inside hooks go through the
+    queued sender which manages its own commit."""
+    try:
+        fn(*args, **kwargs)
+    except Exception:  # noqa: BLE001 — isolated by design
+        log.warning("inbound hook failed: %s", label)
 
 
 def _member_change_alerts(db, event: dict) -> None:
@@ -406,6 +437,7 @@ def _upsert_chat(
                 chat.group_id = group.id
         db.add(chat)
         db.flush()
+        chat._wd_created = True  # noqa: SLF001 — chat_created trigger marker
         return chat
     # back-link the receiving number so replies can pick the session
     if number is not None and chat.number_id is None:
