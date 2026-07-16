@@ -79,6 +79,55 @@ def run_qdrant():
     )
 
 
+def run_rag():
+    """Full RAG round-trip: real NVIDIA embeddings -> Qdrant -> semantic search.
+    Needs NVIDIA_API_KEY (+ QDRANT_URL) in env. Cleans up after itself."""
+    from wavedesk.ai import rag
+
+    ws = "LIVE-PROBE-WS"
+    coll = rag.collection_name(ws)
+    try:
+        n = rag.index_doc(
+            ws, "probe-refunds",
+            "Refund policy: customers can request a full refund within 14 days "
+            "of purchase. After 14 days we offer store credit only.",
+        )
+        assert n >= 1, "index_doc stored no chunks"
+        rag.index_doc(
+            ws, "probe-shipping",
+            "Shipping: orders dispatch within 24 hours and arrive in 3-5 "
+            "business days across India.",
+        )
+        hits = rag.search(ws, "how long do I have to get my money back?", top_k=1)
+        assert hits, "search returned nothing"
+        assert hits[0]["doc"] == "probe-refunds", f"semantic miss: {hits[0]}"
+        print(f"RAG-PROBE-PASS :: embed+index {n} chunk(s); semantic search hit "
+              f"probe-refunds at score {hits[0]['score']:.3f}")
+    finally:
+        try:
+            rag._qdrant("DELETE", f"/collections/{coll}")
+        except Exception:
+            pass
+
+
+def run_anthropic():
+    """Minimal Anthropic key sanity ping (1-token Haiku call, ~zero cost).
+    Bypasses the metered provider on purpose — this validates the KEY, not billing."""
+    import os
+
+    import anthropic
+
+    assert os.environ.get("ANTHROPIC_API_KEY"), "ANTHROPIC_API_KEY unset"
+    client = anthropic.Anthropic()
+    resp = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1,
+        messages=[{"role": "user", "content": "ping"}],
+    )
+    assert resp.id, "no response id"
+    print("ANTHROPIC-PROBE-PASS :: key valid, 1-token Haiku round-trip ok")
+
+
 def run_wallet():
     """Runbook check: a retried charge (same idempotency key) never double-debits.
     Runs on the real DB inside a rolled-back transaction — no residue."""
