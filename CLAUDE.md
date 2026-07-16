@@ -11,7 +11,28 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 5 (Phase 4 CODE-COMPLETE). 22 PRs (#1–#22) stacked, unmerged.
-Current epic: P5 IP ALLOWLIST (Business-plan access control) done, PR #22 stacked
+Current epic: GO-LIVE PUSH (2026-07-16, founder wants EOD). ⚠ KEY DISCOVERY:
+all 22 stacked PRs show MERGED but they merged into INTERMEDIATE branches —
+origin/main is STILL at P3.2 (4a2e854). Fix = consolidation PR #23
+(feat/p5-ip-allowlist → main, zero conflicts, CI GREEN) — OPEN, awaiting the
+founder's merge click (agent-merge-to-main blocked by review policy; runbook
+docs/runbooks/merge-and-staging.md §2, then close nothing — #16-22 already
+show merged). LIVE VERIFICATION DONE LOCALLY (docker-ce installed INSIDE WSL —
+Docker Desktop still dies headless; compose minio/qdrant/whisper up): media
+round-trip (put→presign→GET→download_bytes vs real MinIO), whisper (real TTS
+speech WAV→S3→transcribe_bytes→correct transcript; build caught+fixed missing
+`requests` dep in services/whisper/requirements.txt), Qdrant vector layer via
+rag.py (ensure/upsert/search/delete_doc), wallet double-charge idempotency
+(real DB, rolled back). Probes = wavedesk/_live_probe.py (bench execute
+wavedesk._live_probe.run / run_qdrant / run_wallet) — reuse on staging.
+boto3 now bench-pip-installed. LESSON: bench console via stdin CONTINUES past
+errors — a trailing success print LIES; always use `bench execute` for probes.
+STILL FOUNDER-ONLY for go-live: merge PR #23; put NVIDIA_API_KEY +
+ANTHROPIC_API_KEY (+ WAVEDESK_AI_SECRET) in bench/staging env (keys are NOT in
+any env file — classifier rightly blocked me recovering them from the
+transcript); staging VM + public HTTPS URL; Zoho self-client refresh token +
+webhook registration; Meta Business Verification; rotate the pasted keys.
+Previous epic: P5 IP ALLOWLIST (Business-plan access control) done, PR #22 stacked
 on feat/p5-vertical-templates (#21). Master doc §Phase 5 feature 6 last buildable
 security control. wavedesk/access.py: normalize (validate+canonicalize IP/CIDR,
 dedupe), is_ip_allowed (ipaddress CIDR match; empty=allow-all), get/set on WD
