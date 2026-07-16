@@ -40,6 +40,12 @@ class SendError(Exception):
 def queue_send(db, chat: Chat, body: str, agent_user_id: str | None) -> dict:
     """Create the queued Message row + enqueue delivery. Caller has already
     permission-checked the chat (api layer)."""
+    from app import admin
+
+    try:
+        admin.assert_can_send(db, chat.workspace_id)  # suspended-workspace guard
+    except admin.Suspended as err:
+        raise SendError(str(err)) from err
     if not chat.number_id:
         raise SendError(
             "This chat has no sending number linked yet — reconnect the number "

@@ -234,7 +234,13 @@ def apply_event(db, event: dict) -> None:
                           db, workspace.id, chat, body, str(message.id))
                 _run_hook(db, "autoticket", flagging.auto_ticket,
                           db, workspace.id, chat, str(message.id), body)
-        # ── hook point: outbound-webhook emit attaches in R6.
+        # Outbound webhook (P5): message.received
+        from app import webhooks
+
+        _run_hook(db, "webhook_emit", webhooks.safe_emit,
+                  db, workspace.id, "message.received",
+                  {"chat": str(chat.id), "message": str(message.id),
+                   "message_type": message_type})
     else:
         chat.pending_query_since = None  # a reply from the phone answers it
 

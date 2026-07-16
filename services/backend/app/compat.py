@@ -106,6 +106,9 @@ async def dispatch(dotted: str, request: Request) -> Response:
         if inspect.isawaitable(result):
             result = await result
         db.commit()
+    except PermissionError as err:
+        db.rollback()
+        raise HTTPException(403, str(err)) from err
     except Exception:
         db.rollback()
         raise

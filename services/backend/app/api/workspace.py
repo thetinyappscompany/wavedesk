@@ -25,6 +25,11 @@ def create_workspace(ctx: Ctx) -> dict:
     from app.gating import ensure_subscription
 
     ensure_subscription(ctx.db, ws.id)  # trial auto-provision
+    vertical = ctx.params.get("vertical")
+    if vertical:
+        from app import verticals
+
+        verticals.apply(ctx.db, ws.id, vertical)  # unknown vertical never blocks
     sessions.update(ctx.sid, active_workspace=str(ws.id))
     return {"workspace": str(ws.id), "workspace_name": ws.name, "role": "Owner"}
 
