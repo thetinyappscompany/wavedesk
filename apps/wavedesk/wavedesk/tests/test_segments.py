@@ -1,6 +1,7 @@
 """P3.7 acceptance: segments — per-condition contact matching, all/any, and
 the broadcast-audience + automation-condition integrations. Workspace-scoped."""
 
+import json
 import uuid
 
 import frappe
@@ -38,6 +39,10 @@ def _workspace(members: list[tuple[str, str]]) -> str:
 
 
 def _contact(ws: str, phone: str, **extra) -> str:
+    # custom_attributes is stored as a JSON string (Long Text field) — the old
+    # JSON fieldtype auto-serialized dicts; now the caller does, like the API.
+    if isinstance(extra.get("custom_attributes"), dict):
+        extra["custom_attributes"] = json.dumps(extra["custom_attributes"])
     doc = frappe.new_doc("WD Contact")
     doc.update({"workspace": ws, "phone": phone, **extra})
     doc.insert(ignore_permissions=True)
