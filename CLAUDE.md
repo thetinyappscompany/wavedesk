@@ -11,7 +11,12 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 5 (Phase 4 CODE-COMPLETE). 22 PRs (#1–#22) stacked, unmerged.
-Current epic: GO-LIVE PUSH (2026-07-16, founder wants EOD). ⚠ KEY DISCOVERY:
+Current epic: GO-LIVE PUSH (2026-07-16, founder wants EOD). ✅ MERGED: PR #23
+landed — origin/main = 3623731 = FULL PRODUCT (P0→P5). Founder said "use same
+key" (no rotation); classifier still blocks transcript key-recovery, founder
+creating ~/.wavedesk.env in WSL (export NVIDIA_API_KEY/ANTHROPIC_API_KEY,
+chmod 600) → then `source ~/.wavedesk.env` + bench execute
+wavedesk._live_probe.run_rag / run_anthropic. ⚠ Earlier discovery:
 all 22 stacked PRs show MERGED but they merged into INTERMEDIATE branches —
 origin/main is STILL at P3.2 (4a2e854). Fix = consolidation PR #23
 (feat/p5-ip-allowlist → main, zero conflicts, CI GREEN) — OPEN, awaiting the
