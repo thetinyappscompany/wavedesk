@@ -1,0 +1,49 @@
+# WaveDesk SPA + same-origin reverse proxy to the Frappe tier.
+# Rendered by the official nginx image's envsubst on start; only
+# ${BACKEND_ORIGIN} is substituted (nginx runtime vars keep their $name form).
+map $http_upgrade $wd_connection_upgrade {
+  default upgrade;
+  ''      close;
+}
+
+server {
+  listen 80;
+  server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # Resolve the backend at request time (Docker's embedded DNS) so nginx
+  # starts even before the backend app exists.
+  resolver 127.0.0.11 valid=10s ipv6=off;
+  set $wd_backend "${BACKEND_ORIGIN}";
+
+  # SPA fallback
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+
+  location /health {
+    access_log off;
+    return 200 'ok';
+    add_header Content-Type text/plain;
+  }
+
+  # Everything Frappe-shaped goes to the Frappe http tier (which serves
+  # assets/files and proxies web + socket.io itself).
+  location ~ ^/(api|app|assets|files|private|socket\.io)(/|$) {
+    proxy_pass $wd_backend;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Frappe-Site-Name $host;
+    proxy_set_header X-Real-IP $http_x_real_ip;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $wd_connection_upgrade;
+    proxy_read_timeout 120s;
+    client_max_body_size 50m;
+  }
+
+  gzip on;
+  gzip_types text/css application/javascript application/json image/svg+xml;
+}

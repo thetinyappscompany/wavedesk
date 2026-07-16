@@ -11,6 +11,9 @@ COPY frontend ./
 RUN npm run build
 
 FROM nginx:1.27-alpine
-COPY frontend/deploy/nginx.conf /etc/nginx/conf.d/default.conf
+# Template rendered by the nginx image's envsubst at start — BACKEND_ORIGIN
+# points at the Frappe http tier (CapRover internal hostname by default).
+COPY frontend/deploy/default.conf.template /etc/nginx/templates/default.conf.template
+ENV BACKEND_ORIGIN=http://srv-captain--wavedesk-http:8080
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
 EXPOSE 80
