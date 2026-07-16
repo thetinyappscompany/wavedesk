@@ -18,6 +18,7 @@ from typing import Literal
 
 import frappe
 from frappe import _
+from frappe.query_builder.functions import Sum
 from frappe.utils import flt
 
 CREDIT_TYPES = ("topup", "refund", "adjustment")
@@ -41,11 +42,11 @@ def get_or_create_wallet(workspace: str) -> str:
 
 def derived_balance(wallet: str) -> float:
     """THE balance: SUM of signed ledger amounts. Everything else is cache."""
-    total = frappe.db.sql(
-        "select coalesce(sum(amount), 0) from `tabWD Wallet Transaction` where wallet = %s",
-        (wallet,),
-    )[0][0]
-    return flt(total, 2)
+    txn = frappe.qb.DocType("WD Wallet Transaction")
+    total = (
+        frappe.qb.from_(txn).select(Sum(txn.amount)).where(txn.wallet == wallet)
+    ).run()[0][0]
+    return flt(total or 0, 2)
 
 
 def get_balance(workspace: str) -> float:
@@ -119,10 +120,15 @@ def _append(
             "idempotency_key": idempotency_key,
         }
     )
+    # Savepoint so a lost duplicate-key race doesn't abort the surrounding
+    # transaction (Postgres poisons the whole txn on a failed INSERT; MariaDB
+    # doesn't, but the savepoint is harmless there).
+    frappe.db.savepoint("wd_ledger_append")
     try:
         txn.insert(ignore_permissions=True)
     except (frappe.UniqueValidationError, frappe.DuplicateEntryError):
         # Lost a race on the same key between the fast path and insert — idempotent.
+        frappe.db.rollback(save_point="wd_ledger_append")
         return frappe.db.get_value("WD Wallet Transaction", {"idempotency_key": idempotency_key})
 
     frappe.db.set_value(

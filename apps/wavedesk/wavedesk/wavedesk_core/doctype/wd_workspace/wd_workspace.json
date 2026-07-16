@@ -37,12 +37,12 @@
   },
   {
    "fieldname": "settings",
-   "fieldtype": "JSON",
+   "fieldtype": "Long Text",
    "label": "Settings"
   },
   {
    "fieldname": "ai_config",
-   "fieldtype": "JSON",
+   "fieldtype": "Long Text",
    "label": "AI Config"
   },
   {

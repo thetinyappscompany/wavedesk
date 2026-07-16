@@ -10,7 +10,7 @@ import json
 import frappe
 from frappe import _
 from frappe.query_builder import Order
-from frappe.query_builder.functions import Count
+from frappe.query_builder.functions import Count, Lower
 from frappe.utils import now_datetime
 
 from wavedesk import groups as groups_core
@@ -59,8 +59,12 @@ def list_groups(search: str | None = None, limit: int = 50, offset: int = 0) -> 
         .where(group.workspace == workspace)
     )
     if search:
-        needle = f"%{search}%"
-        query = query.where(group.subject.like(needle) | group.wa_group_id.like(needle))
+        # Lower() both sides: MariaDB LIKE is case-insensitive by collation,
+        # Postgres LIKE is not — this behaves identically on both.
+        needle = f"%{search.lower()}%"
+        query = query.where(
+            Lower(group.subject).like(needle) | Lower(group.wa_group_id).like(needle)
+        )
 
     total = query.select(Count(group.name).as_("n")).run(as_dict=True)[0]["n"]
 
@@ -106,12 +110,11 @@ def get_group(group: str) -> dict:
     doc = _get_group_checked(group)
     masked = should_mask(doc.workspace)
 
-    members = frappe.get_all(
-        "WD Group Member",
-        filters={"group": doc.name, "left_at": ("is", "not set")},
-        fields=["name", "participant_id", "contact", "role", "joined_at"],
-        order_by="role asc, creation asc",
-        ignore_permissions=True,  # group-level permission checked above
+    # group-level permission checked above
+    members = groups_core.active_members(
+        doc.name,
+        ["name", "participant_id", "contact", "role", "joined_at"],
+        order_by=[("role", Order.asc), ("creation", Order.asc)],
     )
     for member in members:
         digits = member.participant_id.split("@")[0].split(":")[0]

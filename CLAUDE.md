@@ -10,8 +10,36 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 5 (Phase 4 CODE-COMPLETE). 22 PRs (#1–#22) stacked, unmerged.
-Current epic: GO-LIVE PUSH (2026-07-16, founder wants EOD). ✅ MERGED: PR #23
+Phase: 5 (Phase 4 CODE-COMPLETE). main = FULL PRODUCT (PR #23 merged).
+Current epic: POSTGRES MIGRATION — DONE, PR #28 (feat/postgres-migration → main,
+7 commits) awaiting founder merge. Founder chose "Full migration now" off
+MariaDB. 438/438 Frappe tests green on BOTH backends (sequential full runs) +
+ALL live probes re-run against the real PG site pg.localhost (media round-trip,
+whisper TTS transcript, Qdrant, real-NVIDIA RAG semantic hit 0.452, Anthropic
+ping, wallet idempotency — the savepoint retry path exercised under PG
+abort-on-error semantics). PG site: pg.localhost in WSL bench, root user
+postgres/wavedesk_pg — keep for dual-backend testing. PORTING RULES now encoded
+in code (violating = PG breakage): (1) never DocType fieldtype JSON (dict on PG,
+string on MariaDB) — use Long Text + json.dumps; (2) expected-duplicate inserts
+need frappe.db.savepoint + rollback(save_point=) (PG aborts whole txn);
+(3) never ("is","set") get_all filters on datetime (renders ''=timestamp) — qb
+isnull()/isnotnull() (+ != "" for Link/varchar on MariaDB); (4) never JOIN
+WD Message.name (native uuid on PG) to varchar Links — two bounded queries;
+(5) Lower() both sides of LIKE; (6) `user` is PG-reserved — qb only;
+(7) .orderby(term_object) not bare alias strings in joined queries;
+(8) on_doctype_update raw DDL branched per db_type. LATENT MariaDB BUG found
+by this work: ("is","set") on WD Broadcast Recipient.message returned ZERO
+rows → delivery-failure reconcile never ran; fixed (Python truthiness filter).
+LESSON re-learned: module-level test runs hide cross-module regressions — full
+suite on BOTH backends before declaring green. Founder review queue: PR #25
+(hosting blockers: consumer hook isolation + proxy-aware IP allowlist — merge
+BEFORE hosting), #26 (deployment guide Frappe Cloud vs CapRover), #27 (platform
+stats overview /admin), #28 (Postgres). Open review findings NOT yet ordered
+fixed: AI retry double-charge, cross-tenant group broadcast audience, masking
+bypass preview_segment/delivery_report, recovery-code replay race, BYOK crypto
+fail-closed, broadcast daily_cap lifetime-vs-daily, install.py pricing clobber,
+Zoho out-of-order webhook.
+Previous epic: GO-LIVE PUSH (2026-07-16). ✅ MERGED: PR #23
 landed — origin/main = 3623731 = FULL PRODUCT (P0→P5). Founder said "use same
 key" (no rotation); classifier still blocks transcript key-recovery, founder
 creating ~/.wavedesk.env in WSL (export NVIDIA_API_KEY/ANTHROPIC_API_KEY,

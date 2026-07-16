@@ -48,13 +48,13 @@
   },
   {
    "fieldname": "conditions",
-   "fieldtype": "JSON",
+   "fieldtype": "Long Text",
    "label": "Conditions",
    "description": "List of {type, value}; all must match (AND)."
   },
   {
    "fieldname": "actions",
-   "fieldtype": "JSON",
+   "fieldtype": "Long Text",
    "label": "Actions",
    "description": "Ordered list of {type, ...params} run when the rule fires."
   },

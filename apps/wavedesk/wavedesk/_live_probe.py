@@ -128,6 +128,35 @@ def run_anthropic():
     print("ANTHROPIC-PROBE-PASS :: key valid, 1-token Haiku round-trip ok")
 
 
+def run_reconcile_repro():
+    """Debug: does a name-in filter round-trip a UUID-named WD Message?"""
+    import uuid as uuidlib
+
+    import frappe
+
+    ws = frappe.get_all("WD Workspace", limit=1, pluck="name")[0]
+    try:
+        chat = frappe.get_doc({
+            "doctype": "WD Chat", "workspace": ws, "chat_type": "dm",
+            "wa_chat_id": f"repro-{uuidlib.uuid4().hex[:8]}", "status": "open",
+        }).insert(ignore_permissions=True)
+        msg = frappe.get_doc({
+            "doctype": "WD Message", "workspace": ws, "chat": chat.name,
+            "direction": "out", "message_type": "text", "body": "x",
+            "wa_message_id": f"R-{uuidlib.uuid4().hex[:8]}", "status": "failed",
+        }).insert(ignore_permissions=True)
+        plucked = frappe.get_all(
+            "WD Message", filters={"name": ("in", [msg.name]), "status": "failed"},
+            pluck="name",
+        )
+        print("stored:", repr(msg.name))
+        print("plucked:", [repr(r) for r in plucked])
+        print("set-match:", msg.name in set(plucked))
+        print("db-status:", frappe.db.get_value("WD Message", msg.name, "status"))
+    finally:
+        frappe.db.rollback()
+
+
 def run_wallet():
     """Runbook check: a retried charge (same idempotency key) never double-debits.
     Runs on the real DB inside a rolled-back transaction — no residue."""
@@ -135,10 +164,21 @@ def run_wallet():
 
     from wavedesk.wallet import ledger
 
-    ws = frappe.get_all("WD Workspace", limit=1, pluck="name")
-    assert ws, "no workspace on this site"
-    ws = ws[0]
     try:
+        ws = frappe.get_all("WD Workspace", limit=1, pluck="name")
+        if ws:
+            ws = ws[0]
+        else:
+            # fresh site (e.g. the Postgres one) — probe workspace lives only
+            # inside this transaction, rolled back below
+            import uuid as uuidlib
+
+            doc = frappe.new_doc("WD Workspace")
+            doc.workspace_name = f"Live Probe WS {uuidlib.uuid4().hex[:8]}"
+            doc.plan = "Trial"
+            doc.append("members", {"user": "Administrator", "role": "Owner"})
+            doc.insert(ignore_permissions=True)
+            ws = doc.name
         ledger.credit(ws, 100.0, "live-probe", "probe-credit-1")
         ledger.credit(ws, 100.0, "live-probe", "probe-credit-1")  # retried credit
         before = ledger.get_balance(ws)

@@ -108,12 +108,18 @@ def _next_occurrence(rec: dict, ref: datetime) -> datetime | None:
 
 def run_due_schedules() -> int:
     """Scheduler entry point (minutely): fire everything past its next_run_at."""
-    candidates = frappe.get_all(
-        "WD Scheduled Message",
-        filters={"enabled": 1, "status": "scheduled", "next_run_at": ("is", "set")},
-        fields=["name", "timezone", "next_run_at"],
-        ignore_permissions=True,
-    )
+    # qb with isnotnull(): get_all's ("is", "set") renders as a '' comparison,
+    # which Postgres rejects on timestamp columns.
+    sched_tbl = frappe.qb.DocType("WD Scheduled Message")
+    candidates = (
+        frappe.qb.from_(sched_tbl)
+        .select(sched_tbl.name, sched_tbl.timezone, sched_tbl.next_run_at)
+        .where(
+            (sched_tbl.enabled == 1)
+            & (sched_tbl.status == "scheduled")
+            & sched_tbl.next_run_at.isnotnull()
+        )
+    ).run(as_dict=True)
     fired = 0
     for row in candidates:
         if get_datetime(row.next_run_at) <= _now_local(row.timezone):

@@ -178,24 +178,24 @@ def preview_broadcast(broadcast: str, limit: int | str = 5) -> list[dict]:
 def delivery_report(broadcast: str, limit: int | str = 200) -> dict:
     """Per-recipient delivery status + aggregate counts."""
     doc = _get_checked(broadcast)
-    recipient = frappe.qb.DocType("WD Broadcast Recipient")
-    message = frappe.qb.DocType("WD Message")
-    rows = (
-        frappe.qb.from_(recipient)
-        .left_join(message)
-        .on(recipient.message == message.name)
-        .select(
-            recipient.name,
-            recipient.phone,
-            recipient.recipient_name,
-            recipient.status,
-            recipient.error,
-            message.status.as_("message_status"),
+    # Two-step (no join): WD Message is UUID-named and Postgres refuses a
+    # varchar Link = uuid column join. Rows are bounded by `limit`.
+    rows = frappe.get_all(
+        "WD Broadcast Recipient",
+        filters={"broadcast": doc.name},
+        fields=["name", "phone", "recipient_name", "status", "error", "message"],
+        order_by="creation asc",
+        limit=int(limit),
+    )
+    msg_ids = [r.message for r in rows if r.message]
+    statuses = {
+        m.name: m.status
+        for m in frappe.get_all(
+            "WD Message", filters={"name": ("in", msg_ids)}, fields=["name", "status"]
         )
-        .where(recipient.broadcast == doc.name)
-        .orderby(recipient.creation)
-        .limit(int(limit))
-    ).run(as_dict=True)
+    } if msg_ids else {}
+    for r in rows:
+        r["message_status"] = statuses.get(r.pop("message", None))
     counts: dict[str, int] = {}
     for status in ("pending", "sent", "failed", "opted_out", "skipped"):
         counts[status] = frappe.db.count(

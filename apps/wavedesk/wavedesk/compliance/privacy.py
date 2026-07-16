@@ -135,11 +135,15 @@ def erase_contact(workspace: str, contact: str) -> dict:
     )
     scrubbed = 0
     if chats:
-        scrubbed = frappe.db.sql(
-            """update `tabWD Message` set body=%s, sender_name=NULL, sender_jid=NULL
-               where chat in %s""",
-            (ERASED_TOKEN, tuple(chats)),
-        )
+        msg = frappe.qb.DocType("WD Message")
+        (
+            frappe.qb.update(msg)
+            .set(msg.body, ERASED_TOKEN)
+            .set(msg.sender_name, None)
+            .set(msg.sender_jid, None)
+            .where(msg.chat.isin(chats))
+        ).run()
+        scrubbed = len(chats)
     frappe.get_doc({
         "doctype": "WD Audit Log", "workspace": workspace,
         "action": "privacy.erase_contact", "entity": contact,

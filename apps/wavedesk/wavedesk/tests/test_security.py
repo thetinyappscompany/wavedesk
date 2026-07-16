@@ -77,11 +77,15 @@ class TestSessionManagement(IntegrationTestCase):
         frappe.set_user(USER)
 
     def _mk_session(self, sid: str) -> None:
-        frappe.db.sql(
-            """insert into `tabSessions` (sid, user, ipaddress, lastupdate, status)
-               values (%s, %s, %s, now(), 'Active')""",
-            (sid, USER, "1.2.3.4"),
-        )
+        # frappe.qb quotes identifiers per backend ('user' is reserved in Postgres).
+        from frappe.utils import now_datetime
+
+        sessions = frappe.qb.DocType("Sessions")
+        (
+            frappe.qb.into(sessions)
+            .columns("sid", "user", "ipaddress", "lastupdate", "status")
+            .insert(sid, USER, "1.2.3.4", now_datetime(), "Active")
+        ).run()
         frappe.db.commit()
 
     def test_list_and_revoke_session(self):

@@ -17,6 +17,7 @@ friendly units only. No token bodies or phone numbers are logged here.
 import json
 
 import frappe
+from frappe.query_builder.functions import Sum
 from frappe.utils import flt, now_datetime
 
 from wavedesk.wallet import ledger
@@ -65,12 +66,13 @@ def usd_cost(model: str, input_tokens: int, output_tokens: int, rates: dict | No
 def consumed_usd(workspace: str, period: str | None = None) -> float:
     """USD allowance already consumed this period (SUM of ai_cost_usd usage rows)."""
     period = period or current_period()
-    total = frappe.db.sql(
-        """select coalesce(sum(quantity), 0) from `tabWD Usage Record`
-           where workspace = %s and metric = 'ai_cost_usd' and period = %s""",
-        (workspace, period),
-    )[0][0]
-    return flt(total, 6)
+    rec = frappe.qb.DocType("WD Usage Record")
+    total = (
+        frappe.qb.from_(rec)
+        .select(Sum(rec.quantity))
+        .where((rec.workspace == workspace) & (rec.metric == "ai_cost_usd") & (rec.period == period))
+    ).run()[0][0]
+    return flt(total or 0, 6)
 
 
 def remaining_allowance(workspace: str) -> float:

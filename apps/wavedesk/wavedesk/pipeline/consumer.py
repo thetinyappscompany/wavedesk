@@ -220,10 +220,12 @@ def apply_event(event: dict) -> None:
 
     if direction == "in":
         # Unread badge for the inbox list; reset happens on conversation open.
-        frappe.db.sql(
-            "update `tabWD Chat` set unread_count = unread_count + 1 where name = %s",
-            (chat,),
-        )
+        chat_tbl = frappe.qb.DocType("WD Chat")
+        (
+            frappe.qb.update(chat_tbl)
+            .set(chat_tbl.unread_count, chat_tbl.unread_count + 1)
+            .where(chat_tbl.name == chat)
+        ).run()
         # Outbound webhook (P5): message.received.
         from wavedesk.webhooks import dispatch as webhooks
 

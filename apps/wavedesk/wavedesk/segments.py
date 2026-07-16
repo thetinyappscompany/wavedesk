@@ -113,29 +113,38 @@ def _by_attribute(workspace: str, key, value) -> set[str]:
 
 def _seen_within(workspace: str, days: int) -> set[str]:
     since = add_to_date(now_datetime(), days=-days)
-    rows = frappe.db.sql(
-        """
-        select distinct c.contact as contact
-        from `tabWD Message` m
-        join `tabWD Chat` c on m.chat = c.name
-        where c.workspace = %s and m.direction = 'in' and c.contact is not null
-              and m.creation >= %s
-        """,
-        (workspace, since),
-        as_dict=True,
-    )
-    return {r.contact for r in rows if r.contact}
+    m = frappe.qb.DocType("WD Message")
+    c = frappe.qb.DocType("WD Chat")
+    rows = (
+        frappe.qb.from_(m)
+        .join(c)
+        .on(m.chat == c.name)
+        .select(c.contact)
+        .distinct()
+        .where(
+            (c.workspace == workspace)
+            & (m.direction == "in")
+            & c.contact.isnotnull()
+            & (m.creation >= since)
+        )
+    ).run(pluck=True)
+    return {r for r in rows if r}
 
 
 def _in_group(workspace: str, group) -> set[str]:
     if not group:
         return set()
-    rows = frappe.get_all(
-        "WD Group Member",
-        filters={"group": group, "left_at": ("is", "not set"), "contact": ("is", "set")},
-        pluck="contact",
-        ignore_permissions=True,
-    )
+    gm = frappe.qb.DocType("WD Group Member")
+    rows = (
+        frappe.qb.from_(gm)
+        .select(gm.contact)
+        .where(
+            (gm["group"] == group)
+            & gm.left_at.isnull()
+            & gm.contact.isnotnull()
+            & (gm.contact != "")
+        )
+    ).run(pluck=True)
     # scope to workspace contacts
     if not rows:
         return set()

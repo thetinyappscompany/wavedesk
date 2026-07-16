@@ -66,21 +66,23 @@ def check_breaches() -> int:
 
 def _detect(now, metric: str) -> int:
     due_field, met_field, breached_field = _METRICS[metric]
-    # List-form filters: a null due (= no SLA for this metric) must never
-    # breach, so require the due to be SET as well as past — a plain
-    # (due <= now) alone also matches NULL rows in the query builder.
-    rows = frappe.get_all(
-        "WD Chat",
-        filters=[
-            ["sla_policy", "is", "set"],
-            [due_field, "is", "set"],
-            [due_field, "<=", now],
-            [met_field, "is", "not set"],
-            [breached_field, "=", 0],
-        ],
-        fields=["name", "workspace", "sla_policy", "assigned_agent"],
-        ignore_permissions=True,
-    )
+    # frappe.qb with explicit isnotnull/isnull: a null due (= no SLA for this
+    # metric) must never breach, and get_all's ("is", "set") filter renders as
+    # a '' comparison, which Postgres rejects on timestamp columns.
+    chat_tbl = frappe.qb.DocType("WD Chat")
+    rows = (
+        frappe.qb.from_(chat_tbl)
+        .select(chat_tbl.name, chat_tbl.workspace, chat_tbl.sla_policy, chat_tbl.assigned_agent)
+        .where(
+            # Link fields may hold '' on MariaDB; datetime columns are NULL-only.
+            chat_tbl.sla_policy.isnotnull()
+            & (chat_tbl.sla_policy != "")
+            & chat_tbl[due_field].isnotnull()
+            & (chat_tbl[due_field] <= now)
+            & chat_tbl[met_field].isnull()
+            & (chat_tbl[breached_field] == 0)
+        )
+    ).run(as_dict=True)
     for chat in rows:
         frappe.db.set_value("WD Chat", chat.name, breached_field, 1, update_modified=False)
         summary = f"SLA breach: {metric.replace('_', ' ')} overdue"

@@ -8,12 +8,51 @@ sender's display digits (masked for agents at the API layer), never bodies.
 """
 
 import frappe
-from frappe.utils import add_to_date, get_datetime, getdate, now_datetime
+from frappe.query_builder import Order
+from frappe.query_builder.functions import Count
+from frappe.utils import add_to_date, get_datetime, getdate, now_datetime, time_diff_in_seconds
 
 DEFAULT_WINDOW_DAYS = 14
 TOP_CONTRIBUTORS = 5
 # A team reply within this window "answers" a member's question (response time).
 RESPONSE_WINDOW_HOURS = 24
+
+
+def _pending_query_count(workspace: str, group: str | None = None, group_only: bool = False) -> int:
+    """Chats with an unanswered question (pending_query_since set) — portable
+    NULL check; get_all's ("is", "set") renders as a '' comparison that
+    Postgres rejects on timestamp columns."""
+    chat = frappe.qb.DocType("WD Chat")
+    cond = (chat.workspace == workspace) & chat.pending_query_since.isnotnull()
+    if group:
+        cond &= chat["group"] == group
+    if group_only:
+        cond &= chat.chat_type == "group"
+    return (frappe.qb.from_(chat).select(Count("*")).where(cond)).run()[0][0]
+
+
+def _elapsed_minutes(workspace: str, end_field: str, start) -> list[float]:
+    """Minutes between chat creation and `end_field`, computed in Python so the
+    query stays database-agnostic (no timestampdiff/date-diff SQL function)."""
+    chat = frappe.qb.DocType("WD Chat")
+    rows = (
+        frappe.qb.from_(chat)
+        .select(chat.creation, chat[end_field])
+        .where(
+            (chat.workspace == workspace)
+            & chat[end_field].isnotnull()
+            & (chat.creation >= start)
+        )
+    ).run(as_dict=True)
+    out: list[float] = []
+    for r in rows:
+        end = r.get(end_field)
+        if not end:
+            continue
+        secs = time_diff_in_seconds(end, r.creation)
+        if secs is not None and secs >= 0:
+            out.append(secs / 60)
+    return out
 
 
 def _window_start(days: int):
@@ -29,15 +68,11 @@ def group_metrics(workspace: str, group: str, days: int = DEFAULT_WINDOW_DAYS) -
         return _empty_metrics(days)
     start = _window_start(days)
 
-    messages = frappe.db.sql(
-        """
-        select direction, sender_jid, body, creation
-        from `tabWD Message`
-        where chat = %s and creation >= %s
-        order by creation asc
-        """,
-        (chat, start),
-        as_dict=True,
+    messages = frappe.get_all(
+        "WD Message",
+        filters={"chat": chat, "creation": (">=", start)},
+        fields=["direction", "sender_jid", "body", "creation"],
+        order_by="creation asc",
     )
 
     volume = _volume_trend(messages, days)
@@ -46,10 +81,7 @@ def group_metrics(workspace: str, group: str, days: int = DEFAULT_WINDOW_DAYS) -
     active_pct = _active_member_percentage(group, inbound)
     best_hours = _best_posting_hours(inbound)
     response = _response_metrics(messages)
-    unanswered = frappe.db.count(
-        "WD Chat",
-        {"workspace": workspace, "group": group, "pending_query_since": ("is", "set")},
-    )
+    unanswered = _pending_query_count(workspace, group=group)
 
     return {
         "days": days,
@@ -112,9 +144,9 @@ def _top_contributors(inbound: list[dict]) -> list[dict]:
 
 
 def _active_member_percentage(group: str, inbound: list[dict]) -> float:
-    total = frappe.db.count(
-        "WD Group Member", {"group": group, "left_at": ("is", "not set")}
-    )
+    from wavedesk.groups import active_member_count
+
+    total = active_member_count(group)
     if not total:
         return 0.0
     active = len({msg.sender_jid for msg in inbound if msg.sender_jid})
@@ -157,26 +189,17 @@ def _response_metrics(messages: list[dict]) -> dict:
 def workspace_rollup(workspace: str, days: int = DEFAULT_WINDOW_DAYS) -> dict:
     """Cross-group totals for the Groups page header."""
     start = _window_start(days)
-    totals = frappe.db.sql(
-        """
-        select count(*) as messages,
-               sum(case when m.direction = 'in' then 1 else 0 end) as inbound
-        from `tabWD Message` m
-        join `tabWD Chat` c on m.chat = c.name
-        where c.workspace = %s and c.chat_type = 'group' and m.creation >= %s
-        """,
-        (workspace, start),
-        as_dict=True,
-    )[0]
-    group_count = frappe.db.count("WD Group", {"workspace": workspace})
-    unanswered = frappe.db.count(
-        "WD Chat",
-        {
-            "workspace": workspace,
-            "chat_type": "group",
-            "pending_query_since": ("is", "set"),
-        },
+    m = frappe.qb.DocType("WD Message")
+    c = frappe.qb.DocType("WD Chat")
+    group_msgs = (
+        frappe.qb.from_(m).join(c).on(m.chat == c.name)
+        .where((c.workspace == workspace) & (c.chat_type == "group") & (m.creation >= start))
     )
+    total_messages = group_msgs.select(Count("*")).run()[0][0]
+    inbound_messages = group_msgs.where(m.direction == "in").select(Count("*")).run()[0][0]
+    totals = frappe._dict(messages=total_messages, inbound=inbound_messages)
+    group_count = frappe.db.count("WD Group", {"workspace": workspace})
+    unanswered = _pending_query_count(workspace, group_only=True)
     return {
         "days": days,
         "groups": group_count,
@@ -208,9 +231,7 @@ def workspace_dashboard(workspace: str, days: int = DEFAULT_WINDOW_DAYS) -> dict
             "WD Chat",
             {"workspace": workspace, "status": ("!=", "resolved"), "assigned_agent": ("in", (None, ""))},
         ),
-        "needs_reply": frappe.db.count(
-            "WD Chat", {"workspace": workspace, "pending_query_since": ("is", "set")}
-        ),
+        "needs_reply": _pending_query_count(workspace),
         # SLA breaches on live (non-resolved) chats (P3.3).
         "sla_breached": frappe.db.count(
             "WD Chat",
@@ -231,69 +252,50 @@ def workspace_dashboard(workspace: str, days: int = DEFAULT_WINDOW_DAYS) -> dict
         ),
     }
 
-    conversations = frappe.db.sql(
-        """
-        select date(creation) as day, count(*) as n
-        from `tabWD Chat`
-        where workspace = %s and creation >= %s
-        group by date(creation)
-        """,
-        (workspace, start),
-        as_dict=True,
+    conv_rows = frappe.get_all(
+        "WD Chat",
+        filters={"workspace": workspace, "creation": (">=", start)},
+        fields=["creation"],
     )
-    conv_by_day = {str(r.day): int(r.n) for r in conversations}
+    conv_by_day: dict[str, int] = {}
+    for r in conv_rows:
+        day = str(getdate(r.creation))
+        conv_by_day[day] = conv_by_day.get(day, 0) + 1
     conversations_trend = _empty_trend(days)
     for point in conversations_trend:
         point["count"] = conv_by_day.get(point["date"], 0)
 
-    first_response = frappe.db.sql(
-        """
-        select timestampdiff(second, creation, first_response_at) as secs
-        from `tabWD Chat`
-        where workspace = %s and first_response_at is not null and creation >= %s
-        """,
-        (workspace, start),
-        as_dict=True,
-    )
-    fr_mins = [r.secs / 60 for r in first_response if r.secs is not None and r.secs >= 0]
+    fr_mins = _elapsed_minutes(workspace, "first_response_at", start)
+    res_mins = _elapsed_minutes(workspace, "resolved_at", start)
 
-    resolution = frappe.db.sql(
-        """
-        select timestampdiff(second, creation, resolved_at) as secs
-        from `tabWD Chat`
-        where workspace = %s and resolved_at is not null and creation >= %s
-        """,
-        (workspace, start),
-        as_dict=True,
-    )
-    res_mins = [r.secs / 60 for r in resolution if r.secs is not None and r.secs >= 0]
+    msg = frappe.qb.DocType("WD Message")
+    # order by the COUNT term itself — a bare "n" alias string gets qualified
+    # against the FROM table by pypika and breaks in joined queries.
+    row_count = Count("*")
+    per_agent = (
+        frappe.qb.from_(msg)
+        .select(msg.sender_agent.as_("agent"), row_count.as_("n"))
+        .where(
+            (msg.workspace == workspace)
+            & (msg.direction == "out")
+            & msg.sender_agent.isnotnull()
+            & (msg.creation >= start)
+        )
+        .groupby(msg.sender_agent)
+        .orderby(row_count, order=Order.desc)
+    ).run(as_dict=True)
 
-    per_agent = frappe.db.sql(
-        """
-        select m.sender_agent as agent, count(*) as n
-        from `tabWD Message` m
-        where m.workspace = %s and m.direction = 'out'
-              and m.sender_agent is not null and m.creation >= %s
-        group by m.sender_agent
-        order by n desc
-        """,
-        (workspace, start),
-        as_dict=True,
-    )
-
-    per_number = frappe.db.sql(
-        """
-        select n.name as number, n.display_name as display_name, count(*) as n
-        from `tabWD Message` m
-        join `tabWD Chat` c on m.chat = c.name
-        join `tabWD WhatsApp Number` n on c.number = n.name
-        where c.workspace = %s and m.creation >= %s
-        group by n.name, n.display_name
-        order by n desc
-        """,
-        (workspace, start),
-        as_dict=True,
-    )
+    chat = frappe.qb.DocType("WD Chat")
+    num = frappe.qb.DocType("WD WhatsApp Number")
+    per_number = (
+        frappe.qb.from_(msg)
+        .join(chat).on(msg.chat == chat.name)
+        .join(num).on(chat.number == num.name)
+        .select(num.name.as_("number"), num.display_name.as_("display_name"), row_count.as_("n"))
+        .where((chat.workspace == workspace) & (msg.creation >= start))
+        .groupby(num.name, num.display_name)
+        .orderby(row_count, order=Order.desc)
+    ).run(as_dict=True)
 
     return {
         "days": days,
@@ -328,24 +330,19 @@ def compute_engagement_scores() -> int:
     groups = frappe.get_all("WD Group", fields=["name"])
     for group in groups:
         chat = frappe.db.get_value("WD Chat", {"group": group.name}, "name")
-        members = frappe.get_all(
-            "WD Group Member",
-            filters={"group": group.name, "left_at": ("is", "not set")},
-            fields=["name", "participant_id"],
-        )
+        from wavedesk.groups import active_members
+
+        members = active_members(group.name, ["name", "participant_id"])
         counts: dict[str, int] = {}
         peak = 0
         if chat:
-            rows = frappe.db.sql(
-                """
-                select sender_jid, count(*) as n
-                from `tabWD Message`
-                where chat = %s and direction = 'in' and creation >= %s
-                group by sender_jid
-                """,
-                (chat, start),
-                as_dict=True,
-            )
+            msg = frappe.qb.DocType("WD Message")
+            rows = (
+                frappe.qb.from_(msg)
+                .select(msg.sender_jid, Count("*").as_("n"))
+                .where((msg.chat == chat) & (msg.direction == "in") & (msg.creation >= start))
+                .groupby(msg.sender_jid)
+            ).run(as_dict=True)
             counts = {r.sender_jid: int(r.n) for r in rows if r.sender_jid}
             peak = max(counts.values()) if counts else 0
         for member in members:

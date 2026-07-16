@@ -111,8 +111,12 @@ class TestCoreDocTypes(IntegrationTestCase):
             txn.insert(ignore_permissions=True)
 
         make_txn()
+        # Savepoint: on Postgres the rejected INSERT aborts the transaction,
+        # which would poison every later query in this test class.
+        frappe.db.savepoint("expect_dup_txn")
         with self.assertRaises(Exception) as ctx:
             make_txn()
+        frappe.db.rollback(save_point="expect_dup_txn")
         self.assertIn(
             type(ctx.exception).__name__,
             ("UniqueValidationError", "DuplicateEntryError", "IntegrityError"),
@@ -131,8 +135,10 @@ class TestCoreDocTypes(IntegrationTestCase):
 
         make_contact(ws_a.name)
         make_contact(ws_b.name)  # same phone, different workspace — allowed
+        frappe.db.savepoint("expect_dup_contact")
         with self.assertRaises((frappe.DuplicateEntryError, frappe.UniqueValidationError)):
             make_contact(ws_a.name)  # duplicate within a workspace — rejected
+        frappe.db.rollback(save_point="expect_dup_contact")
 
     def test_one_wallet_per_workspace(self):
         ws = make_workspace(f"WS {uuid.uuid4().hex[:8]}")
@@ -141,5 +147,7 @@ class TestCoreDocTypes(IntegrationTestCase):
 
         w2 = frappe.new_doc("WD Wallet")
         w2.update({"workspace": ws.name})
+        frappe.db.savepoint("expect_dup_wallet")
         with self.assertRaises((frappe.DuplicateEntryError, frappe.UniqueValidationError)):
             w2.insert(ignore_permissions=True)
+        frappe.db.rollback(save_point="expect_dup_wallet")
