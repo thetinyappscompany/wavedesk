@@ -164,10 +164,21 @@ def run_wallet():
 
     from wavedesk.wallet import ledger
 
-    ws = frappe.get_all("WD Workspace", limit=1, pluck="name")
-    assert ws, "no workspace on this site"
-    ws = ws[0]
     try:
+        ws = frappe.get_all("WD Workspace", limit=1, pluck="name")
+        if ws:
+            ws = ws[0]
+        else:
+            # fresh site (e.g. the Postgres one) — probe workspace lives only
+            # inside this transaction, rolled back below
+            import uuid as uuidlib
+
+            doc = frappe.new_doc("WD Workspace")
+            doc.workspace_name = f"Live Probe WS {uuidlib.uuid4().hex[:8]}"
+            doc.plan = "Trial"
+            doc.append("members", {"user": "Administrator", "role": "Owner"})
+            doc.insert(ignore_permissions=True)
+            ws = doc.name
         ledger.credit(ws, 100.0, "live-probe", "probe-credit-1")
         ledger.credit(ws, 100.0, "live-probe", "probe-credit-1")  # retried credit
         before = ledger.get_balance(ws)
