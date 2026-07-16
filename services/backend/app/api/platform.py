@@ -29,6 +29,7 @@ def available_scopes(ctx: Ctx) -> list[str]:
 
 
 @method("wavedesk.api.publicapi.create_key")
+@method("wavedesk.api.publicapi.create_api_key")
 def create_key(ctx: Ctx) -> dict:
     ws = active_workspace(ctx)
     require_manager(ctx, ws.id)
@@ -56,6 +57,7 @@ def list_keys(ctx: Ctx) -> list[dict]:
 
 
 @method("wavedesk.api.publicapi.revoke_key")
+@method("wavedesk.api.publicapi.revoke_api_key")
 def revoke_key(ctx: Ctx) -> dict:
     ws = active_workspace(ctx)
     require_manager(ctx, ws.id)
@@ -289,6 +291,7 @@ def security_begin(ctx: Ctx) -> dict:
 
 
 @method("wavedesk.api.security.twofa_confirm_enroll")
+@method("wavedesk.api.security.twofa_confirm")
 def security_confirm(ctx: Ctx) -> dict:
     try:
         return auth_twofa.confirm_enroll(ctx.db, uuid.UUID(ctx.user_id), ctx.params.get("code") or "")
