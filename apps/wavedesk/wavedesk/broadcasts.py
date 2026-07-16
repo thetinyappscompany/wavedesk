@@ -312,11 +312,15 @@ def _reconcile(broadcast_name: str) -> None:
     auto-pause and the report."""
     # Two-step (no join): WD Message is UUID-named, and Postgres refuses a
     # varchar Link = uuid column join; recipient counts are bounded (5k cap).
-    dispatched = frappe.get_all(
-        "WD Broadcast Recipient",
-        filters={"broadcast": broadcast_name, "status": "sent", "message": ("is", "set")},
-        fields=["name", "message"],
-    )
+    dispatched = [
+        d
+        for d in frappe.get_all(
+            "WD Broadcast Recipient",
+            filters={"broadcast": broadcast_name, "status": "sent"},
+            fields=["name", "message"],
+        )
+        if d.message
+    ]
     if not dispatched:
         return
     failed_msgs = set(
