@@ -22,9 +22,22 @@ compat dispatcher /api/method/<dotted> with {"message": ...} envelope,
 tenancy role guards, login/logout/whoami + create/get/set-active workspace);
 8 tests green vs REAL Postgres (wavedesk_backend_test) + Redis, ruff clean.
 Runner: services/backend/run-tests-wsl.sh (venv ~/.venvs/wdbe, py3.12).
-Next: R1 (numbers, gateway client, wa:events consumer, chats/messages/
-contacts, send pipeline). CapRover kit PR #32 + hardening PR #31 + probe PR
-#30 still open for the Frappe product (merge them — it remains the hostable
+R1 DONE on rewrite/r1-pipeline (stacked on R0): models numbers/contacts/
+chats/messages (unique (ws,wa_message_id) = exactly-once); gateway HTTP
+client (httpx, WD_GATEWAY_URL/SECRET env); wa:events consumer (XREADGROUP,
+commit-before-ack, XAUTOCLAIM crash recovery, poison stream after 3
+deliveries, baileys+cloud extraction ported verbatim, auto-reopen, unread);
+protected sender (flip-before-send idempotency, per-number Redis rate slot,
+retry ×3 → failed, retry_send); handlers: numbers connect/list/status/
+disconnect/reconnect/delete(+chat unlink), chats.list_chats (status/number/
+assignee/search filters; labels/needs_reply keys stubbed for R2),
+messages.list_messages (ISO cursor)+mark_chat_read, contacts list/get/update,
+send.send_message/retry_message. 29 tests green vs real PG+Redis (RQ inline
+via WD_TASK_INLINE=1), ruff clean. GOTCHA: psycopg3 rejects timestamptz <
+varchar — parse cursors with datetime.fromisoformat first. Next: R2 (teams/
+assignment/inbox status/labels/canned/masking/needs-reply/onboarding invites
++ socket.io server). CapRover kit PR #32 + hardening PR #31 + probe PR #30
+still open for the Frappe product (merge them — it remains the hostable
 product until parity).
 Previous epic: POSTGRES MIGRATION — DONE, PR #28 (feat/postgres-migration → main,
 7 commits) awaiting founder merge. Founder chose "Full migration now" off
