@@ -10,8 +10,23 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
-Phase: 5 (Phase 4 CODE-COMPLETE). main = FULL PRODUCT (PR #23 merged).
-Current epic: POSTGRES MIGRATION — DONE, PR #28 (feat/postgres-migration → main,
+⚠⚠ FOUNDER PIVOT 2026-07-16 (chosen via explicit confirm against my
+recommendation, fully informed of the 2–4 month cost): REWRITE THE BACKEND
+WITHOUT FRAPPE on FastAPI + SQLAlchemy + Postgres. Plan =
+docs/rewrite/backend-rewrite-plan.md (READ IT FIRST — phases R0–R8, frozen
+/api/method contract so frontend/api-client/gateway ship UNCHANGED; the
+Frappe product in apps/wavedesk stays intact + deployable during the rewrite
+as the fallback). R0 DONE on rewrite/backend-core: services/backend scaffold
+(FastAPI, SQLAlchemy 2 models users/workspaces/members, Redis sid sessions,
+compat dispatcher /api/method/<dotted> with {"message": ...} envelope,
+tenancy role guards, login/logout/whoami + create/get/set-active workspace);
+8 tests green vs REAL Postgres (wavedesk_backend_test) + Redis, ruff clean.
+Runner: services/backend/run-tests-wsl.sh (venv ~/.venvs/wdbe, py3.12).
+Next: R1 (numbers, gateway client, wa:events consumer, chats/messages/
+contacts, send pipeline). CapRover kit PR #32 + hardening PR #31 + probe PR
+#30 still open for the Frappe product (merge them — it remains the hostable
+product until parity).
+Previous epic: POSTGRES MIGRATION — DONE, PR #28 (feat/postgres-migration → main,
 7 commits) awaiting founder merge. Founder chose "Full migration now" off
 MariaDB. 438/438 Frappe tests green on BOTH backends (sequential full runs) +
 ALL live probes re-run against the real PG site pg.localhost (media round-trip,
