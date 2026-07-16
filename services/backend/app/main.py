@@ -19,6 +19,7 @@ from app.api import (  # noqa: F401  (registration side effects)
     messages,
     monitoring,
     numbers,
+    phase3,
     send,
     teams,
     tickets,

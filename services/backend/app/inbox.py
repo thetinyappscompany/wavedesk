@@ -31,6 +31,7 @@ def set_status(db, chat: Chat, status: str, snoozed_until: datetime | None = Non
         raise ValueError(f"Invalid chat status: {status}")
     if status == "snoozed" and snoozed_until is None:
         raise ValueError("snoozed_until is required to snooze a chat")
+    previous = chat.status
     chat.status = status
     chat.snoozed_until = snoozed_until if status == "snoozed" else None
     if status == "resolved":
@@ -38,6 +39,13 @@ def set_status(db, chat: Chat, status: str, snoozed_until: datetime | None = Non
     else:
         chat.resolved_at = None
     realtime.emit_chat_updated(str(chat.workspace_id), str(chat.id))
+    if previous != status:
+        from app import automation
+
+        automation.run_trigger(
+            db, chat.workspace_id, "status_change", chat,
+            {"status": status, "previous": previous},
+        )
 
 
 def assign_chat(db, chat: Chat, agent_id: str | None, team_id: str | None) -> None:
@@ -59,6 +67,10 @@ def assign_chat(db, chat: Chat, agent_id: str | None, team_id: str | None) -> No
         if team is None or team.workspace_id != chat.workspace_id:
             raise ValueError("Team not found in this workspace")
         chat.assigned_team_id = team.id
+        # P3.2: a team assignment auto-routes to an eligible agent
+        from app import routing
+
+        routing.auto_route(db, chat, team)
     else:
         chat.assigned_team_id = None
     realtime.emit_chat_updated(str(chat.workspace_id), str(chat.id))
