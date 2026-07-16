@@ -119,3 +119,23 @@ def test_bad_entry_parks_on_poison_after_retries(db, r, stream):
     assert len(poison) == 1
     # group is drained — nothing pending anymore
     assert consumer.process_wa_events(stream=stream, r=r) == 0
+
+
+def test_failing_inbound_hook_does_not_lose_message(db, r, stream, monkeypatch):
+    """A best-effort inbound hook that raises (aborting its own txn on PG) must
+    not lose the already-persisted message or poison the event."""
+    ws = make_workspace(db)
+    number = make_number(db, ws)
+    from app import automation
+
+    def boom(hook_db, *args, **kwargs):
+        hook_db.execute(select(Message))  # issue SQL, then abort the txn
+        raise RuntimeError("hook exploded")
+
+    monkeypatch.setattr(automation, "run_trigger", boom)
+    r.xadd(stream, {"event": baileys_event(
+        ws.id, number.session_ref, "919876500009@s.whatsapp.net", "hi", push_name="X"
+    )})
+    assert _drain(r, stream) == 1  # event acked despite the hook failure
+    msg = db.execute(select(Message).where(Message.workspace_id == ws.id)).scalar_one()
+    assert msg.body == "hi"  # message persisted, not rolled back with the hook

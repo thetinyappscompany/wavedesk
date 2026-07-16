@@ -38,8 +38,15 @@ def apply_subscription(db, workspace_id, *, status: str, plan_code: str | None =
     if plan_code:
         sub.plan = plan_code
     if addon_codes is not None:
-        sub.addons = {**(sub.addons or {}),
-                      **{ADDON_MAP[c]: True for c in addon_codes if c in ADDON_MAP}}
+        # Authoritative, not additive: a webhook whose addon_codes OMITS an
+        # entitlement is a downgrade and must clear it. Merging would leave a
+        # dropped add-on (e.g. ai_addon) enabled forever — a paid feature given
+        # away free after cancellation.
+        present = {ADDON_MAP[c] for c in addon_codes if c in ADDON_MAP}
+        addons = dict(sub.addons or {})
+        for key in set(ADDON_MAP.values()):
+            addons[key] = key in present
+        sub.addons = addons
     return True
 
 

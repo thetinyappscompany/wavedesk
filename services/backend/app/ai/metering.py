@@ -78,7 +78,13 @@ def record_and_charge(db, workspace_id, model: str, input_tokens: int,
     if overflow > 0:
         inr = inr_charge(overflow, cfg)
         if inr > 0:
-            wallet.charge(
+            # settle() not charge(): this cost was ALREADY incurred (the model
+            # call already ran), so it must be recorded even if it overdraws the
+            # wallet — otherwise a call that lands right at the allowance boundary
+            # would raise InsufficientBalance here, we'd have paid the provider,
+            # and the customer's reply would be silently dropped. The negative
+            # balance then pauses the NEXT call via is_available().
+            wallet.settle(
                 db, workspace_id, inr, reference=f"ai:{source}:{idempotency_key}",
                 idempotency_key=f"ai:{idempotency_key}", txn_type="deduction",
             )

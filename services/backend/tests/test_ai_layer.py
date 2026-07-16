@@ -168,11 +168,31 @@ def test_crypto_roundtrip_and_fail_closed(monkeypatch):
     from app.ai import crypto
 
     assert crypto.decrypt(crypto.encrypt("byok-secret")) == "byok-secret"  # dev/test path
-    monkeypatch.delenv("WD_TASK_INLINE", raising=False)
     monkeypatch.delenv("WD_DEV", raising=False)
     monkeypatch.delenv("WD_AI_SECRET", raising=False)
+    # WD_TASK_INLINE is an ops flag (run RQ inline), NOT a dev signal — it must
+    # NOT authorize the weak derived key. Only WD_DEV does.
+    monkeypatch.setenv("WD_TASK_INLINE", "1")
     with pytest.raises(RuntimeError):
         crypto.encrypt("x")
+
+
+def test_metering_settles_over_allowance_with_empty_wallet(db):
+    """A model call that overruns both the allowance and the wallet must still
+    be recorded (settled) — not raise and drop the customer's paid-for reply."""
+    from app.ai import metering
+
+    ws = make_workspace(db)  # empty wallet, no top-up
+    out = metering.record_and_charge(
+        db, ws.id, "claude-sonnet-5", input_tokens=5_000_000, output_tokens=5_000_000,
+        source="agent:reply", idempotency_key="boundary-1",
+    )
+    assert out["overflow_usd"] > 0
+    # cost recorded (5*3 + 5*15 = $90), wallet overdrawn rather than refused
+    assert metering.consumed_usd(db, ws.id, metering.current_period()) >= 90
+    assert wallet.get_balance(db, ws.id) < 0
+    # the overdraft now pauses the NEXT call
+    assert metering.is_available(db, ws.id) is False
 
 
 # --- API leak guard -----------------------------------------------------------

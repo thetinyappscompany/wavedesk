@@ -9,6 +9,7 @@ os.environ.setdefault(
     "postgresql+psycopg://postgres:wavedesk_pg@localhost:5432/wavedesk_backend_test",
 )
 os.environ["WD_TASK_INLINE"] = "1"  # RQ jobs run inline in tests
+os.environ["WD_DEV"] = "1"  # allow the derived BYOK crypto key in the test env
 
 import psycopg
 import pytest

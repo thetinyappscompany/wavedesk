@@ -45,6 +45,22 @@ def test_zoho_webhook_activates_and_flips_addon(db):
     assert has_feature(db, ws.id, "ai_addon") is True
 
 
+def test_addon_downgrade_clears_entitlement(db):
+    ws = make_workspace(db)
+    from app.gating import ensure_subscription, has_feature
+
+    ensure_subscription(db, ws.id)
+    db.commit()
+    billing.process(db, {"type": "subscription_created", "workspace": str(ws.id),
+                         "addon_codes": ["WD-ADDON-AI"], "event_time": "2026-07-16T10:00:00"})
+    assert has_feature(db, ws.id, "ai_addon") is True
+    # a later renewal WITHOUT the AI add-on is a downgrade — must clear it,
+    # not leave the paid feature enabled forever
+    billing.process(db, {"type": "subscription_renewed", "workspace": str(ws.id),
+                         "addon_codes": [], "event_time": "2026-07-16T11:00:00"})
+    assert has_feature(db, ws.id, "ai_addon") is False
+
+
 def test_out_of_order_webhook_never_regresses(db):
     ws = make_workspace(db)
     from app.gating import ensure_subscription
@@ -130,6 +146,49 @@ def test_webhook_emit_creates_delivery(authed, db, monkeypatch):
     row = db.execute(select(WebhookDelivery).where(WebhookDelivery.id == delivery.id)).scalar_one()
     assert row.status == "delivered"
     assert posted["url"] == "https://example.test/hook"
+
+
+def test_webhook_retry_backoff_then_dead_letter(authed, db, monkeypatch):
+    from datetime import UTC, datetime, timedelta
+
+    client, ws, _user = authed
+    _call(client, "wavedesk.api.webhooks.create_endpoint",
+          url="https://down.test/hook", events=["message.received"])
+    import app.webhooks as wh
+    from app.models import WebhookDelivery
+
+    monkeypatch.setattr(wh.httpx, "post",
+                        lambda url, **kw: type("R", (), {"status_code": 503})())
+    delivery = WebhookDelivery(workspace_id=ws.id, endpoint_id=_endpoint_id(db, ws),
+                               event="message.received", payload={"x": 1})
+    db.add(delivery)
+    db.commit()
+    did = str(delivery.id)
+    for i in range(1, wh.MAX_ATTEMPTS + 1):
+        wh.deliver(did)
+        db.expire_all()
+        row = db.get(WebhookDelivery, delivery.id)
+        assert row.attempts == i
+        if i < wh.MAX_ATTEMPTS:
+            assert row.status == "pending" and row.next_retry_at is not None
+        else:
+            assert row.status == "dead" and row.next_retry_at is None  # dead-lettered
+
+    # retry_due re-enqueues only deliveries whose backoff has elapsed
+    calls: list = []
+    monkeypatch.setattr(wh.tasks, "enqueue",
+                        lambda fn, **kw: calls.append(kw["delivery_id"]))
+    due = WebhookDelivery(workspace_id=ws.id, endpoint_id=_endpoint_id(db, ws),
+                          event="message.received", payload={}, status="pending",
+                          attempts=1, next_retry_at=datetime.now(UTC) - timedelta(minutes=1))
+    later = WebhookDelivery(workspace_id=ws.id, endpoint_id=_endpoint_id(db, ws),
+                            event="message.received", payload={}, status="pending",
+                            attempts=1, next_retry_at=datetime.now(UTC) + timedelta(minutes=5))
+    db.add_all([due, later])
+    db.commit()
+    wh.retry_due(db)
+    assert str(due.id) in calls
+    assert str(later.id) not in calls  # not yet due
 
 
 def _endpoint_id(db, ws):

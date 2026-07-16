@@ -47,8 +47,9 @@ class WebhookDelivery(UUIDPrimaryKey, Timestamps, Base):
     )
     event: Mapped[str] = mapped_column(String(60))
     payload: Mapped[dict] = mapped_column(JSONB, default=dict)
-    status: Mapped[str] = mapped_column(String(20), default="pending")  # delivered|failed|dead
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending|delivered|dead
     attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
 
 class DataExport(UUIDPrimaryKey, Timestamps, Base):

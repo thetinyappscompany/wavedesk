@@ -197,6 +197,11 @@ def apply_event(db, event: dict) -> None:
             inbox.flag_pending_query(chat, body)
             # Monitoring rules (P2.4): keyword/link/phone alerts
             monitoring.evaluate_message(db, chat, message, body)
+        # Persist the message + core inbound state NOW, before the best-effort
+        # side-channel hooks below. On Postgres a hook that raises after issuing
+        # SQL aborts the whole transaction; committing here means such a failure
+        # can only lose its own work (each hook is wrapped), never the message.
+        db.commit()
         # Broadcast opt-out (P3.4): STOP reply suppresses future broadcasts
         if chat_type == "dm" and contact is not None:
             from app import broadcasts
@@ -247,12 +252,17 @@ def apply_event(db, event: dict) -> None:
 
 def _run_hook(db, label: str, fn, *args, **kwargs) -> None:
     """Best-effort inbound side-channel — a failing hook must never park the
-    event on the poison stream or lose the persisted message (principle #1).
-    Hooks are individually small/atomic; sends inside hooks go through the
-    queued sender which manages its own commit."""
+    event on the poison stream or lose the already-committed message
+    (principle #1). Each hook commits its own work on success; on failure we
+    roll back (clearing any aborted-transaction state on Postgres) so the next
+    hook and the outer commit stay usable. Sends inside hooks go through the
+    queued sender, which manages its own commit — the trailing commit here is
+    then a harmless no-op."""
     try:
         fn(*args, **kwargs)
+        db.commit()
     except Exception:  # noqa: BLE001 — isolated by design
+        db.rollback()
         log.warning("inbound hook failed: %s", label)
 
 

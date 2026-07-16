@@ -20,10 +20,14 @@ def _key() -> bytes:
         if len(key) != 32:
             raise ValueError("WD_AI_SECRET must be base64 of exactly 32 bytes")
         return key
-    if not (os.environ.get("WD_TASK_INLINE") == "1" or os.environ.get("WD_DEV") == "1"):
+    # Gate the weak dev-key fallback on WD_DEV ONLY — never on operational flags
+    # like WD_TASK_INLINE (which merely runs RQ jobs inline and could plausibly
+    # be set in a small prod deploy, which would then encrypt every customer's
+    # BYOK key with a publicly-derivable key).
+    if os.environ.get("WD_DEV") != "1":
         raise RuntimeError(
             "WD_AI_SECRET is not set. Refusing to encrypt/decrypt stored secrets "
-            "with a derived key outside test/dev."
+            "with a derived key outside dev (set WD_DEV=1 for local dev)."
         )
     return hashlib.sha256(b"wavedesk-dev-key").digest()
 

@@ -64,3 +64,14 @@ def charge(db, workspace_id, amount: float, reference: str,
     if get_balance(db, workspace_id) < amount:
         raise InsufficientBalance(f"Balance below {amount}")
     return _append(db, workspace_id, -amount, txn_type, reference, idempotency_key)
+
+
+def settle(db, workspace_id, amount: float, reference: str,
+           idempotency_key: str, txn_type: str = "deduction") -> WalletTransaction:
+    """Post an ALREADY-INCURRED debit (e.g. metered AI cost, after the API call
+    already ran). Unlike charge(), never refuses on low balance — the money was
+    spent, so the ledger must record it truthfully; the balance may go slightly
+    negative and gate the NEXT call via is_available(). Still idempotent."""
+    if amount <= 0:
+        raise ValueError("Settle amount must be positive")
+    return _append(db, workspace_id, -amount, txn_type, reference, idempotency_key)
