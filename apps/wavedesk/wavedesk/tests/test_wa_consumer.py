@@ -307,6 +307,31 @@ class TestBaileysExtraction(WaConsumerTestBase):
         self.assertEqual(row.body, "disappearing hi")
 
 
+class TestHookIsolation(WaConsumerTestBase):
+    """A best-effort inbound side-channel that raises must NOT roll back the
+    persisted customer message (else a queue outage poisons real messages)."""
+
+    def test_failing_hook_does_not_lose_the_message(self):
+        ws = self._ws = _make_workspace()
+        boom = patch(
+            "wavedesk.automation.run_trigger",
+            side_effect=RuntimeError("queue down"),
+        )
+        with boom, patch.object(frappe, "log_error"):
+            # apply_event must swallow the hook failure (savepoint) and still
+            # commit the message.
+            apply_event(_baileys_event(ws, "HK-1", "919000033333", "hello"))
+
+        self.assertEqual(
+            frappe.db.count("WD Message", {"workspace": ws}), 1,
+            "inbound message survives a failing side-channel hook",
+        )
+        self.assertTrue(
+            frappe.db.exists("WD Chat", {"workspace": ws}),
+            "chat still created despite hook failure",
+        )
+
+
 class TestPoisonParking(WaConsumerTestBase):
     def test_bad_entry_parks_after_three_deliveries_and_never_blocks(self):
         ws = self._ws = _make_workspace()

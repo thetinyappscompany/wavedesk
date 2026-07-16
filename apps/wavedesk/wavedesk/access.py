@@ -73,11 +73,32 @@ def set_allowlist(workspace: str, entries: list[str] | str) -> list[str]:
     return normalized
 
 
+def client_ip() -> str | None:
+    """The real client IP to check against the allowlist.
+
+    Behind a reverse proxy, `frappe.local.request_ip` is the proxy's own address,
+    so a real-IP allowlist would fail closed and lock out every request. When the
+    operator runs a trusted proxy in front AND configures it to set X-Real-IP
+    (nginx: `proxy_set_header X-Real-IP $remote_addr;`) or to overwrite (not
+    append) X-Forwarded-For, they set `ip_allowlist_trusted_proxy` in site config
+    and we read the forwarded client IP. We never trust a forwarded header without
+    that explicit opt-in — otherwise a client could spoof it to bypass the
+    allowlist entirely."""
+    if frappe.conf.get("ip_allowlist_trusted_proxy"):
+        forwarded = frappe.get_request_header("X-Real-IP") or (
+            frappe.get_request_header("X-Forwarded-For") or ""
+        ).split(",")[0]
+        forwarded = (forwarded or "").strip()
+        if forwarded:
+            return forwarded
+    return getattr(frappe.local, "request_ip", None)
+
+
 def enforce(workspace: str, ip: str | None = None) -> None:
     """Refuse the request when the workspace restricts IPs and this one is out."""
     allowlist = get_allowlist(workspace)
     if not allowlist:
         return
-    request_ip = ip if ip is not None else getattr(frappe.local, "request_ip", None)
+    request_ip = ip if ip is not None else client_ip()
     if not is_ip_allowed(request_ip, allowlist):
         frappe.throw("Request IP is not in this workspace's allowlist", frappe.PermissionError)
