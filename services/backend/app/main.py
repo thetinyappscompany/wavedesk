@@ -7,6 +7,7 @@ from fastapi import FastAPI
 # importing the api modules registers their handlers with the compat router
 from app import compat
 from app.api import (  # noqa: F401  (registration side effects)
+    ai,
     analytics,
     assign,
     auth,

@@ -9,16 +9,32 @@ from app.models.automation import (
     SlaPolicy,
 )
 from app.models.base import Base
+from app.models.billing import (
+    AiAgentConfig,
+    AiFlagRule,
+    KnowledgeDoc,
+    PricingConfig,
+    Subscription,
+    UsageRecord,
+    WalletTransaction,
+)
 from app.models.core import User, Workspace, WorkspaceMember
 from app.models.groups import Alert, Group, GroupMember, MonitoringRule, Ticket
 from app.models.inbox import CannedResponse, ChatLabel, Invite, Label, Team, TeamMember
 from app.models.messaging import Chat, Contact, Message, WhatsAppNumber
 
 __all__ = [
+    "AiAgentConfig",
+    "AiFlagRule",
     "Alert",
     "AutomationLog",
     "AutomationRule",
     "Base",
+    "KnowledgeDoc",
+    "PricingConfig",
+    "Subscription",
+    "UsageRecord",
+    "WalletTransaction",
     "Broadcast",
     "BroadcastRecipient",
     "MessageTemplate",
