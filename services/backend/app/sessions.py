@@ -22,12 +22,28 @@ def _ttl() -> int:
 
 def create(user_id: str, email: str) -> str:
     sid = secrets.token_hex(24)
-    _redis().set(
+    r = _redis()
+    r.set(
         _PREFIX + sid,
         json.dumps({"user_id": user_id, "email": email, "active_workspace": None}),
         ex=_ttl(),
     )
+    r.sadd(f"wd:usersids:{user_id}", sid)  # index for session management
     return sid
+
+
+def user_sids(user_id: str) -> list[str]:
+    return [s for s in _redis().smembers(f"wd:usersids:{user_id}") if get(s)]
+
+
+def destroy_others(user_id: str, keep_sid: str | None) -> int:
+    count = 0
+    for sid in user_sids(user_id):
+        if sid != keep_sid:
+            destroy(sid)
+            _redis().srem(f"wd:usersids:{user_id}", sid)
+            count += 1
+    return count
 
 
 def get(sid: str | None) -> dict | None:

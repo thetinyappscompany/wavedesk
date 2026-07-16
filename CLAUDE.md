@@ -113,9 +113,23 @@ starter packs, applied at signup). api/platform.py = ALL Phase-5 dotted names
 (publicapi/v1/webhooks/admin/privacy/security/verticals/access/billing
 webhook). compat dispatcher now maps PermissionError→403. 15 tests (87 total)
 vs real PG+Redis. ⭐ FEATURE PARITY COMPLETE: Phases 0–5 all rebuilt on
-FastAPI+Postgres, 87 tests green, ruff clean, zero Frappe. Next: R7
-(contract-parity audit — point the real SPA + api-client + e2e suites at the
-new backend, fix drift) then R8 (data cutover). CapRover kit PR #32 + hardening PR #31 + probe PR #30
+FastAPI+Postgres, zero Frappe.
+R7 DONE on rewrite/r7-parity (stacked on R6): audited every this.call() in
+packages/api-client (156 distinct) vs the backend registry (now 179) → 16
+drift items found + fixed. Naming aligned (dual-registered):
+publicapi.create_api_key/revoke_api_key, security.twofa_confirm. Filled via
+app/api/parity.py: contacts.import_contacts+import_status (CSV BOM-safe merge),
+onboarding.onboarding_status, security.twofa_verify/revoke_session/
+revoke_other_sessions (sessions.py gained a Redis user→sid index),
+admin.workspace_detail/unsuspend_workspace/set_send_rate_clamp/
+set_ai_kill_switch/impersonate, webhooks.update_endpoint/redeliver. GUARD:
+tests/test_contract_parity.py reads index.ts + asserts every this.call is
+registered — CI fails on future drift. Doc: docs/rewrite/contract-parity.md.
+94 tests green vs real PG+Redis, ruff clean, ZERO drift. Rewrite R0–R7 all
+shipped as stacked PRs #33–#40. ONLY R8 LEFT = data cutover (staging site on
+new backend + live SPA smoke + one-time ETL tabWD*→snake_case + DNS flip) —
+staging-gated, founder-run. The Frappe product stays the deployable fallback
+until R8 cutover. CapRover kit PR #32 + hardening PR #31 + probe PR #30
 still open for the Frappe product (merge them — it remains the hostable
 product until parity).
 Previous epic: POSTGRES MIGRATION — DONE, PR #28 (feat/postgres-migration → main,
