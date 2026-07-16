@@ -18,6 +18,11 @@ def whoami() -> dict:
 
 
 @frappe.whitelist()
+def platform_stats() -> dict:
+    return superadmin.platform_stats()
+
+
+@frappe.whitelist()
 def list_workspaces(search: str | None = None, limit: int = 100) -> dict:
     return {"workspaces": superadmin.list_workspaces(search, limit)}
 

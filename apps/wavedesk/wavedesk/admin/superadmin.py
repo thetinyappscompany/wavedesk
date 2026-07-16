@@ -33,6 +33,63 @@ def _audit(workspace: str, action: str, detail: dict) -> None:
 
 # --- read ------------------------------------------------------------------
 
+SUBSCRIPTION_STATES = ("active", "trialing", "past_due", "suspended", "cancelled")
+
+
+def platform_stats() -> dict:
+    """SaaS-provider overview: platform-wide totals + status/plan breakdowns.
+
+    Cross-workspace roll-up for the operator's /admin header. Each figure is a
+    single aggregate query (no per-workspace loop) so it stays cheap as tenants
+    grow. 'users' counts distinct member accounts across all workspaces (a person
+    in two workspaces is one user)."""
+    require_platform_admin()
+    total_ws = frappe.db.count("WD Workspace")
+    stats: dict = {
+        "totals": {
+            "workspaces": total_ws,
+            "users": frappe.db.sql(
+                "select count(distinct user) from `tabWD Workspace Member`"
+            )[0][0],
+            "messages": frappe.db.count("WD Message"),
+            "contacts": frappe.db.count("WD Contact"),
+            "numbers": frappe.db.count("WD WhatsApp Number"),
+        },
+        "operational": {
+            # operator-suspended (abuse control), distinct from a billing status
+            "suspended": frappe.db.count("WD Workspace", {"suspended": 1}),
+        },
+    }
+
+    # Subscription status breakdown — one grouped query.
+    sub_rows = frappe.db.sql(
+        "select status, count(*) as n from `tabWD Subscription` group by status",
+        as_dict=True,
+    )
+    by_status = {r.status: r.n for r in sub_rows if r.status}
+    for s in SUBSCRIPTION_STATES:
+        by_status.setdefault(s, 0)
+    # Workspaces with no subscription row at all (fresh trials) count as 'none'.
+    with_sub = frappe.db.sql(
+        "select count(distinct workspace) from `tabWD Subscription`"
+    )[0][0]
+    by_status["none"] = max(0, total_ws - with_sub)
+    stats["by_subscription_status"] = by_status
+    stats["trial_vs_paid"] = {
+        "trial": by_status["trialing"] + by_status["none"],
+        "paid": by_status["active"],
+        "past_due": by_status["past_due"],
+    }
+
+    # Plan breakdown — one grouped query, most-populated first.
+    plan_rows = frappe.db.sql(
+        "select coalesce(plan, 'None') as plan, count(*) as n "
+        "from `tabWD Workspace` group by plan order by n desc",
+        as_dict=True,
+    )
+    stats["by_plan"] = [{"plan": r.plan, "count": r.n} for r in plan_rows]
+    return stats
+
 
 def list_workspaces(search: str | None = None, limit: int = 100) -> list[dict]:
     require_platform_admin()
