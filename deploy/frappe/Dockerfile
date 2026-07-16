@@ -30,11 +30,15 @@ RUN bench init \
 
 COPY --chown=frappe:frappe apps/wavedesk /tmp/wavedesk
 
-# boto3 is an optional runtime dep (pipeline/media_store degrades without it) —
-# production always wants the media pipeline, so bake it in.
+# Manual app install (bench get-app requires a git remote; the COPY has none):
+# place the app, pip-install it editable (frappe convention), register it in
+# apps.txt. boto3 is an optional runtime dep (media_store degrades without
+# it) — production always wants the media pipeline, so bake it in.
 RUN cd /home/frappe/frappe-bench && \
-  bench get-app /tmp/wavedesk && \
+  cp -r /tmp/wavedesk apps/wavedesk && \
+  env/bin/pip install --no-cache-dir -e apps/wavedesk && \
   env/bin/pip install --no-cache-dir boto3 && \
+  echo "wavedesk" >> sites/apps.txt && \
   find apps -mindepth 1 -path "*/.git" | xargs -r rm -fr
 
 FROM ${FRAPPE_IMAGE_PREFIX}/base:${FRAPPE_BRANCH} AS backend
