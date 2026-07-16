@@ -12,7 +12,8 @@
   "zoho_customer_id",
   "zoho_subscription_id",
   "current_period_end",
-  "addons"
+  "addons",
+  "last_zoho_event_at"
  ],
  "fields": [
   {
@@ -68,6 +69,13 @@
    "fieldname": "addons",
    "fieldtype": "Long Text",
    "label": "Add-ons"
+  },
+  {
+   "fieldname": "last_zoho_event_at",
+   "fieldtype": "Datetime",
+   "label": "Last Zoho Event At",
+   "read_only": 1,
+   "description": "Ordering watermark: webhooks older than this are ignored (out-of-order delivery guard)"
   }
  ],
  "index_web_pages_for_search": 0,

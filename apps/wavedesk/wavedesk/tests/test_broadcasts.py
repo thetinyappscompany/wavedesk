@@ -199,6 +199,33 @@ class TestBroadcasts(IntegrationTestCase):
         self.assertEqual(doc.status, "paused")
         self.assertEqual(doc.sent_count, 2)
 
+    def test_daily_cap_resumes_next_day(self):
+        """The cap is per CALENDAR DAY — yesterday's sends must not block
+        today's resume (lifetime counting paused capped broadcasts forever)."""
+        from frappe.utils import add_days, now_datetime
+
+        bc = self._make(
+            audience=[{"phone": f"9190000004{i}", "name": f"N{i}"} for i in range(3)],
+            daily_cap=2,
+        )
+        with patch(f"{SENDER}._enqueue_delivery"):
+            start_broadcast(bc["name"])
+        self.assertEqual(frappe.get_doc("WD Broadcast", bc["name"]).status, "paused")
+        # roll the clock: yesterday's dispatches age out of today's window
+        yesterday = add_days(now_datetime(), -1)
+        for name in frappe.get_all(
+            "WD Broadcast Recipient",
+            filters={"broadcast": bc["name"], "status": "sent"}, pluck="name",
+        ):
+            frappe.db.set_value(
+                "WD Broadcast Recipient", name, "sent_at", yesterday, update_modified=False
+            )
+        with patch(f"{SENDER}._enqueue_delivery"):
+            start_broadcast(bc["name"])  # resume
+        doc = frappe.get_doc("WD Broadcast", bc["name"])
+        self.assertEqual(doc.status, "completed")
+        self.assertEqual(doc.sent_count, 3)
+
     def test_failure_spike_auto_pauses(self):
         bc = self._make(
             audience=[{"phone": f"9190000003{i}", "name": f"N{i}"} for i in range(6)],

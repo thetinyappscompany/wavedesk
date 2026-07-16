@@ -13,7 +13,7 @@ non-negotiable #2). Zoho is the source of truth for money; WaveDesk for entitlem
 import json
 
 import frappe
-from frappe.utils import flt
+from frappe.utils import flt, get_datetime, now_datetime
 
 from wavedesk.wallet import ledger
 
@@ -55,6 +55,7 @@ def apply_subscription(
     workspace: str, *, status: str, plan_code: str | None = None,
     zoho_subscription_id: str | None = None, zoho_customer_id: str | None = None,
     current_period_end: str | None = None, addon_codes: list | None = None,
+    event_time: str | None = None,
 ) -> str | None:
     sub = frappe.db.get_value("WD Subscription", {"workspace": workspace})
     if not sub:
@@ -62,7 +63,23 @@ def apply_subscription(
             {"event": "zoho_unknown_workspace", "workspace": workspace}
         )
         return None
-    updates: dict = {"status": status, "provider": "zoho_billing"}
+    # Out-of-order delivery guard: a delayed/retried webhook older than the
+    # last applied event must never regress the status (e.g. a late
+    # subscription_created flipping a cancelled workspace back to active).
+    # Callers without an event time (reconciliation = live Zoho truth) always
+    # apply and advance the watermark to now.
+    watermark = frappe.db.get_value("WD Subscription", sub, "last_zoho_event_at")
+    incoming = get_datetime(event_time) if event_time else None
+    if incoming and watermark and incoming < get_datetime(watermark):
+        frappe.logger("wavedesk.billing").warning(
+            {"event": "zoho_stale_webhook_skipped", "workspace": workspace}
+        )
+        return None
+    updates: dict = {
+        "status": status,
+        "provider": "zoho_billing",
+        "last_zoho_event_at": incoming or now_datetime(),
+    }
     if zoho_subscription_id:
         updates["zoho_subscription_id"] = zoho_subscription_id
     if zoho_customer_id:
@@ -108,7 +125,8 @@ def process(event: dict) -> dict:
     """Dispatch one normalized billing event.
 
     event = {
-      "type": <zoho event_type>, "workspace": str, "plan_code": str|None,
+      "type": <zoho event_type>, "workspace": str, "event_time": str|None,
+      "plan_code": str|None,
       "zoho_subscription_id": str|None, "zoho_customer_id": str|None,
       "current_period_end": str|None, "addon_codes": [str]|None,
       "invoice": {"id", "amount", "status", "pdf_url", "is_topup"}|None,
@@ -126,6 +144,7 @@ def process(event: dict) -> dict:
             zoho_customer_id=event.get("zoho_customer_id"),
             current_period_end=event.get("current_period_end"),
             addon_codes=event.get("addon_codes"),
+            event_time=event.get("event_time"),
         ):
             actions.append("subscription")
 

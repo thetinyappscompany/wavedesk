@@ -86,6 +86,7 @@ def _normalize(payload: dict) -> dict:
     event: dict = {
         "type": etype,
         "workspace": workspace,
+        "event_time": payload.get("event_time") or payload.get("event_date"),
         "plan_code": plan_code,
         "zoho_subscription_id": sub.get("subscription_id"),
         "zoho_customer_id": sub.get("customer_id") or (sub.get("customer") or {}).get("customer_id"),

@@ -137,10 +137,18 @@ def _seed_ai_pricing_config() -> None:
         config.fx_buffer_pct = 3.0
         config.credit_packs = json.dumps(DEFAULT_CREDIT_PACKS)
         changed = True
-    # Model rates track the current routing table — refresh on every migrate.
-    rates = json.dumps(DEFAULT_MODEL_RATES)
-    if config.model_rates != rates:
-        config.model_rates = rates
+    # Model rates: add NEW models from the routing table, but never overwrite
+    # an existing rate — the operator may have tuned it (billing source of
+    # truth; a migrate must not silently revert their numbers).
+    try:
+        current = json.loads(config.model_rates or "{}")
+    except (TypeError, ValueError):
+        current = {}
+    if not isinstance(current, dict):
+        current = {}
+    missing = {m: r for m, r in DEFAULT_MODEL_RATES.items() if m not in current}
+    if missing:
+        config.model_rates = json.dumps({**current, **missing})
         changed = True
     if changed:
         config.save(ignore_permissions=True)

@@ -29,8 +29,16 @@ def _key() -> bytes:
         if len(key) != 32:
             frappe.throw("WAVEDESK_AI_SECRET must be base64 of exactly 32 bytes")
         return key
-    # Dev fallback: derive a stable 32-byte key from the site encryption_key.
-    seed = (frappe.local.conf.get("encryption_key") if frappe.local else None) or "wavedesk-dev-key"
+    # Dev/test fallback only: derive a stable 32-byte key from the site
+    # encryption_key. In production a missing secret FAILS CLOSED — a derived
+    # key would silently weaken every BYOK key and 2FA secret at rest.
+    conf = frappe.local.conf if frappe.local else None
+    if not (frappe.flags.in_test or (conf and conf.get("developer_mode"))):
+        frappe.throw(
+            "WAVEDESK_AI_SECRET is not set. Refusing to encrypt/decrypt stored "
+            "secrets with a derived dev key outside developer mode."
+        )
+    seed = (conf.get("encryption_key") if conf else None) or "wavedesk-dev-key"
     return hashlib.sha256(seed.encode()).digest()
 
 
