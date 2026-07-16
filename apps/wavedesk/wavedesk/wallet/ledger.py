@@ -18,6 +18,7 @@ from typing import Literal
 
 import frappe
 from frappe import _
+from frappe.query_builder.functions import Sum
 from frappe.utils import flt
 
 CREDIT_TYPES = ("topup", "refund", "adjustment")
@@ -41,11 +42,11 @@ def get_or_create_wallet(workspace: str) -> str:
 
 def derived_balance(wallet: str) -> float:
     """THE balance: SUM of signed ledger amounts. Everything else is cache."""
-    total = frappe.db.sql(
-        "select coalesce(sum(amount), 0) from `tabWD Wallet Transaction` where wallet = %s",
-        (wallet,),
-    )[0][0]
-    return flt(total, 2)
+    txn = frappe.qb.DocType("WD Wallet Transaction")
+    total = (
+        frappe.qb.from_(txn).select(Sum(txn.amount)).where(txn.wallet == wallet)
+    ).run()[0][0]
+    return flt(total or 0, 2)
 
 
 def get_balance(workspace: str) -> float:

@@ -165,7 +165,10 @@ def list_alerts(limit: int = ALERTS_PAGE) -> dict:
 @frappe.whitelist()
 def mark_alerts_seen() -> dict:
     workspace = get_active_workspace()
-    frappe.db.sql(
-        "update `tabWD Alert` set seen = 1 where workspace = %s and seen = 0", (workspace,)
-    )
+    alert = frappe.qb.DocType("WD Alert")
+    (
+        frappe.qb.update(alert)
+        .set(alert.seen, 1)
+        .where((alert.workspace == workspace) & (alert.seen == 0))
+    ).run()
     return {"unseen": 0}
