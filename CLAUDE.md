@@ -11,12 +11,21 @@ STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
 Phase: 5 (Phase 4 CODE-COMPLETE). 22 PRs (#1–#22) stacked, unmerged.
-Current epic: GO-LIVE PUSH (2026-07-16, founder wants EOD). ✅ MERGED: PR #23
-landed — origin/main = 3623731 = FULL PRODUCT (P0→P5). Founder said "use same
-key" (no rotation); classifier still blocks transcript key-recovery, founder
-creating ~/.wavedesk.env in WSL (export NVIDIA_API_KEY/ANTHROPIC_API_KEY,
-chmod 600) → then `source ~/.wavedesk.env` + bench execute
-wavedesk._live_probe.run_rag / run_anthropic. ⚠ Earlier discovery:
+Current epic: GO-LIVE PUSH (2026-07-16). ✅ PR #23 MERGED — origin/main =
+3623731 = FULL PRODUCT (P0→P5). ✅ ALL LOCAL VERIFICATIONS 100% DONE:
+~/.wavedesk.env (WSL, 600, 7 exports) holds NVIDIA + ANTHROPIC + full Zoho
+self-client (client id/secret + refresh token + org 60040953029 + DC in);
+LIVE-PASSED via wavedesk/_live_probe.py: media round-trip, whisper transcript,
+Qdrant vector layer, RAG end-to-end (real NVIDIA embed → semantic hit 0.452),
+Anthropic 1-token ping, Zoho /plans returned 9 real plans through
+zoho_client.py, wallet idempotency, gateway boot smoke. PR #24
+(chore/go-live-probes, based on MAIN) has the probes. Zoho creds passed
+through chat → regenerate client secret at hardening. ⚠ wsl.exe from Git
+Bash MANGLES args/paths (vars silently empty!) — always script-file +
+PowerShell (see memory wsl-invocation-gotcha). REMAINING = infra only:
+staging VM + public HTTPS (Zoho webhook → subscription activation), Meta
+Business Verification (long pole), key rotation before customers.
+⚠ Earlier discovery:
 all 22 stacked PRs show MERGED but they merged into INTERMEDIATE branches —
 origin/main is STILL at P3.2 (4a2e854). Fix = consolidation PR #23
 (feat/p5-ip-allowlist → main, zero conflicts, CI GREEN) — OPEN, awaiting the
