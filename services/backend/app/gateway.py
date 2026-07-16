@@ -65,3 +65,31 @@ def send_session_message(session_id: str, to: str, text: str) -> dict:
 
 def send_cloud_message(phone_number_id: str, to: str, text: str) -> dict:
     return _request("POST", f"/cloud/{phone_number_id}/messages", {"to": to, "text": text})
+
+
+# --- group actions (P2.3 contract) ---
+
+
+def group_participants_update(
+    session_id: str, group_jid: str, participants: list[str], action: str
+) -> dict:
+    return _request(
+        "POST",
+        f"/sessions/{session_id}/groups/{group_jid}/participants",
+        {"participants": participants, "action": action},
+    )
+
+
+def group_update_meta(
+    session_id: str, group_jid: str, subject: str | None = None, description: str | None = None
+) -> dict:
+    payload: dict = {}
+    if subject is not None:
+        payload["subject"] = subject
+    if description is not None:
+        payload["description"] = description
+    return _request("PATCH", f"/sessions/{session_id}/groups/{group_jid}", payload)
+
+
+def group_revoke_invite(session_id: str, group_jid: str) -> dict:
+    return _request("POST", f"/sessions/{session_id}/groups/{group_jid}/revoke-invite")

@@ -77,6 +77,9 @@ class Chat(UUIDPrimaryKey, Timestamps, Base):
     assigned_team_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("teams.id", ondelete="SET NULL")
     )
+    group_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("groups.id", ondelete="SET NULL")
+    )
     unread_count: Mapped[int] = mapped_column(Integer, default=0)
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     first_response_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -111,6 +114,7 @@ class Message(UUIDPrimaryKey, Timestamps, Base):
     sender_jid: Mapped[str | None] = mapped_column(String(120))
     sender_name: Mapped[str | None] = mapped_column(String(140))
     sent_via: Mapped[str | None] = mapped_column(String(20))
+    flagged: Mapped[bool] = mapped_column(Boolean, default=False)
     flag_reason: Mapped[str | None] = mapped_column(String(255))
     # media (P4.5 columns kept from day one so the consumer maps them)
     media_key: Mapped[str | None] = mapped_column(String(255))

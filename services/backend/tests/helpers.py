@@ -64,7 +64,10 @@ def make_message(db, ws, chat, **kw) -> Message:
 
 def baileys_event(workspace_id, session_id: str, wa_chat_id: str, text: str,
                   wa_message_id: str | None = None, from_me: bool = False,
-                  push_name: str | None = None) -> str:
+                  push_name: str | None = None, participant: str | None = None) -> str:
+    key: dict = {"fromMe": from_me}
+    if participant:  # group messages always carry the sender jid
+        key["participant"] = participant
     return json.dumps({
         "type": "message.received",
         "transport": "baileys",
@@ -74,7 +77,7 @@ def baileys_event(workspace_id, session_id: str, wa_chat_id: str, text: str,
         "payload": {
             "session_id": session_id,
             "message": {
-                "key": {"fromMe": from_me},
+                "key": key,
                 "pushName": push_name,
                 "message": {"conversation": text},
             },

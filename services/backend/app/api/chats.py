@@ -24,9 +24,12 @@ def list_chats(ctx: Ctx) -> dict:
     limit = min(int(p.get("limit") or 50), PAGE_SIZE_MAX)
     offset = max(int(p.get("offset") or 0), 0)
 
+    from app.models import Group
+
     query = (
-        select(Chat, Contact)
+        select(Chat, Contact, Group.subject)
         .join(Contact, Chat.contact_id == Contact.id, isouter=True)
+        .join(Group, Chat.group_id == Group.id, isouter=True)
         .where(Chat.workspace_id == ws.id)
     )
     status = p.get("status")
@@ -50,6 +53,7 @@ def list_chats(ctx: Ctx) -> dict:
                 func.lower(func.coalesce(Contact.full_name, "")).like(needle),
                 Contact.phone.like(f"%{p['search']}%"),
                 func.lower(Chat.wa_chat_id).like(needle),
+                func.lower(func.coalesce(Group.subject, "")).like(needle),
             )
         )
     reply_cutoff = needs_reply_threshold(ws)
@@ -78,10 +82,10 @@ def list_chats(ctx: Ctx) -> dict:
 
     from app.api.labels import chat_labels_map
 
-    labels_by_chat = chat_labels_map(ctx.db, [chat.id for chat, _ in rows])
+    labels_by_chat = chat_labels_map(ctx.db, [chat.id for chat, _, _ in rows])
     masked = masking.should_mask(ctx, ws)
     chats = []
-    for chat, contact in rows:
+    for chat, contact, group_subject in rows:
         contact_name = contact.full_name if contact else None
         contact_phone = contact.phone if contact else None
         wa_chat_id = chat.wa_chat_id
@@ -97,7 +101,7 @@ def list_chats(ctx: Ctx) -> dict:
                 "status": chat.status,
                 "number": str(chat.number_id) if chat.number_id else None,
                 "contact": str(chat.contact_id) if chat.contact_id else None,
-                "group": None,  # groups land in R3
+                "group": str(chat.group_id) if chat.group_id else None,
                 "assigned_agent": str(chat.assigned_agent_id) if chat.assigned_agent_id else None,
                 "assigned_team": str(chat.assigned_team_id) if chat.assigned_team_id else None,
                 "snoozed_until": chat.snoozed_until.isoformat() if chat.snoozed_until else None,
@@ -108,7 +112,7 @@ def list_chats(ctx: Ctx) -> dict:
                 "wa_chat_id": wa_chat_id,
                 "contact_name": contact_name,
                 "contact_phone": contact_phone,
-                "group_subject": None,
+                "group_subject": group_subject,
                 "labels": labels_by_chat.get(str(chat.id), []),
             }
         )

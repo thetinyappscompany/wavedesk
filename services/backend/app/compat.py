@@ -112,6 +112,8 @@ async def dispatch(dotted: str, request: Request) -> Response:
     finally:
         db.close()
 
+    if isinstance(result, Response):
+        return result  # raw responses (CSV downloads etc.) pass through
     out = JSONResponse({"message": result})
     # carry over cookies a handler set (login/logout)
     for header, value in response.raw_headers:
