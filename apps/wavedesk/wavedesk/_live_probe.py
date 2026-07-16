@@ -1,6 +1,7 @@
-# Temporary live-verification probe — run via:
-#   bench --site dev.localhost execute wavedesk._live_probe.run
-# Deleted after the go-live verification pass; never ships.
+# Live-verification probe suite (staging bring-up checklist — see
+# docs/runbooks/merge-and-staging.md). Run each check via:
+#   bench --site <site> execute wavedesk._live_probe.<fn>
+# Not whitelisted — bench-execute only, no HTTP surface.
 import urllib.request
 
 
@@ -110,6 +111,23 @@ def run_rag():
             pass
 
 
+def run_zoho():
+    """Live Zoho Billing round-trip through billing/zoho_client.py: refresh-token
+    -> access-token mint -> real API call with the org header. Read-only."""
+    import requests
+
+    from wavedesk.billing import zoho_client
+
+    assert zoho_client.is_configured(), "Zoho env incomplete (id/secret/refresh/org)"
+    headers = zoho_client._headers()
+    assert headers, "access-token mint failed"
+    resp = requests.get(f"{zoho_client._api_base()}/plans", headers=headers, timeout=30)
+    resp.raise_for_status()
+    plans = (resp.json() or {}).get("plans", [])
+    print(f"ZOHO-PROBE-PASS :: token minted + /plans returned {len(plans)} plan(s) "
+          f"for org (API + org header accepted)")
+
+
 def run_anthropic():
     """Minimal Anthropic key sanity ping (1-token Haiku call, ~zero cost).
     Bypasses the metered provider on purpose — this validates the KEY, not billing."""
@@ -126,35 +144,6 @@ def run_anthropic():
     )
     assert resp.id, "no response id"
     print("ANTHROPIC-PROBE-PASS :: key valid, 1-token Haiku round-trip ok")
-
-
-def run_reconcile_repro():
-    """Debug: does a name-in filter round-trip a UUID-named WD Message?"""
-    import uuid as uuidlib
-
-    import frappe
-
-    ws = frappe.get_all("WD Workspace", limit=1, pluck="name")[0]
-    try:
-        chat = frappe.get_doc({
-            "doctype": "WD Chat", "workspace": ws, "chat_type": "dm",
-            "wa_chat_id": f"repro-{uuidlib.uuid4().hex[:8]}", "status": "open",
-        }).insert(ignore_permissions=True)
-        msg = frappe.get_doc({
-            "doctype": "WD Message", "workspace": ws, "chat": chat.name,
-            "direction": "out", "message_type": "text", "body": "x",
-            "wa_message_id": f"R-{uuidlib.uuid4().hex[:8]}", "status": "failed",
-        }).insert(ignore_permissions=True)
-        plucked = frappe.get_all(
-            "WD Message", filters={"name": ("in", [msg.name]), "status": "failed"},
-            pluck="name",
-        )
-        print("stored:", repr(msg.name))
-        print("plucked:", [repr(r) for r in plucked])
-        print("set-match:", msg.name in set(plucked))
-        print("db-status:", frappe.db.get_value("WD Message", msg.name, "status"))
-    finally:
-        frappe.db.rollback()
 
 
 def run_wallet():
