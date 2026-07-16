@@ -53,7 +53,7 @@
   },
   {
    "fieldname": "custom_attributes",
-   "fieldtype": "JSON",
+   "fieldtype": "Long Text",
    "label": "Custom Attributes"
   },
   {

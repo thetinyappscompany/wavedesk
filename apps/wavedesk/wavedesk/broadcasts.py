@@ -312,16 +312,15 @@ def _reconcile(broadcast_name: str) -> None:
     """Flip dispatched recipients whose message ultimately FAILED delivery to
     failed — so the real failure rate (not just dispatch errors) drives the
     auto-pause and the report."""
-    rows = frappe.db.sql(
-        """
-        select r.name as recipient, m.status as msg_status
-        from `tabWD Broadcast Recipient` r
-        join `tabWD Message` m on r.message = m.name
-        where r.broadcast = %s and r.status = 'sent' and m.status = 'failed'
-        """,
-        (broadcast_name,),
-        as_dict=True,
-    )
+    r = frappe.qb.DocType("WD Broadcast Recipient")
+    m = frappe.qb.DocType("WD Message")
+    rows = (
+        frappe.qb.from_(r)
+        .join(m)
+        .on(r.message == m.name)
+        .select(r.name.as_("recipient"))
+        .where((r.broadcast == broadcast_name) & (r.status == "sent") & (m.status == "failed"))
+    ).run(as_dict=True)
     for row in rows:
         frappe.db.set_value(
             "WD Broadcast Recipient",

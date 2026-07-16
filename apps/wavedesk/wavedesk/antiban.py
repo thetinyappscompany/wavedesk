@@ -12,7 +12,20 @@ Warm-up dates are plain dates; caps are per calendar day (server date).
 """
 
 import frappe
+from frappe.query_builder.functions import Count
 from frappe.utils import add_to_date, getdate, now_datetime, today
+
+
+def _outbound_via_number(number_name: str, since):
+    """Base query: outbound messages dispatched through this number since `since`."""
+    m = frappe.qb.DocType("WD Message")
+    c = frappe.qb.DocType("WD Chat")
+    return (
+        frappe.qb.from_(m)
+        .join(c)
+        .on(m.chat == c.name)
+        .where((c.number == number_name) & (m.direction == "out") & (m.creation >= since))
+    )
 
 WARMUP_DAY1_CAP = 20
 WARMUP_DAYS = 30
@@ -55,14 +68,7 @@ def daily_cap_for(number_doc, on_date=None) -> int | None:
 def sent_today(number_name: str) -> int:
     """Outbound messages dispatched via this number since local midnight."""
     start = getdate(today())
-    return frappe.db.sql(
-        """
-        select count(*) from `tabWD Message` m
-        join `tabWD Chat` c on m.chat = c.name
-        where c.number = %s and m.direction = 'out' and m.creation >= %s
-        """,
-        (number_name, start),
-    )[0][0]
+    return _outbound_via_number(number_name, start).select(Count("*")).run()[0][0]
 
 
 def can_dispatch(number_name: str) -> bool:
@@ -91,16 +97,12 @@ def compute_health(number_name: str) -> dict:
     if not num:
         return {"score": 0, "risk": "high"}
     window = add_to_date(now_datetime(), days=-HEALTH_WINDOW_DAYS)
-    rows = frappe.db.sql(
-        """
-        select m.status as status, count(*) as n from `tabWD Message` m
-        join `tabWD Chat` c on m.chat = c.name
-        where c.number = %s and m.direction = 'out' and m.creation >= %s
-        group by m.status
-        """,
-        (number_name, window),
-        as_dict=True,
-    )
+    m = frappe.qb.DocType("WD Message")
+    rows = (
+        _outbound_via_number(number_name, window)
+        .select(m.status.as_("status"), Count("*").as_("n"))
+        .groupby(m.status)
+    ).run(as_dict=True)
     dispatched = sum(r.n for r in rows)
     failed = sum(r.n for r in rows if r.status == "failed")
     failure_rate = (failed / dispatched) if dispatched else 0.0

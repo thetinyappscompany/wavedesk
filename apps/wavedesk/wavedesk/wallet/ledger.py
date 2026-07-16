@@ -120,10 +120,15 @@ def _append(
             "idempotency_key": idempotency_key,
         }
     )
+    # Savepoint so a lost duplicate-key race doesn't abort the surrounding
+    # transaction (Postgres poisons the whole txn on a failed INSERT; MariaDB
+    # doesn't, but the savepoint is harmless there).
+    frappe.db.savepoint("wd_ledger_append")
     try:
         txn.insert(ignore_permissions=True)
     except (frappe.UniqueValidationError, frappe.DuplicateEntryError):
         # Lost a race on the same key between the fast path and insert — idempotent.
+        frappe.db.rollback(save_point="wd_ledger_append")
         return frappe.db.get_value("WD Wallet Transaction", {"idempotency_key": idempotency_key})
 
     frappe.db.set_value(

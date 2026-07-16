@@ -42,12 +42,12 @@
   },
   {
    "fieldname": "limits",
-   "fieldtype": "JSON",
+   "fieldtype": "Long Text",
    "label": "Limits"
   },
   {
    "fieldname": "features",
-   "fieldtype": "JSON",
+   "fieldtype": "Long Text",
    "label": "Features"
   },
   {
@@ -57,7 +57,7 @@
   },
   {
    "fieldname": "zoho_addon_codes",
-   "fieldtype": "JSON",
+   "fieldtype": "Long Text",
    "label": "Zoho Add-on Codes"
   }
  ],

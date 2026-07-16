@@ -66,7 +66,7 @@
   },
   {
    "fieldname": "addons",
-   "fieldtype": "JSON",
+   "fieldtype": "Long Text",
    "label": "Add-ons"
   }
  ],
