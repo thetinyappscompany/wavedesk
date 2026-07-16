@@ -134,12 +134,17 @@ def _seen_within(workspace: str, days: int) -> set[str]:
 def _in_group(workspace: str, group) -> set[str]:
     if not group:
         return set()
-    rows = frappe.get_all(
-        "WD Group Member",
-        filters={"group": group, "left_at": ("is", "not set"), "contact": ("is", "set")},
-        pluck="contact",
-        ignore_permissions=True,
-    )
+    gm = frappe.qb.DocType("WD Group Member")
+    rows = (
+        frappe.qb.from_(gm)
+        .select(gm.contact)
+        .where(
+            (gm["group"] == group)
+            & gm.left_at.isnull()
+            & gm.contact.isnotnull()
+            & (gm.contact != "")
+        )
+    ).run(pluck=True)
     # scope to workspace contacts
     if not rows:
         return set()

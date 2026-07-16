@@ -32,6 +32,36 @@ PARTICIPANT_ACTIONS = ("add", "remove", "promote", "demote")
 INVITE_URL_PREFIX = "https://chat.whatsapp.com/"
 
 
+def active_members(
+    group: str, fields: list[str], order_by: list[tuple] | None = None
+) -> list[dict]:
+    """Current (not-left) members of a group.
+
+    Portable NULL check via frappe.qb — get_all's ("is", "not set") filter
+    renders as a '' comparison, which Postgres rejects on the left_at
+    timestamp column."""
+    gm = frappe.qb.DocType("WD Group Member")
+    query = (
+        frappe.qb.from_(gm)
+        .select(*[gm[f] for f in fields])
+        .where((gm["group"] == group) & gm.left_at.isnull())
+    )
+    for field, order in order_by or []:
+        query = query.orderby(gm[field], order=order)
+    return query.run(as_dict=True)
+
+
+def active_member_count(group: str) -> int:
+    from frappe.query_builder.functions import Count
+
+    gm = frappe.qb.DocType("WD Group Member")
+    return (
+        frappe.qb.from_(gm)
+        .select(Count("*"))
+        .where((gm["group"] == group) & gm.left_at.isnull())
+    ).run()[0][0]
+
+
 def _audit(workspace: str, action: str, entity: str, payload: dict) -> None:
     doc = frappe.new_doc("WD Audit Log")
     doc.update(

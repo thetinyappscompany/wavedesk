@@ -193,8 +193,11 @@ def _match_contact(workspace: str, pid: str) -> str | None:
 
 
 def _refresh_member_count(group: str) -> None:
-    count = frappe.db.count("WD Group Member", {"group": group, "left_at": ("is", "not set")})
-    frappe.db.set_value("WD Group", group, "member_count", count, update_modified=False)
+    from wavedesk.groups import active_member_count
+
+    frappe.db.set_value(
+        "WD Group", group, "member_count", active_member_count(group), update_modified=False
+    )
 
 
 def _resolve_number(workspace: str, payload: dict) -> str | None:

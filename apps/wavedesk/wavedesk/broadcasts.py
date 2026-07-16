@@ -116,11 +116,9 @@ def _audience_rows(broadcast_doc, audience: list | None) -> list[dict]:
             if isinstance(r, dict) and r.get("phone")
         ]
     if atype == "group_members":
-        members = frappe.get_all(
-            "WD Group Member",
-            filters={"group": broadcast_doc.audience_ref, "left_at": ("is", "not set")},
-            fields=["participant_id", "contact"],
-        )
+        from wavedesk.groups import active_members
+
+        members = active_members(broadcast_doc.audience_ref, ["participant_id", "contact"])
         return [
             {"phone": m.participant_id.split("@")[0], "contact": m.contact}
             for m in members
@@ -312,22 +310,30 @@ def _reconcile(broadcast_name: str) -> None:
     """Flip dispatched recipients whose message ultimately FAILED delivery to
     failed — so the real failure rate (not just dispatch errors) drives the
     auto-pause and the report."""
-    r = frappe.qb.DocType("WD Broadcast Recipient")
-    m = frappe.qb.DocType("WD Message")
-    rows = (
-        frappe.qb.from_(r)
-        .join(m)
-        .on(r.message == m.name)
-        .select(r.name.as_("recipient"))
-        .where((r.broadcast == broadcast_name) & (r.status == "sent") & (m.status == "failed"))
-    ).run(as_dict=True)
-    for row in rows:
-        frappe.db.set_value(
-            "WD Broadcast Recipient",
-            row.recipient,
-            {"status": "failed", "error": "delivery failed"},
-            update_modified=False,
+    # Two-step (no join): WD Message is UUID-named, and Postgres refuses a
+    # varchar Link = uuid column join; recipient counts are bounded (5k cap).
+    dispatched = frappe.get_all(
+        "WD Broadcast Recipient",
+        filters={"broadcast": broadcast_name, "status": "sent", "message": ("is", "set")},
+        fields=["name", "message"],
+    )
+    if not dispatched:
+        return
+    failed_msgs = set(
+        frappe.get_all(
+            "WD Message",
+            filters={"name": ("in", [d.message for d in dispatched]), "status": "failed"},
+            pluck="name",
         )
+    )
+    for d in dispatched:
+        if d.message in failed_msgs:
+            frappe.db.set_value(
+                "WD Broadcast Recipient",
+                d.name,
+                {"status": "failed", "error": "delivery failed"},
+                update_modified=False,
+            )
 
 
 def _recount(broadcast_name: str) -> tuple[int, int]:

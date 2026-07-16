@@ -106,12 +106,15 @@ def get_group(group: str) -> dict:
     doc = _get_group_checked(group)
     masked = should_mask(doc.workspace)
 
-    members = frappe.get_all(
-        "WD Group Member",
-        filters={"group": doc.name, "left_at": ("is", "not set")},
-        fields=["name", "participant_id", "contact", "role", "joined_at"],
-        order_by="role asc, creation asc",
-        ignore_permissions=True,  # group-level permission checked above
+    from frappe.query_builder import Order
+
+    from wavedesk.groups import active_members
+
+    # group-level permission checked above
+    members = active_members(
+        doc.name,
+        ["name", "participant_id", "contact", "role", "joined_at"],
+        order_by=[("role", Order.asc), ("creation", Order.asc)],
     )
     for member in members:
         digits = member.participant_id.split("@")[0].split(":")[0]
