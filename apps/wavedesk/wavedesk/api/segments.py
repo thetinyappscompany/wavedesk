@@ -10,6 +10,7 @@ import frappe
 from frappe import _
 
 from wavedesk import segments
+from wavedesk.masking import mask_name, mask_phone, should_mask
 from wavedesk.tenancy import get_active_workspace, get_workspace_role
 
 
@@ -113,6 +114,10 @@ def preview_segment(segment: str, limit: int | str = 10) -> dict:
         filters={"name": ("in", names[: int(limit)])} if names else {"name": ("in", ("__none__",))},
         fields=["name", "phone", "full_name"],
     )
+    if should_mask(doc.workspace):
+        for row in sample:
+            row["full_name"] = mask_name(row["full_name"], row["phone"])
+            row["phone"] = mask_phone(row["phone"])
     return {"count": len(names), "sample": sample}
 
 

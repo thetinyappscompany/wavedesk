@@ -110,6 +110,19 @@ class TestFlagging(IntegrationTestCase):
         tickets = frappe.get_all("WD Ticket", filters={"source_message": msg})
         self.assertEqual(len(tickets), 1)
 
+    def test_evaluate_retry_charges_once(self):
+        """A retried RQ job reuses the deterministic message-derived idempotency
+        key, so metering records the spend exactly once."""
+        ws = _workspace()
+        _rule(ws, "angry", "customer is angry")
+        chat, msg = _message(ws, "this is terrible")
+        e1, e2, _ = self._with_model('["angry"]')
+        with e1, e2:
+            flagging.evaluate(ws, chat, msg, "this is terrible")
+            flagging.evaluate(ws, chat, msg, "this is terrible")  # RQ retry
+        rows = frappe.get_all("WD Usage Record", filters={"idempotency_key": f"flag:{msg}"})
+        self.assertEqual(len(rows), 1)
+
     def test_evaluate_no_match_no_flag(self):
         ws = _workspace()
         _rule(ws, "angry", "customer is angry")

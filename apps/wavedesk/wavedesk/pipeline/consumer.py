@@ -290,7 +290,10 @@ def apply_event(event: dict) -> None:
             from wavedesk.ai import agent as ai_agent
             from wavedesk.ai import autoticket
 
-            _run_hook("ai_agent", ai_agent.on_inbound_dm, workspace, chat, chat_type, body)
+            _run_hook(
+                "ai_agent", ai_agent.on_inbound_dm,
+                workspace, chat, chat_type, body, message.name,
+            )
             # AI auto-ticket (P4.6): open a ticket for actionable issues.
             _run_hook("autoticket", autoticket.on_inbound, workspace, chat, message.name, body)
     else:

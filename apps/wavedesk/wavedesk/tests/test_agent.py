@@ -216,6 +216,24 @@ class TestAutoAgentInbound(IntegrationTestCase):
         send.assert_called_once()
         self.assertEqual(send.call_args.args[1], "You can return within 7 days.")
 
+    def test_handle_inbound_retry_charges_once(self):
+        """A retried RQ job passes the same message name → same deterministic
+        idempotency key → the Sonnet reply is metered exactly once."""
+        ws = _workspace()
+        chat = _make_chat(ws)
+        hits = [{"text": "Return policy is 7 days.", "doc": "KDOC-1", "score": 0.9}]
+        fake = _FakeClient("You can return within 7 days.")
+        with patch.object(rag, "search", lambda w, q, top_k=rag.TOP_K: hits), \
+             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-pool"}), \
+             patch.object(provider, "_client", lambda key: fake), \
+             patch("wavedesk.pipeline.sender.queue_send"):
+            agent.handle_inbound(ws, chat, "how many days to return?", message="MSG-RETRY-1")
+            agent.handle_inbound(ws, chat, "how many days to return?", message="MSG-RETRY-1")
+        rows = frappe.get_all(
+            "WD Usage Record", filters={"idempotency_key": "agent:MSG-RETRY-1"}
+        )
+        self.assertEqual(len(rows), 1)
+
     def test_handle_inbound_handoff_sets_pending(self):
         ws = _workspace(threshold=0.6)
         chat = _make_chat(ws)

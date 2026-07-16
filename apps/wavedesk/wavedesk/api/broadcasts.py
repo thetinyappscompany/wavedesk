@@ -8,6 +8,7 @@ import frappe
 from frappe import _
 
 from wavedesk import broadcasts
+from wavedesk.masking import mask_name, mask_phone, should_mask
 from wavedesk.tenancy import get_active_workspace, get_workspace_role
 
 _RECIPIENT_CAP = 5000  # guide exit criterion tests a 5k-recipient broadcast
@@ -194,8 +195,12 @@ def delivery_report(broadcast: str, limit: int | str = 200) -> dict:
             "WD Message", filters={"name": ("in", msg_ids)}, fields=["name", "status"]
         )
     } if msg_ids else {}
+    masked = should_mask(doc.workspace)
     for r in rows:
         r["message_status"] = statuses.get(r.pop("message", None))
+        if masked:
+            r["recipient_name"] = mask_name(r["recipient_name"], r["phone"])
+            r["phone"] = mask_phone(r["phone"])
     counts: dict[str, int] = {}
     for status in ("pending", "sent", "failed", "opted_out", "skipped"):
         counts[status] = frappe.db.count(

@@ -29,8 +29,11 @@ def _parse(text: str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def classify(workspace: str, body: str) -> dict:
-    """Return {actionable: bool, title: str, priority: str} for one message."""
+def classify(workspace: str, body: str, idempotency_key: str | None = None) -> dict:
+    """Return {actionable: bool, title: str, priority: str} for one message.
+
+    Job-driven callers pass a deterministic idempotency_key (derived from the
+    message) so a retried RQ job never double-charges."""
     if not (body or "").strip():
         return {"actionable": False}
     system = (
@@ -43,7 +46,9 @@ def classify(workspace: str, body: str) -> dict:
     out = provider.complete(
         workspace, task="classify", system=system,
         messages=[{"role": "user", "content": body}],
-        source="autoticket", idempotency_key=frappe.generate_hash(length=12), max_tokens=150,
+        source="autoticket",
+        idempotency_key=idempotency_key or frappe.generate_hash(length=12),
+        max_tokens=150,
     )
     data = _parse(out["text"])
     if not data.get("actionable"):
@@ -82,7 +87,7 @@ def evaluate(workspace: str, chat: str, message: str, body: str) -> str | None:
     if frappe.db.exists("WD Ticket", {"chat": chat, "status": ("in", OPEN_STATUSES)}):
         return None
 
-    result = classify(workspace, body)
+    result = classify(workspace, body, idempotency_key=f"autoticket:{message}")
     if not result.get("actionable"):
         return None
     doc = frappe.get_doc({

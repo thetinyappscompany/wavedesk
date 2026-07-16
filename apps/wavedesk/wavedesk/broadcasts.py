@@ -118,6 +118,9 @@ def _audience_rows(broadcast_doc, audience: list | None) -> list[dict]:
     if atype == "group_members":
         from wavedesk.groups import active_members
 
+        group_ws = frappe.db.get_value("WD Group", broadcast_doc.audience_ref, "workspace")
+        if group_ws != workspace:
+            frappe.throw(_("Group is outside this workspace"))
         members = active_members(broadcast_doc.audience_ref, ["participant_id", "contact"])
         return [
             {"phone": m.participant_id.split("@")[0], "contact": m.contact}
