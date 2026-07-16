@@ -67,6 +67,27 @@ class TestIpAllowlist(IntegrationTestCase):
         with patch.object(frappe.local, "request_ip", "10.1.2.3", create=True):
             access.enforce(ws)
 
+    def test_trusted_proxy_reads_forwarded_client_ip(self):
+        # Behind a reverse proxy, request_ip is the proxy's own address. Without
+        # the opt-in, a forwarded header is NOT trusted (so an allowlisted ws
+        # would lock out) — with it, the real client IP is honoured.
+        ws = _workspace()
+        access.set_allowlist(ws, ["10.0.0.0/8"])
+
+        def _hdr(h, default=None):
+            return "10.1.2.3" if h == "X-Real-IP" else default
+
+        # opt-in OFF: forwarded header ignored, proxy IP (1.2.3.4) blocked
+        with patch("frappe.get_request_header", side_effect=_hdr), \
+                patch.object(frappe.local, "request_ip", "1.2.3.4", create=True):
+            with self.assertRaises(frappe.PermissionError):
+                access.enforce(ws)
+        # opt-in ON: X-Real-IP client (10.1.2.3) is inside the allowlist → passes
+        with patch.dict(frappe.local.conf, {"ip_allowlist_trusted_proxy": 1}), \
+                patch("frappe.get_request_header", side_effect=_hdr), \
+                patch.object(frappe.local, "request_ip", "1.2.3.4", create=True):
+            access.enforce(ws)
+
     def test_public_api_rejects_disallowed_ip(self):
         from wavedesk.api import v1
 

@@ -128,6 +128,27 @@ def _handle_entries(r: "redis_lib.Redis", stream: str, entries: list) -> int:
 GROUP_EVENT_TYPES = ("group.upsert", "group.update", "group.participants")
 
 
+def _run_hook(label: str, fn, *args, **kwargs) -> None:
+    """Run a best-effort inbound side-channel in its own savepoint.
+
+    The inbound WD Message is already persisted by the time these hooks run. A
+    hook that raises (a downstream bug, a queue outage when it enqueues an RQ
+    job) must NOT roll back that message and get the whole event parked on the
+    poison stream — the pipeline is sacred (product principle #1). The savepoint
+    rolls back only the failing hook's own writes; the message and every other
+    hook survive. Mirrors webhooks.safe_emit's isolation. PII: log the hook
+    label only, never bodies/phones (#6)."""
+    frappe.db.savepoint(label)
+    try:
+        fn(*args, **kwargs)
+    except Exception:
+        frappe.db.rollback(save_point=label)
+        frappe.log_error(
+            title=f"wavedesk inbound hook failed: {label}",
+            message=frappe.get_traceback(),
+        )
+
+
 def apply_event(event: dict) -> None:
     if event.get("type") in GROUP_EVENT_TYPES:
         from wavedesk.pipeline import group_sync
@@ -210,24 +231,29 @@ def apply_event(event: dict) -> None:
             "chat": chat, "message": message.name, "wa_message_id": wa_message_id,
             "message_type": message_type, "contact": contact,
         })
-        _auto_reopen(workspace, chat)
+        # Every hook below is a best-effort side-channel: the message is already
+        # persisted, so each runs in its own savepoint (see _run_hook) and can
+        # fail without losing the customer's inbound message.
+        _run_hook("auto_reopen", _auto_reopen, workspace, chat)
         # Out-of-office auto-reply (P3.2): a DM arriving outside business hours
         # gets one automated reply per window. Self-guards on settings/type.
         from wavedesk import routing
 
-        routing.maybe_ooo_reply(workspace, chat, chat_type)
+        _run_hook("ooo_reply", routing.maybe_ooo_reply, workspace, chat, chat_type)
         # Broadcast opt-out (P3.4): a 'STOP' reply suppresses future broadcasts.
         if chat_type == "dm" and contact:
             from wavedesk import broadcasts
 
-            broadcasts.process_opt_out(workspace, contact, body)
+            _run_hook("opt_out", broadcasts.process_opt_out, workspace, contact, body)
         if chat_type == "group":
             # Needs Reply queue (P2.2): question-looking messages start the clock
-            inbox.flag_pending_query(workspace, chat, body)
+            _run_hook("flag_pending_query", inbox.flag_pending_query, workspace, chat, body)
             # Monitoring rules (P2.4): keyword/link/phone alerts
             from wavedesk import monitoring
 
-            monitoring.evaluate_message(
+            _run_hook(
+                "monitoring",
+                monitoring.evaluate_message,
                 workspace,
                 chat,
                 frappe.db.get_value("WD Chat", chat, "group"),
@@ -237,7 +263,9 @@ def apply_event(event: dict) -> None:
         # Automation rules (P3.1): message_received trigger (+ chat_created below)
         from wavedesk import automation
 
-        automation.run_trigger(
+        _run_hook(
+            "automation",
+            automation.run_trigger,
             workspace,
             "message_received",
             chat,
@@ -247,22 +275,22 @@ def apply_event(event: dict) -> None:
         # inbound message (dm + group). Cheap gate; classify runs off-thread.
         from wavedesk.ai import flagging
 
-        flagging.on_inbound(workspace, chat, message.name, body)
+        _run_hook("ai_flagging", flagging.on_inbound, workspace, chat, message.name, body)
         # Voice transcription (P4.5): a downloaded voice note is transcribed
         # off-thread via faster-whisper, then re-run through the text AI
         # pipelines (flagging/auto-ticket/auto-agent). Cheap gate (voice note?).
         from wavedesk.ai import transcription
 
-        transcription.on_inbound(workspace, chat, message.name, chat_type)
+        _run_hook("transcription", transcription.on_inbound, workspace, chat, message.name, chat_type)
         # AI Auto-Agent (P4.3): auto-answer customer DMs from the knowledge base,
         # or hand off to a human. Cheap gate; heavy answering runs off-thread.
         if chat_type == "dm":
             from wavedesk.ai import agent as ai_agent
             from wavedesk.ai import autoticket
 
-            ai_agent.on_inbound_dm(workspace, chat, chat_type, body)
+            _run_hook("ai_agent", ai_agent.on_inbound_dm, workspace, chat, chat_type, body)
             # AI auto-ticket (P4.6): open a ticket for actionable issues.
-            autoticket.on_inbound(workspace, chat, message.name, body)
+            _run_hook("autoticket", autoticket.on_inbound, workspace, chat, message.name, body)
     else:
         # a reply from the phone itself also answers the pending question
         inbox.clear_pending_query(workspace, chat)
@@ -466,10 +494,13 @@ def _upsert_chat(
     chat.insert(ignore_permissions=True)
 
     # Automation rules (P3.1): chat_created trigger fires on a brand-new chat.
+    # Best-effort side-channels — isolated so a failure can't roll back the chat.
     from wavedesk import automation
 
-    automation.run_trigger(
-        workspace, "chat_created", chat.name, {"trigger": "chat_created"}
+    _run_hook(
+        "automation_chat_created",
+        automation.run_trigger,
+        workspace, "chat_created", chat.name, {"trigger": "chat_created"},
     )
 
     # Auto-assignment & routing (P3.2): drop a brand-new DM on the workspace's
@@ -477,5 +508,5 @@ def _upsert_chat(
     if chat_type == "dm":
         from wavedesk import routing
 
-        routing.route_new_chat(workspace, chat.name)
+        _run_hook("route_new_chat", routing.route_new_chat, workspace, chat.name)
     return chat.name
