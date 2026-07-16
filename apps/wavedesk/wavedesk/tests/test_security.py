@@ -1,7 +1,11 @@
-"""P5 acceptance — 2FA (TOTP) enrollment/verify/recovery + active-session mgmt."""
+"""P5 acceptance — 2FA (TOTP) enrollment/verify/recovery + active-session mgmt
++ crypto fail-closed guard."""
 
+import base64
+import os
 import time
 import uuid
+from unittest.mock import patch
 
 import frappe
 
@@ -21,6 +25,26 @@ class TestTwoFactor(IntegrationTestCase):
         frappe.set_user(USER)
         frappe.db.delete("WD User 2FA", {"user": USER})  # clean slate (commits persist)
         frappe.db.commit()
+
+    def test_crypto_fails_closed_without_secret_outside_dev(self):
+        """Production (no dev mode, no test flag) with WAVEDESK_AI_SECRET unset
+        must refuse to encrypt/decrypt rather than fall back to a derived key."""
+        from wavedesk.ai import crypto
+
+        env = {k: v for k, v in os.environ.items() if k != "WAVEDESK_AI_SECRET"}
+        old_conf = frappe.local.conf
+        frappe.local.conf = frappe._dict({"encryption_key": "site-key"})  # no developer_mode
+        try:
+            with patch.dict(os.environ, env, clear=True), \
+                 patch.dict(frappe.flags, {"in_test": False}):
+                with self.assertRaises(frappe.ValidationError):
+                    crypto.encrypt("byok-key")
+        finally:
+            frappe.local.conf = old_conf
+        # an explicit env secret always works, dev mode or not
+        secret = base64.b64encode(os.urandom(32)).decode()
+        with patch.dict(os.environ, {"WAVEDESK_AI_SECRET": secret}):
+            self.assertEqual(crypto.decrypt(crypto.encrypt("hello")), "hello")
 
     def test_totp_is_rfc6238_stable(self):
         secret = twofa.random_secret()

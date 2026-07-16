@@ -56,6 +56,54 @@ class TestZohoBilling(IntegrationTestCase):
         zoho.process({"type": "payment_declined", "workspace": ws})
         self.assertEqual(self._sub(ws).status, "past_due")
 
+    def test_out_of_order_webhook_never_regresses_status(self):
+        """A delayed/retried webhook older than the last applied event is
+        ignored — a late subscription_created must not resurrect a cancelled
+        workspace's entitlements."""
+        ws = _workspace()
+        zoho.process({"type": "subscription_cancelled", "workspace": ws,
+                      "event_time": "2026-07-16 10:00:00"})
+        self.assertEqual(self._sub(ws).status, "cancelled")
+        zoho.process({"type": "subscription_created", "workspace": ws,
+                      "event_time": "2026-07-16 09:00:00"})  # stale, delivered late
+        self.assertEqual(self._sub(ws).status, "cancelled")
+        zoho.process({"type": "subscription_renewed", "workspace": ws,
+                      "event_time": "2026-07-16 11:00:00"})  # genuinely newer
+        self.assertEqual(self._sub(ws).status, "active")
+
+    def test_pricing_seed_never_clobbers_tuned_rates(self):
+        """Migrate re-seeds must ADD new models but keep operator-tuned rates."""
+        import json as jsonlib
+
+        from wavedesk.setup.install import DEFAULT_MODEL_RATES, _seed_ai_pricing_config
+
+        config = frappe.get_single("WD AI Pricing Config")
+        original = config.model_rates
+        try:
+            model = next(iter(DEFAULT_MODEL_RATES))
+            rates = jsonlib.loads(original or "{}")
+            tuned = {"input_per_mtok": 99.0, "output_per_mtok": 999.0}
+            rates[model] = tuned
+            removed = None
+            for other in list(rates):
+                if other != model:
+                    removed = other
+                    rates.pop(other)
+                    break
+            config.model_rates = jsonlib.dumps(rates)
+            config.save(ignore_permissions=True)
+
+            _seed_ai_pricing_config()
+
+            after = jsonlib.loads(frappe.get_single("WD AI Pricing Config").model_rates)
+            self.assertEqual(after[model], tuned, "tuned rate was clobbered")
+            if removed:
+                self.assertIn(removed, after, "missing default model not re-added")
+        finally:
+            restore = frappe.get_single("WD AI Pricing Config")
+            restore.model_rates = original
+            restore.save(ignore_permissions=True)
+
     def test_topup_invoice_credits_wallet_idempotently(self):
         # process() commits (real-webhook behaviour), so ids must be unique per run.
         ws = _workspace()

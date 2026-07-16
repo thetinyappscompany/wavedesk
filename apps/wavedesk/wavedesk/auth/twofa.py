@@ -126,7 +126,9 @@ def verify(user: str, code: str) -> bool:
 
 
 def _consume_recovery(user: str, code: str) -> bool:
-    raw = frappe.db.get_value("WD User 2FA", user, "recovery_codes")
+    # for_update row-locks the record so two concurrent logins can't both
+    # consume the same one-time code (replay race).
+    raw = frappe.db.get_value("WD User 2FA", user, "recovery_codes", for_update=True)
     try:
         hashes = json.loads(raw or "[]")
     except (TypeError, ValueError):

@@ -216,8 +216,7 @@ def run_broadcast(name: str) -> int:
     for i, rec in enumerate(pending):
         if frappe.db.get_value("WD Broadcast", bc.name, "status") in ("paused", "cancelled"):
             return dispatched
-        sent, failed = _recount(bc.name)
-        if bc.daily_cap and sent >= int(bc.daily_cap):
+        if bc.daily_cap and _sent_today(bc.name) >= int(bc.daily_cap):
             set_status(bc.name, "paused")  # resume tomorrow to continue warm-up
             return dispatched
         # Anti-ban warm-up (P3.6): stop if the number hit its daily warm-up cap.
@@ -341,6 +340,16 @@ def _reconcile(broadcast_name: str) -> None:
                 {"status": "failed", "error": "delivery failed"},
                 update_modified=False,
             )
+
+
+def _sent_today(broadcast_name: str) -> int:
+    """Recipients dispatched since local midnight — the daily_cap window.
+    (Lifetime sent_count would pause a capped broadcast forever.)"""
+    day_start = now_datetime().replace(hour=0, minute=0, second=0, microsecond=0)
+    return frappe.db.count(
+        "WD Broadcast Recipient",
+        {"broadcast": broadcast_name, "status": "sent", "sent_at": (">=", day_start)},
+    )
 
 
 def _recount(broadcast_name: str) -> tuple[int, int]:
