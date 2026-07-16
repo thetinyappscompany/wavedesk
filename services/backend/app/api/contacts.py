@@ -34,6 +34,15 @@ def _serialize(row: Contact) -> dict:
     }
 
 
+def _mask_row(ctx: Ctx, ws, data: dict) -> dict:
+    from app import masking
+
+    if masking.should_mask(ctx, ws):
+        data["full_name"] = masking.mask_name(data["full_name"], data["phone"])
+        data["phone"] = masking.mask_phone(data["phone"])
+    return data
+
+
 @method("wavedesk.api.contacts.list_contacts")
 def list_contacts(ctx: Ctx) -> dict:
     ws = active_workspace(ctx)
@@ -52,7 +61,7 @@ def list_contacts(ctx: Ctx) -> dict:
     rows = ctx.db.execute(
         query.order_by(Contact.created_at.desc()).limit(limit).offset(offset)
     ).scalars()
-    return {"contacts": [_serialize(r) for r in rows], "total": total}
+    return {"contacts": [_mask_row(ctx, ws, _serialize(r)) for r in rows], "total": total}
 
 
 @method("wavedesk.api.contacts.get_contact")
@@ -61,7 +70,8 @@ def get_contact(ctx: Ctx) -> dict:
     chats = ctx.db.execute(
         select(Chat).where(Chat.contact_id == row.id).order_by(Chat.last_message_at.desc())
     ).scalars()
-    out = _serialize(row)
+    ws = active_workspace(ctx)
+    out = _mask_row(ctx, ws, _serialize(row))
     out["chats"] = [
         {
             "name": str(c.id),

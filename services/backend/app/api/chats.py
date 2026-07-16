@@ -7,7 +7,9 @@ import uuid
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 
+from app import masking
 from app.compat import Ctx, method
+from app.inbox import needs_reply_threshold
 from app.models import Chat, Contact
 from app.models.messaging import CHAT_STATUSES
 from app.tenancy import active_workspace
@@ -50,6 +52,19 @@ def list_chats(ctx: Ctx) -> dict:
                 func.lower(Chat.wa_chat_id).like(needle),
             )
         )
+    reply_cutoff = needs_reply_threshold(ws)
+    if p.get("needs_reply") in (True, "true", "1", 1):
+        query = query.where(
+            Chat.pending_query_since.is_not(None),
+            Chat.pending_query_since <= reply_cutoff,
+        )
+    if p.get("label"):
+        from app.api.labels import chats_with_label
+
+        labelled = chats_with_label(ctx.db, ws.id, p["label"])
+        if not labelled:
+            return {"chats": [], "total": 0}
+        query = query.where(Chat.id.in_(labelled))
 
     total = ctx.db.execute(
         select(func.count()).select_from(query.subquery())
@@ -61,8 +76,20 @@ def list_chats(ctx: Ctx) -> dict:
         .offset(offset)
     ).all()
 
+    from app.api.labels import chat_labels_map
+
+    labels_by_chat = chat_labels_map(ctx.db, [chat.id for chat, _ in rows])
+    masked = masking.should_mask(ctx, ws)
     chats = []
     for chat, contact in rows:
+        contact_name = contact.full_name if contact else None
+        contact_phone = contact.phone if contact else None
+        wa_chat_id = chat.wa_chat_id
+        if masked:
+            contact_name = masking.mask_name(contact_name, contact_phone)
+            contact_phone = masking.mask_phone(contact_phone)
+            wa_chat_id = masking.mask_wa_chat_id(wa_chat_id)
+        pending = chat.pending_query_since
         chats.append(
             {
                 "name": str(chat.id),
@@ -72,19 +99,17 @@ def list_chats(ctx: Ctx) -> dict:
                 "contact": str(chat.contact_id) if chat.contact_id else None,
                 "group": None,  # groups land in R3
                 "assigned_agent": str(chat.assigned_agent_id) if chat.assigned_agent_id else None,
-                "assigned_team": None,  # teams land in R2
+                "assigned_team": str(chat.assigned_team_id) if chat.assigned_team_id else None,
                 "snoozed_until": chat.snoozed_until.isoformat() if chat.snoozed_until else None,
-                "pending_query_since": (
-                    chat.pending_query_since.isoformat() if chat.pending_query_since else None
-                ),
-                "needs_reply": False,  # needs-reply queue lands in R2
+                "pending_query_since": pending.isoformat() if pending else None,
+                "needs_reply": bool(pending and pending <= reply_cutoff),
                 "last_message_at": chat.last_message_at.isoformat() if chat.last_message_at else None,
                 "unread_count": chat.unread_count or 0,
-                "wa_chat_id": chat.wa_chat_id,
-                "contact_name": contact.full_name if contact else None,
-                "contact_phone": contact.phone if contact else None,
+                "wa_chat_id": wa_chat_id,
+                "contact_name": contact_name,
+                "contact_phone": contact_phone,
                 "group_subject": None,
-                "labels": [],  # labels land in R2
+                "labels": labels_by_chat.get(str(chat.id), []),
             }
         )
     return {"chats": chats, "total": total}
