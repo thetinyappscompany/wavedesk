@@ -1,1 +1,0 @@
-wavedesk.patches.remove_status_broadcast_chats

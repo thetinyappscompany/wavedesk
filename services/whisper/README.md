@@ -13,7 +13,7 @@ nothing that could contain message content is logged (root non-negotiable #6).
 | GET    | `/health`     | —                             | `{"status":"ok","model":"base"}` |
 | POST   | `/transcribe` | raw audio bytes; `Content-Type` = source mimetype | `{"text":"…","language":"en"}` |
 
-Consumed by `apps/wavedesk/wavedesk/ai/transcription.py` (env `WHISPER_URL`,
+Consumed by `services/backend/app/ai/transcription.py` (env `WHISPER_URL`,
 default `http://localhost:9010`).
 
 ## Config (env)

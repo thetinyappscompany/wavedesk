@@ -1,7 +1,7 @@
 name: Publish images
 
 # Builds and pushes every production image to GHCR — CapRover (or any host)
-# deploys them by image name. PRs that touch the frappe image build it
+# deploys them by image name. PRs that touch the backend image build it
 # WITHOUT pushing (build verification only).
 on:
   push:
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - "deploy/frappe/**"
+      - "services/backend/**"
       - ".github/workflows/publish-images.yml"
 
 jobs:
@@ -23,9 +23,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: wavedesk-frappe
-            context: .
-            file: deploy/frappe/Dockerfile
+          - name: wavedesk-backend
+            context: services/backend
+            file: services/backend/Dockerfile
           - name: wavedesk-gateway
             context: services/wa-gateway
             file: services/wa-gateway/Dockerfile

@@ -1,6 +1,6 @@
 # WaveDesk — staging stack (single VM, Traefik + Let's Encrypt)
-# Stateful services are MANAGED (MariaDB/Redis endpoints via env) per master doc §2.5.
-# Frappe runs from a custom image built by CI (see deploy/frappe.Dockerfile, epic 0.8+).
+# Stateful services are MANAGED (Postgres/Redis endpoints via env) per master doc §2.5.
+# The app backend (services/backend, FastAPI) deploys as its own image / CapRover app.
 #
 # Usage on the VM:
 #   cp .env.staging.example .env   # fill in real values
@@ -61,8 +61,9 @@ services:
     command: ["sh", "-c", "sleep infinity"]
     restart: unless-stopped
 
-  # Frappe (bench) staging container lands when the custom image exists —
-  # tracked in docs/runbooks/deploy.md. MariaDB/Redis are managed endpoints.
+  # The app backend (services/backend, FastAPI + socket.io) deploys as its own
+  # image — see services/backend/README and docs/rewrite/r8-cutover-runbook.md.
+  # Postgres/Redis are managed endpoints.
 
 volumes:
   letsencrypt:

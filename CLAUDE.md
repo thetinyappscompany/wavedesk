@@ -10,13 +10,21 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
+✅ FRAPPE FULLY REMOVED 2026-07-17 (chore/remove-frappe): apps/wavedesk (281
+files) deleted; the FastAPI + SQLAlchemy + Postgres backend in services/backend
+is now the ONLY backend. Deploy configs (compose dev/staging, .env example) +
+CI updated (mariadb→postgres, new `backend` pytest+ruff job); root CLAUDE.md
+architecture updated. Rewrite R0–R8 all merged to main (PRs #33–#42 + NIT
+follow-up #52). The one-time cutover ETL (app/etl/) stays — it reads a
+Frappe-Postgres DB during migration and imports nothing from Frappe.
+—— history ——
 ⚠⚠ FOUNDER PIVOT 2026-07-16 (chosen via explicit confirm against my
 recommendation, fully informed of the 2–4 month cost): REWRITE THE BACKEND
 WITHOUT FRAPPE on FastAPI + SQLAlchemy + Postgres. Plan =
 docs/rewrite/backend-rewrite-plan.md (READ IT FIRST — phases R0–R8, frozen
 /api/method contract so frontend/api-client/gateway ship UNCHANGED; the
-Frappe product in apps/wavedesk stays intact + deployable during the rewrite
-as the fallback). R0 DONE on rewrite/backend-core: services/backend scaffold
+Frappe product in apps/wavedesk stayed intact + deployable during the rewrite
+as the fallback — now removed). R0 DONE on rewrite/backend-core: services/backend scaffold
 (FastAPI, SQLAlchemy 2 models users/workspaces/members, Redis sid sessions,
 compat dispatcher /api/method/<dotted> with {"message": ...} envelope,
 tenancy role guards, login/logout/whoami + create/get/set-active workspace);
@@ -915,11 +923,14 @@ per team, agent capacity, online/offline, business hours + holidays, OOO
 auto-reply) — the WD Team.routing field already exists (manual only until now).
 
 ## Architecture (one paragraph)
-Frappe v16 app (`apps/wavedesk`, MariaDB, Redis, RQ) = business logic + REST + socket.io.
-Node `wa-gateway` = Baileys sessions + WhatsApp Cloud API adapter; publishes unified events
-to Redis Stream `wa:events`; Frappe consumes via RQ worker. React SPA talks to Frappe only.
-Qdrant (vectors) + faster-whisper (transcription) self-hosted containers. S3 for media +
-session snapshots. Everything multi-tenant via `workspace` field — see Non-negotiables.
+FastAPI + SQLAlchemy 2 + PostgreSQL backend (`services/backend`, package `app/`, Redis, RQ)
+= business logic + REST (`/api/method/<dotted>` + `{"message": ...}` envelope, sid-cookie
+sessions) + socket.io. Node `wa-gateway` = Baileys sessions + WhatsApp Cloud API adapter;
+publishes unified events to Redis Stream `wa:events`; the backend consumes via an RQ worker.
+React SPA + `packages/api-client` talk to the backend only (frozen contract). Qdrant (vectors)
++ faster-whisper (transcription) self-hosted containers. S3 for media + session snapshots.
+Everything multi-tenant via `workspace_id` — see Non-negotiables. (Frappe fully removed
+2026-07-17; the one-time cutover ETL from a Frappe-Postgres DB lives at `app/etl/`.)
 
 ## Non-negotiables (violating any of these = wrong code, no exceptions)
 1. EVERY WD DocType has a `workspace` Link field; every query/API/socket emission is

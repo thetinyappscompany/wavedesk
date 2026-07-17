@@ -1,26 +1,22 @@
 # WaveDesk — full local dev stack
 # Usage: docker compose -f deploy/compose.dev.yml up
-# Frappe bench runs OUTSIDE compose in dev (WSL ~/bench, see docs/runbooks/dev-setup.md)
-# and connects to mariadb/redis below on localhost.
+# The app backend (services/backend, FastAPI) runs via uvicorn (see
+# services/backend/README) and connects to postgres/redis below on localhost.
 
 name: wavedesk-dev
 
 services:
-  mariadb:
-    image: mariadb:10.11
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --skip-character-set-client-handshake
-      - --skip-innodb-read-only-compressed
+  postgres:
+    image: postgres:16
     environment:
-      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-devroot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wavedesk_pg}
+      POSTGRES_DB: ${POSTGRES_DB:-wavedesk}
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mariadb-data:/var/lib/mysql
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       retries: 10
 
@@ -121,7 +117,7 @@ services:
       - "8080:80"
 
 volumes:
-  mariadb-data:
+  postgres-data:
   redis-data:
   minio-data:
   qdrant-data:
