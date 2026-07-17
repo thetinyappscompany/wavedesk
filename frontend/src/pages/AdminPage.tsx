@@ -68,6 +68,16 @@ function WorkspaceRow({ ws, onChange }: { ws: WdAdminWorkspace; onChange: () => 
     mutationFn: (value: number) => client.adminSetSendRateClamp(ws.name, value),
     onSuccess: onChange,
   });
+  const [creditAmount, setCreditAmount] = useState('');
+  const credit = useMutation({
+    // one idempotency key per submit — a network retry can never double-credit
+    mutationFn: (amount: number) =>
+      client.adminCreditWallet(ws.name, amount, 'admin panel top-up', crypto.randomUUID()),
+    onSuccess: () => {
+      setCreditAmount('');
+      onChange();
+    },
+  });
 
   return (
     <tr className="border-b" data-testid="admin-workspace-row">
@@ -97,6 +107,29 @@ function WorkspaceRow({ ws, onChange }: { ws: WdAdminWorkspace; onChange: () => 
             if (v !== ws.send_rate_clamp) clamp.mutate(v);
           }}
         />
+      </td>
+      <td className="text-right">
+        <div className="flex items-center justify-end gap-1">
+          <input
+            type="number"
+            min={1}
+            placeholder="₹"
+            value={creditAmount}
+            aria-label={`Credit wallet for ${ws.workspace_name}`}
+            className="h-7 w-20 rounded border border-input bg-transparent px-1 text-right text-xs"
+            onChange={(e) => {
+              setCreditAmount(e.target.value);
+            }}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={credit.isPending || Number(creditAmount) <= 0}
+            onClick={() => credit.mutate(Number(creditAmount))}
+          >
+            Credit
+          </Button>
+        </div>
       </td>
       <td className="text-right">
         <Button
@@ -174,6 +207,7 @@ export default function AdminPage(): React.JSX.Element {
               <th className="text-right font-medium">Messages</th>
               <th className="text-center font-medium">Status</th>
               <th className="text-right font-medium">Clamp/day</th>
+              <th className="text-right font-medium">Wallet</th>
               <th className="text-right font-medium">Action</th>
             </tr>
           </thead>

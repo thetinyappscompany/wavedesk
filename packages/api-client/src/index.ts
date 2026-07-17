@@ -1822,6 +1822,22 @@ export class WaveDeskClient {
     }).then((r) => r.workspaces);
   }
 
+  /** Manual wallet top-up (platform operators). Generate ONE idempotencyKey per
+   * submit — a retried request with the same key never double-credits. */
+  adminCreditWallet(
+    workspace: string,
+    amountInr: number,
+    reason: string,
+    idempotencyKey: string,
+  ): Promise<{ balance: number }> {
+    return this.call('wavedesk.api.admin.credit_wallet', {
+      workspace,
+      amount: amountInr,
+      reason,
+      idempotency_key: idempotencyKey,
+    });
+  }
+
   adminWorkspaceDetail(workspace: string): Promise<WdAdminWorkspaceDetail> {
     return this.call('wavedesk.api.admin.workspace_detail', { workspace });
   }
