@@ -214,10 +214,15 @@ def test_dashboard_tiles_trend_and_csv(authed, db, client):
     db.commit()
 
     data = _call(client, "wavedesk.api.analytics.workspace_dashboard", days=7)
+    # frontend WdDashboard contract (flat keys, per_number_volume, sla_breached)
     assert data["live"]["open"] == 1
     assert data["live"]["unassigned"] == 1
-    assert sum(row["count"] for row in data["trend"]) == 1
-    assert data["first_response"]["avg"] == 10.0
+    assert "sla_breached" in data["live"]
+    assert sum(row["count"] for row in data["conversations_trend"]) == 1
+    assert data["conversations_total"] == 1
+    assert data["first_response_avg_mins"] == 10.0
+    assert data["per_number_volume"][0]["display_name"] == number.display_name
+    assert isinstance(data["messages_per_agent"], list)
 
     r = client.post("/api/method/wavedesk.api.analytics.export_dashboard_csv", json={})
     assert r.status_code == 200
