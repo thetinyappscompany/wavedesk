@@ -21,6 +21,11 @@ export default function BillingCard({
     queryFn: () => client.billingSummary(),
     enabled: canManage,
   });
+  const ai = useQuery({
+    queryKey: ['ai-usage-meter'],
+    queryFn: () => client.aiUsageMeter(),
+    enabled: canManage,
+  });
 
   if (!canManage) {
     return (
@@ -80,10 +85,36 @@ export default function BillingCard({
           </div>
         </dl>
       )}
-      {b && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          AI add-on: {b.ai_addon ? 'active' : 'not enabled'}
-        </p>
+      {ai.data?.has_ai ? (
+        <section aria-label="AI usage" className="mt-4 rounded-md border p-3">
+          <h3 className="text-sm font-semibold">AI usage this month</h3>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded bg-muted">
+            <div
+              className={`h-full ${
+                ai.data.allowance_pct_used >= 80 ? 'bg-amber-500' : 'bg-primary'
+              }`}
+              style={{ width: `${Math.min(ai.data.allowance_pct_used, 100)}%` }}
+            />
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {ai.data.allowance_pct_used}% of the monthly allowance used
+            {ai.data.credits_inr > 0 &&
+              ` · ₹${ai.data.credits_inr.toLocaleString('en-IN')} extra from wallet`}
+            {ai.data.byok && ' · using your own API key'}
+          </p>
+          {ai.data.paused && (
+            <p className="mt-1 text-xs font-medium text-destructive">
+              AI is paused — allowance exhausted and wallet balance too low. Top up to
+              resume.
+            </p>
+          )}
+        </section>
+      ) : (
+        b && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            AI add-on: {b.ai_addon ? 'active' : 'not enabled'}
+          </p>
+        )
       )}
     </section>
   );

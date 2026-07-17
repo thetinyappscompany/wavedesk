@@ -225,6 +225,37 @@ def admin_platform_stats(ctx: Ctx) -> dict:
     return admin.platform_stats(ctx.db)
 
 
+@method("wavedesk.api.admin.credit_wallet")
+def admin_credit_wallet(ctx: Ctx) -> dict:
+    """Manual wallet top-up (platform operator). The ledger stays append-only
+    and idempotent: the CLIENT supplies the idempotency key (one per submit),
+    so a retried request can never double-credit — same contract as the Zoho
+    top-up webhook (non-negotiable #2)."""
+    admin.require_platform_admin(ctx.db, uuid.UUID(ctx.user_id))
+    from app import wallet
+
+    try:
+        ws_id = uuid.UUID(ctx.params.get("workspace") or "")
+    except ValueError as err:
+        raise HTTPException(400, "workspace is required") from err
+    if ctx.db.get(Workspace, ws_id) is None:
+        raise HTTPException(404, "Workspace not found")
+    try:
+        amount = float(ctx.params.get("amount") or 0)
+    except (TypeError, ValueError) as err:
+        raise HTTPException(400, "amount must be a number") from err
+    if amount <= 0:
+        raise HTTPException(400, "amount must be positive")
+    key = (ctx.params.get("idempotency_key") or "").strip()
+    if not key:
+        raise HTTPException(400, "idempotency_key is required")
+    reason = (ctx.params.get("reason") or "manual top-up").strip()
+    wallet.credit(ctx.db, ws_id, amount,
+                  reference=f"admin: {reason}",
+                  idempotency_key=f"admincredit:{key}")
+    return {"balance": wallet.get_balance(ctx.db, ws_id)}
+
+
 @method("wavedesk.api.admin.suspend_workspace")
 def admin_suspend(ctx: Ctx) -> dict:
     admin.require_platform_admin(ctx.db, uuid.UUID(ctx.user_id))

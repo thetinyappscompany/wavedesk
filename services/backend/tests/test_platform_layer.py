@@ -446,3 +446,38 @@ def test_zoho_webhook_raw_topup_invoice_credits_wallet(db, client, monkeypatch):
                         json=raw, headers={"X-Webhook-Token": "tok-test-123"})
         assert r.status_code == 200, r.text
     assert wallet.get_balance(db, ws.id) == 1000.0
+
+
+def test_admin_credit_wallet_is_idempotent(authed, db):
+    """Manual operator top-up: append-only, client-keyed idempotency — a
+    retried request never double-credits (non-negotiable #2)."""
+    client, ws, user = authed
+    db.get(type(user), user.id).is_platform_admin = True
+    db.commit()
+    key = f"t-{uuid.uuid4().hex[:8]}"
+    out = _call(client, "wavedesk.api.admin.credit_wallet",
+                workspace=str(ws.id), amount=500, reason="promo credit",
+                idempotency_key=key)
+    first = out["balance"]
+    assert first >= 500
+    # same key retried → unchanged balance
+    out = _call(client, "wavedesk.api.admin.credit_wallet",
+                workspace=str(ws.id), amount=500, reason="promo credit",
+                idempotency_key=key)
+    assert out["balance"] == first
+    # fresh key → credits again
+    out = _call(client, "wavedesk.api.admin.credit_wallet",
+                workspace=str(ws.id), amount=250, reason="promo credit",
+                idempotency_key=f"t-{uuid.uuid4().hex[:8]}")
+    assert out["balance"] == first + 250
+    # validation: non-positive amount / missing key → 400
+    _call(client, "wavedesk.api.admin.credit_wallet", expect=400,
+          workspace=str(ws.id), amount=-5, idempotency_key="t-neg")
+    _call(client, "wavedesk.api.admin.credit_wallet", expect=400,
+          workspace=str(ws.id), amount=100, idempotency_key="")
+
+
+def test_admin_credit_wallet_requires_platform_admin(authed, db):
+    client, ws, _user = authed  # plain workspace owner, NOT a platform admin
+    _call(client, "wavedesk.api.admin.credit_wallet", expect=403,
+          workspace=str(ws.id), amount=100, idempotency_key="t-nope")
