@@ -57,6 +57,38 @@ def test_number_status_persists_gateway_state(authed, monkeypatch):
     assert rows[0]["status"] == "connected"
 
 
+def test_session_status_flattens_nested_gateway_response(monkeypatch):
+    """The gateway nests SessionInfo under `session` ({session, qr, restored});
+    session_status must flatten it so number_status reads status/phone/qr."""
+    monkeypatch.setattr(
+        gateway, "_request",
+        lambda method, path, json=None: {
+            "session": {"id": "s1", "status": "connected", "phone": "919876000001:1@s.whatsapp.net"},
+            "qr": None,
+            "restored": True,
+        },
+    )
+    out = gateway.session_status("s1")
+    assert out["status"] == "connected"
+    assert out["phone"] == "919876000001:1@s.whatsapp.net"
+    assert out["qr"] is None
+
+
+def test_gateway_error_maps_to_502(authed, monkeypatch):
+    client, _ = authed
+    monkeypatch.setattr(gateway, "create_session", lambda sid, ws: {})
+    number = _call(client, "wavedesk.api.numbers.connect_baileys")["number"]
+
+    def _boom(sid):
+        raise gateway.GatewayError("gateway unreachable: ConnectError")
+
+    monkeypatch.setattr(gateway, "session_status", _boom)
+    r = client.post(
+        "/api/method/wavedesk.api.numbers.number_status", json={"number": number}
+    )
+    assert r.status_code == 502  # not an opaque 500
+
+
 def test_delete_number_unlinks_chats(authed, db, monkeypatch):
     client, ws = authed
     number = make_number(db, ws)

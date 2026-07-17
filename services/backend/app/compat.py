@@ -13,6 +13,7 @@ form body, and JSON body (Frappe semantics). `allow_guest` mirrors
 """
 
 import inspect
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -21,8 +22,10 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from app import sessions
+from app import gateway, sessions
 from app.db import get_sessionmaker
+
+_log = logging.getLogger("wavedesk.compat")
 
 
 @dataclass
@@ -109,6 +112,13 @@ async def dispatch(dotted: str, request: Request) -> Response:
     except PermissionError as err:
         db.rollback()
         raise HTTPException(403, str(err)) from err
+    except gateway.GatewayError as err:
+        # A wa-gateway failure (unreachable / non-2xx) is an upstream problem,
+        # not a 500 in this service. Surface it as 502 with the reason logged
+        # (GatewayError messages carry no PII — status codes / error types only).
+        db.rollback()
+        _log.warning("gateway call failed for %s: %s", dotted, err)
+        raise HTTPException(502, "WhatsApp gateway unavailable") from err
     except Exception:
         db.rollback()
         raise

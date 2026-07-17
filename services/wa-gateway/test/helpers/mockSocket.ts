@@ -35,10 +35,11 @@ export interface MockSocket extends GatewaySocket {
 
 /** Mimics Baileys just enough for lifecycle tests: emits a QR only when the
  * auth state carries no registered creds (i.e. a fresh, never-paired session). */
-export function makeMockSocketFactory(): {
+export function makeMockSocketFactory(opts?: { autoOpen?: boolean }): {
   factory: SocketFactory;
   sockets: MockSocket[];
 } {
+  const autoOpen = opts?.autoOpen !== false; // default: emit 'open' like the real socket
   const sockets: MockSocket[] = [];
 
   const factory: SocketFactory = ({ state }) => {
@@ -148,7 +149,9 @@ export function makeMockSocketFactory(): {
       if (!hadCreds) {
         socket.emitConnection({ qr: 'mock-qr-payload' });
       }
-      socket.emitConnection({ connection: 'open' });
+      if (autoOpen) {
+        socket.emitConnection({ connection: 'open' });
+      }
     });
 
     sockets.push(socket);
