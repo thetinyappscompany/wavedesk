@@ -6,7 +6,28 @@ from fastapi import FastAPI
 
 # importing the api modules registers their handlers with the compat router
 from app import compat
-from app.api import auth, workspace  # noqa: F401  (registration side effects)
+from app.api import (  # noqa: F401  (registration side effects)
+    ai,
+    analytics,
+    assign,
+    auth,
+    canned,
+    chats,
+    contacts,
+    groups,
+    invites,
+    labels,
+    messages,
+    monitoring,
+    numbers,
+    parity,
+    phase3,
+    platform,
+    send,
+    teams,
+    tickets,
+    workspace,
+)
 
 
 def create_app() -> FastAPI:
@@ -18,6 +39,14 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     return app
+
+
+def create_asgi():
+    """Production entrypoint (socket.io wraps the FastAPI app):
+    uvicorn --factory app.main:create_asgi"""
+    from app import socketio_server
+
+    return socketio_server.asgi_app(create_app())
 
 
 app = create_app()

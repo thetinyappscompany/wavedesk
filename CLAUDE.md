@@ -22,9 +22,132 @@ compat dispatcher /api/method/<dotted> with {"message": ...} envelope,
 tenancy role guards, login/logout/whoami + create/get/set-active workspace);
 8 tests green vs REAL Postgres (wavedesk_backend_test) + Redis, ruff clean.
 Runner: services/backend/run-tests-wsl.sh (venv ~/.venvs/wdbe, py3.12).
-Next: R1 (numbers, gateway client, wa:events consumer, chats/messages/
-contacts, send pipeline). CapRover kit PR #32 + hardening PR #31 + probe PR
-#30 still open for the Frappe product (merge them — it remains the hostable
+R1 DONE on rewrite/r1-pipeline (stacked on R0): models numbers/contacts/
+chats/messages (unique (ws,wa_message_id) = exactly-once); gateway HTTP
+client (httpx, WD_GATEWAY_URL/SECRET env); wa:events consumer (XREADGROUP,
+commit-before-ack, XAUTOCLAIM crash recovery, poison stream after 3
+deliveries, baileys+cloud extraction ported verbatim, auto-reopen, unread);
+protected sender (flip-before-send idempotency, per-number Redis rate slot,
+retry ×3 → failed, retry_send); handlers: numbers connect/list/status/
+disconnect/reconnect/delete(+chat unlink), chats.list_chats (status/number/
+assignee/search filters; labels/needs_reply keys stubbed for R2),
+messages.list_messages (ISO cursor)+mark_chat_read, contacts list/get/update,
+send.send_message/retry_message. 29 tests green vs real PG+Redis (RQ inline
+via WD_TASK_INLINE=1), ruff clean. GOTCHA: psycopg3 rejects timestamptz <
+varchar — parse cursors with datetime.fromisoformat first. R2 DONE on
+rewrite/r2-inbox (stacked on R1): models Team/TeamMember/Label/ChatLabel/
+CannedResponse/Invite + Chat.assigned_team_id; app/inbox.py (set_status w/
+resolved_at stamps, assign_chat member/team-validated single chokepoint,
+unsnooze_due cron fn, looks_like_query EN+Hinglish heuristic, flag/clear
+pending query wired into consumer group-inbound + sender); app/masking.py
+(P1.9 parity, wired into list_chats + contacts list/get); workspace settings
+get/update (mask_numbers, needs_reply_minutes, Agent update blocked);
+invites (manager-issued 7-day single-use token, guest accept creates user +
+membership + auto-login); socket.io ASGI server (AsyncRedisManager rooms
+ws:<id>, sid-cookie auth on connect; write-only RedisManager emitter from
+workers; realtime.py safe_emit ids-only) — prod entrypoint uvicorn --factory
+app.main:create_asgi; labels/needs_reply/label-filter live in list_chats.
+39 tests green vs real PG+Redis, ruff clean. TEST GOTCHA: SQLAlchemy identity
+map returns stale instances for cross-session writes — db.expire_all()
+before asserting. R3 DONE on rewrite/r3-groups (stacked on R2): models
+Group/GroupMember/MonitoringRule/Alert/Ticket + Chat.group_id +
+Message.flagged; pipeline/group_sync.py (group.upsert/update/participants,
+left_at history, contacts linked never created, member_count, chat
+backlink — consumer also backlinks group on chat CREATE); app/monitoring.py
+(keyword/link/phone on group inbound → flag+Alert; member_change on
+add/remove); groups API (list/get w/ masked member display/update/
+participants/revoke-invite via gateway + send_to_groups bulk RQ long job w/
+3-8s jitter through the protected sender); monitoring API (rule CRUD, alerts
+feed + unseen + mark seen); tickets API (auto-title from source message,
+filters, lifecycle); analytics API (dashboard live tiles + Python-bucketed
+trend + first-response/resolution avg&p90 + per-agent/number, CSV export via
+Response passthrough in compat dispatcher, group_analytics contributors +
+workspace rollup). 48 tests green vs real PG+Redis, ruff clean. R4 DONE on rewrite/r4-automation (stacked on R3): models AutomationRule/Log,
+SlaPolicy, Broadcast/Recipient, ScheduledMessage, Segment, MessageTemplate +
+Chat SLA fields + Contact.tags + number warm-up fields. Engines: automation
+(contextvar re-entrancy guard, conditions AND, best-effort actions incl.
+auto_reply via sender; wired message_received/chat_created in consumer via
+_run_hook try/except + status_change in inbox.set_status); routing (Redis
+heartbeat/availability, round_robin cursor + load_based, capacity,
+auto_route in inbox.assign_chat team path, route_new_chat default team, OOO
+Redis-dedup); sla (due stamps, minutely check_breaches vs existing stamps,
+Alert kind sla_breach, idempotent); broadcasts (audience csv/group/all/
+segment w/ cross-ws guard, dedupe+optout, {{var}} render, driver w/ per-day
+cap + antiban gate + failure auto-pause + reconcile, STOP in consumer);
+schedules (once/recurring compute_next_run, run_due_schedules); antiban
+(warmup ramp day1=20→day30, can_dispatch, health score); segments (live
+resolvers has_tag/attribute/opted_out/has_email/name_contains/phone_prefix);
+templates (name+sequential-var validation, positional render, local-vs-live
+submit). API: app/api/phase3.py registers ALL dotted names (automation/
+routing/sla/broadcasts/schedules/antiban/segments/templates). 63 tests green
+vs real PG+Redis, ruff clean. R5 DONE on rewrite/r5-ai (stacked on R4): models Subscription/
+WalletTransaction(append-only)/UsageRecord/KnowledgeDoc/AiAgentConfig/
+AiFlagRule/PricingConfig. app/wallet.py (append-only, unique idempotency key,
+derived balance, savepoint race-catch, InsufficientBalance), app/gating.py
+(ensure_subscription trial auto-provision wired into create_workspace,
+has_feature webhook-only). AI: crypto (AES-GCM, fail-closed w/o WD_AI_SECRET
+outside test/dev), metering ($5 allowance→wallet at cost×markup×FX,
+idempotent), provider (gate→kill→BYOK/pooled→2-tier→preflight→meter),
+rag (Qdrant+NVIDIA httpx), agent (retrieve→handoff-below-threshold-no-token
+→Sonnet from-context-only), flagging+auto_ticket (deterministic keys), copilot
+(fresh keys per click), media_store (boto3 presign, graceful). api/ai.py:
+ai_settings/usage_meter(LEAK-GUARDED %+₹ only)/set-revoke_byok/kill_switch/
+copilot ×4/agent config+knowledge/flag rules/media_url. Consumer wires
+ai_flagging+ai_agent+autoticket behind has_feature gate. 12 tests (75 total)
+vs real PG+Redis (provider mocked): wallet idempotency, insufficient,
+trial-provision+gate, provider gate/meter/kill, metering retry idempotent,
+crypto fail-closed, usage_meter leak guard, copilot gated, flagging via
+consumer, agent handoff no-token. anthropic/cryptography/boto3 added to deps.
+R6 DONE on rewrite/r6-platform (stacked on R5): models ApiKey/
+WebhookEndpoint/WebhookDelivery/DataExport/UserTwoFactor/InvoiceRef.
+billing.py (Zoho→entitlement state machine, out-of-order watermark, topup
+idempotent by invoice), auth_twofa.py (RFC-6238 TOTP + recovery codes,
+flag_modified JSONB tracking), publicapi.py (wdk_<prefix>_<secret>,
+constant-time verify, scope + Redis rate-limit; parse split maxsplit=2 so
+secrets containing _ work), webhooks.py (emit→delivery→HMAC-SHA256 POST,
+safe_emit never raises into pipeline, wired message.received in consumer),
+access.py (IP allowlist, proxy-aware client_ip, enforced on v1 calls),
+compliance.py (export/erase/retention), admin.py (platform stats +
+assert_can_send suspended-guard wired into sender), verticals.py (idempotent
+starter packs, applied at signup). api/platform.py = ALL Phase-5 dotted names
+(publicapi/v1/webhooks/admin/privacy/security/verticals/access/billing
+webhook). compat dispatcher now maps PermissionError→403. 15 tests (87 total)
+vs real PG+Redis. ⭐ FEATURE PARITY COMPLETE: Phases 0–5 all rebuilt on
+FastAPI+Postgres, zero Frappe.
+R7 DONE on rewrite/r7-parity (stacked on R6): audited every this.call() in
+packages/api-client (156 distinct) vs the backend registry (now 179) → 16
+drift items found + fixed. Naming aligned (dual-registered):
+publicapi.create_api_key/revoke_api_key, security.twofa_confirm. Filled via
+app/api/parity.py: contacts.import_contacts+import_status (CSV BOM-safe merge),
+onboarding.onboarding_status, security.twofa_verify/revoke_session/
+revoke_other_sessions (sessions.py gained a Redis user→sid index),
+admin.workspace_detail/unsuspend_workspace/set_send_rate_clamp/
+set_ai_kill_switch/impersonate, webhooks.update_endpoint/redeliver. GUARD:
+tests/test_contract_parity.py reads index.ts + asserts every this.call is
+registered — CI fails on future drift. Doc: docs/rewrite/contract-parity.md.
+94 tests green vs real PG+Redis, ruff clean, ZERO drift. Rewrite R0–R7 all
+shipped as stacked PRs #33–#40.
+R8 DATA-ETL DONE on rewrite/r8-cutover (stacked on R7), PR #41: the
+migration HALF of the cutover is built + tested — services/backend/app/etl/
+(idmap.py deterministic uuid5("<doctype>:<name>") so every Frappe Link
+resolves to the new UUID PK from the referent name alone, no lookup table,
+re-runnable; spec.py declarative SPECS in FK order covering the durable
+business graph incl. the APPEND-ONLY wallet ledger [running_balance dropped,
+balance re-derived, non-neg #2] + NOT_MIGRATED list of regenerable/ephemeral
+doctypes; run.py pluggable source [PgSource live Frappe-PG DSN / any rows()
+provider for tests], Check→bool + Long Text JSON→JSONB + Link→uuid + child
+parent→FK conversion, ON CONFLICT DO UPDATE upsert, per-table commit
+crash-safe resume; __main__.py `python -m app.etl --source <dsn>` CLI).
+tests/test_etl.py = FK-remap full chain + JSON/bool/datetime + wallet
+append-only + idempotent re-run + empty no-op (4 tests, 98 total green vs
+real PG, ruff clean). HONEST LIMITS: passwords DON'T transfer (Frappe pbkdf2
+vs new bcrypt → unusable placeholder + mandatory reset), RAG vectors
+re-embed, Cloud/BYOK secrets re-enter, Baileys sessions re-pair — all in
+docs/rewrite/r8-cutover-runbook.md. STILL FOUNDER-RUN (infra, not
+automatable): provision staging on new backend + live SPA smoke + gateway
+cutover + DNS flip + decommission (runbook has the full sequence + rollback).
+The Frappe product stays the deployable fallback until the DNS flip succeeds. CapRover kit PR #32 + hardening PR #31 + probe PR #30
+still open for the Frappe product (merge them — it remains the hostable
 product until parity).
 Previous epic: POSTGRES MIGRATION — DONE, PR #28 (feat/postgres-migration → main,
 7 commits) awaiting founder merge. Founder chose "Full migration now" off

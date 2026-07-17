@@ -106,12 +106,17 @@ async def dispatch(dotted: str, request: Request) -> Response:
         if inspect.isawaitable(result):
             result = await result
         db.commit()
+    except PermissionError as err:
+        db.rollback()
+        raise HTTPException(403, str(err)) from err
     except Exception:
         db.rollback()
         raise
     finally:
         db.close()
 
+    if isinstance(result, Response):
+        return result  # raw responses (CSV downloads etc.) pass through
     out = JSONResponse({"message": result})
     # carry over cookies a handler set (login/logout)
     for header, value in response.raw_headers:

@@ -51,7 +51,7 @@ Recorded here so nobody re-litigates it mid-rewrite.
 | R5 | AI layer: provider gate + metering + crypto + copilot + RAG agent + flagging + transcription + autoticket | Phase 4 |
 | R6 | billing (Zoho webhook/reconcile), public API v1, outbound webhooks, admin, DPDP, 2FA/sessions, verticals, IP allowlist | Phase 5 |
 | R7 | contract-parity audit: run the SPA + Playwright e2e + api-client suites against the new backend; fix drift | the frontend cannot tell the difference |
-| R8 | cutover: ETL script (Frappe-Postgres schema → new schema), staging parallel run, DNS flip, decommission plan | production on the new backend |
+| R8 | cutover: ETL script (Frappe-Postgres schema → new schema) **BUILT + tested** (`app/etl/`, `tests/test_etl.py`); staging parallel run, DNS flip, decommission are founder-run — see [r8-cutover-runbook.md](r8-cutover-runbook.md) | production on the new backend |
 
 ## Testing strategy
 
