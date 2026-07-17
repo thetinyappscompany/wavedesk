@@ -41,7 +41,26 @@ def _get_group(db, workspace_id, wa_group_id: str) -> Group | None:
     ).scalar_one_or_none()
 
 
+def _normalized(payload: dict) -> dict:
+    """Accept the REAL gateway wire shape. The gateway nests the metadata
+    (group.upsert → payload.group, group.update → payload.update) and uses
+    Baileys field names (desc, invite_code). The R3 tests were written FLAT,
+    so every real event resolved id=None and was silently dropped — zero
+    groups ever reached the registry in production. The flat shape stays
+    accepted (it falls through unchanged)."""
+    inner = payload.get("group") or payload.get("update")
+    merged = {**payload, **inner} if isinstance(inner, dict) else dict(payload)
+    merged.pop("group", None)
+    merged.pop("update", None)
+    if merged.get("description") is None and merged.get("desc") is not None:
+        merged["description"] = merged["desc"]
+    if not merged.get("invite_link") and merged.get("invite_code"):
+        merged["invite_link"] = f"https://chat.whatsapp.com/{merged['invite_code']}"
+    return merged
+
+
 def _upsert_group(db, workspace, payload: dict) -> Group | None:
+    payload = _normalized(payload)
     wa_group_id = payload.get("id") or payload.get("wa_group_id")
     if not wa_group_id:
         return None

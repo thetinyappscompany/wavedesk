@@ -33,11 +33,27 @@ def _call(client, dotted, expect=200, **params):
 
 
 def group_event(ws, session_id, wa_group_id, subject, participants, etype="group.upsert",
-                action=None):
-    payload = {"id": wa_group_id, "subject": subject, "session_id": session_id,
-               "participants": participants}
-    if action:
-        payload["action"] = action
+                action=None, desc=None, invite_code=None, owned_by_us=False):
+    """Build events in the gateway's REAL wire shape (sessionManager.ts):
+    group.upsert nests the metadata under `group` (Baileys names: desc),
+    group.update nests the patch under `update`, group.participants is flat.
+    The old FLAT builder here masked a drift that dropped every real event."""
+    if etype == "group.upsert":
+        payload = {
+            "session_id": session_id,
+            "group": {"id": wa_group_id, "subject": subject, "desc": desc,
+                      "participants": participants},
+            "owned_by_us": owned_by_us,
+            "invite_code": invite_code,
+        }
+    elif etype == "group.participants":
+        payload = {"session_id": session_id, "id": wa_group_id,
+                   "participants": participants}
+        if action:
+            payload["action"] = action
+    else:  # group.update — partial metadata patch
+        payload = {"session_id": session_id,
+                   "update": {"id": wa_group_id, "subject": subject}}
     return json.dumps({
         "type": etype, "workspace_hint": str(ws.id), "payload": payload,
     })
@@ -66,12 +82,17 @@ def test_group_upsert_builds_registry(db, r, stream):
     existing = make_contact(db, ws, "919111100001")  # only this one links
     r.xadd(stream, {"event": group_event(
         ws, number.session_ref, "g-reg@g.us", "Traders",
-        [{"id": "919111100001@s.whatsapp.net", "admin": True},
-         {"id": "919111100002@s.whatsapp.net"}],
+        # real Baileys roles are STRINGS ('admin'/'superadmin'), not booleans
+        [{"id": "919111100001@s.whatsapp.net", "admin": "superadmin"},
+         {"id": "919111100002@s.whatsapp.net", "admin": None}],
+        desc="Wholesale deals", invite_code="AbCdEf123", owned_by_us=True,
     )})
     _drain(r, stream)
     group = db.execute(select(Group).where(Group.workspace_id == ws.id)).scalar_one()
     assert group.subject == "Traders"
+    assert group.description == "Wholesale deals"  # Baileys `desc` mapped
+    assert group.invite_link == "https://chat.whatsapp.com/AbCdEf123"
+    assert group.owned_by_us is True
     assert group.member_count == 2
     assert group.number_id == number.id
     members = {m.participant_id: m for m in db.execute(
@@ -80,6 +101,22 @@ def test_group_upsert_builds_registry(db, r, stream):
     assert members["919111100001@s.whatsapp.net"].role == "admin"
     assert members["919111100001@s.whatsapp.net"].contact_id == existing.id
     assert members["919111100002@s.whatsapp.net"].contact_id is None  # never auto-created
+
+
+def test_group_update_patch_applies_subject(db, r, stream):
+    """groups.update events nest the patch under `update` — must not be dropped."""
+    ws = make_workspace(db)
+    number = make_number(db, ws)
+    r.xadd(stream, {"event": group_event(
+        ws, number.session_ref, "g-upd@g.us", "Old Name",
+        [{"id": "919111100011@s.whatsapp.net", "admin": None}],
+    )})
+    r.xadd(stream, {"event": group_event(
+        ws, number.session_ref, "g-upd@g.us", "New Name", [], etype="group.update",
+    )})
+    _drain(r, stream)
+    group = db.execute(select(Group).where(Group.workspace_id == ws.id)).scalar_one()
+    assert group.subject == "New Name"
 
 
 def test_participant_remove_sets_left_and_alerts(db, r, stream):
