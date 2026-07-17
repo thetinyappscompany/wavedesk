@@ -38,6 +38,7 @@ vi.mock('@/lib/client', () => ({
     updateProfile: vi.fn(),
     changePassword: vi.fn(),
     billingSummary: vi.fn(),
+    aiUsageMeter: vi.fn(),
     twofaStatus: vi.fn(),
     listSessions: vi.fn(),
   },
@@ -99,6 +100,13 @@ describe('SettingsPage', () => {
       ai_addon: false,
       current_period_end: '2026-08-01T00:00:00+00:00',
       wallet_balance: 250,
+    });
+    vi.mocked(client.aiUsageMeter).mockResolvedValue({
+      has_ai: false,
+      allowance_pct_used: 0,
+      credits_inr: 0,
+      paused: false,
+      byok: false,
     });
     vi.mocked(client.twofaStatus).mockResolvedValue(false);
     vi.mocked(client.listSessions).mockResolvedValue([]);
@@ -292,6 +300,25 @@ describe('SettingsPage', () => {
     expect(await screen.findByText('Starter')).toBeInTheDocument();
     expect(screen.getByText('trialing')).toBeInTheDocument();
     expect(screen.getByText('₹250')).toBeInTheDocument();
+    // no AI add-on → plain note, no usage meter
+    expect(screen.getByText(/AI add-on: not enabled/)).toBeInTheDocument();
+  });
+
+  it('billing tab shows the AI usage meter when the add-on is active', async () => {
+    vi.mocked(client.aiUsageMeter).mockResolvedValue({
+      has_ai: true,
+      allowance_pct_used: 62,
+      credits_inr: 130,
+      paused: false,
+      byok: false,
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await openTab(user, 'Billing');
+    expect(
+      await screen.findByText(/62% of the monthly allowance used/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/₹130 extra from wallet/)).toBeInTheDocument();
   });
 
   it('billing tab is hidden behind a note for agents', async () => {
