@@ -82,8 +82,15 @@ def index_doc(workspace_id, doc: str, content: str) -> int:
 def search(workspace_id, query: str, top_k: int = TOP_K) -> list[dict]:
     vector = embed_texts([query], "query")[0]
     coll = collection_name(workspace_id)
-    res = _qdrant("POST", f"/collections/{coll}/points/search",
-                  {"vector": vector, "limit": top_k, "with_payload": True})
+    try:
+        res = _qdrant("POST", f"/collections/{coll}/points/search",
+                      {"vector": vector, "limit": top_k, "with_payload": True})
+    except httpx.HTTPStatusError as err:
+        # Workspace has no collection yet (no docs indexed) → treat as no hits
+        # so the agent cleanly hands off instead of erroring on every inbound.
+        if err.response is not None and err.response.status_code == 404:
+            return []
+        raise
     return [
         {"text": h["payload"].get("text"), "doc": h["payload"].get("doc"), "score": h["score"]}
         for h in res.get("result", [])

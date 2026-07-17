@@ -10,10 +10,12 @@ second live database:
 """
 
 import json
+import os
 import uuid
 from collections.abc import Iterable, Mapping
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from functools import lru_cache
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -21,6 +23,17 @@ from sqlalchemy.orm import Session
 from app.etl.idmap import to_uuid
 from app.etl.spec import SPECS, Spec
 from app.security import hash_password
+
+
+def _source_tz() -> ZoneInfo | timezone:
+    """Timezone the Frappe site stored its naive `timestamp` values in. Frappe-PG
+    columns are `timestamp without time zone`; inserting a naive datetime into the
+    new tz-aware columns would otherwise be read in the server's TimeZone and shift
+    every stamp. Default UTC; set WD_ETL_SOURCE_TZ (e.g. Asia/Kolkata) to match."""
+    try:
+        return ZoneInfo(os.environ.get("WD_ETL_SOURCE_TZ") or "UTC")
+    except (ZoneInfoNotFoundError, ValueError):
+        return timezone.utc
 
 # Unusable placeholder hash for every migrated user. Frappe stores pbkdf2 hashes
 # in a separate __Auth table with a format bcrypt can't verify — so passwords
@@ -64,7 +77,9 @@ def _convert(kind: str, val: object) -> object:
             return {}
     if kind.startswith("L:"):
         return to_uuid(kind[2:], val if isinstance(val, str) else str(val))
-    return val  # scalars / numbers / datetimes pass through
+    if isinstance(val, datetime) and val.tzinfo is None:
+        return val.replace(tzinfo=_source_tz())  # localize naive Frappe stamps
+    return val  # scalars / numbers / tz-aware datetimes pass through
 
 
 @lru_cache
@@ -105,10 +120,12 @@ def _build_values(spec: Spec, row: Mapping) -> dict:
     if spec.doctype == "User":
         vals["password_hash"] = _UNUSABLE_PASSWORD
 
-    # Carry Frappe audit timestamps onto the new tz-aware columns.
+    # Carry Frappe audit timestamps onto the new tz-aware columns (localized).
     for src_col, dst_col in (("creation", "created_at"), ("modified", "updated_at")):
         ts = row.get(src_col)
-        if isinstance(ts, (datetime, date, str)) and ts:
+        if isinstance(ts, datetime):
+            vals[dst_col] = ts.replace(tzinfo=_source_tz()) if ts.tzinfo is None else ts
+        elif isinstance(ts, (date, str)) and ts:
             vals[dst_col] = ts
 
     # Fill NOT NULL columns the source left empty with the model's own default,

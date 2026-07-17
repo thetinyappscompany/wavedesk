@@ -83,14 +83,20 @@ def verify(db, user_id, code: str) -> bool:
         return True
     if verify_totp(crypto.decrypt(row.secret_encrypted), code):
         return True
-    # consume-once recovery code (row already loaded in this txn → serialized)
+    # consume-once recovery code — re-load the row under a FOR UPDATE lock so two
+    # concurrent verifies can't consume the same code (replay). The lock is held
+    # until the request transaction commits.
     h = hashlib.sha256((code or "").strip().encode()).hexdigest()
-    if h in (row.recovery_codes or []):
+    locked = db.execute(
+        select(UserTwoFactor).where(UserTwoFactor.id == row.id)
+        .with_for_update().execution_options(populate_existing=True)
+    ).scalar_one()
+    if h in (locked.recovery_codes or []):
         # reassign a fresh list so SQLAlchemy tracks the JSONB change
-        row.recovery_codes = [c for c in row.recovery_codes if c != h]
+        locked.recovery_codes = [c for c in locked.recovery_codes if c != h]
         from sqlalchemy.orm.attributes import flag_modified
 
-        flag_modified(row, "recovery_codes")
+        flag_modified(locked, "recovery_codes")
         return True
     return False
 

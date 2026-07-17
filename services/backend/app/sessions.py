@@ -62,5 +62,9 @@ def update(sid: str, **changes) -> None:
 
 
 def destroy(sid: str | None) -> None:
-    if sid:
-        _redis().delete(_PREFIX + sid)
+    if not sid:
+        return
+    data = get(sid)
+    if data and data.get("user_id"):  # keep the user→sids index consistent
+        _redis().srem(f"wd:usersids:{data['user_id']}", sid)
+    _redis().delete(_PREFIX + sid)

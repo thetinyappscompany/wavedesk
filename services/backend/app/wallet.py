@@ -61,6 +61,16 @@ def charge(db, workspace_id, amount: float, reference: str,
            idempotency_key: str, txn_type: str = "deduction") -> WalletTransaction:
     if amount <= 0:
         raise ValueError("Charge amount must be positive")
+    # Idempotency BEFORE the balance check: a retry of an already-posted charge
+    # (balance already debited) must return the existing row, not spuriously
+    # raise InsufficientBalance because the balance is now lower.
+    existing = db.execute(
+        select(WalletTransaction).where(
+            WalletTransaction.idempotency_key == idempotency_key
+        )
+    ).scalar_one_or_none()
+    if existing:
+        return existing
     if get_balance(db, workspace_id) < amount:
         raise InsufficientBalance(f"Balance below {amount}")
     return _append(db, workspace_id, -amount, txn_type, reference, idempotency_key)

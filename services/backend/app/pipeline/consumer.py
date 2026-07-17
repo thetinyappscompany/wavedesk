@@ -162,6 +162,26 @@ def apply_event(db, event: dict) -> None:
     number = _resolve_number(db, workspace.id, transport, payload)
     chat = _upsert_chat(db, workspace.id, wa_chat_id, chat_type, contact, number)
 
+    # A fromMe echo for a message WE sent may arrive after the gateway failed to
+    # return its wa_message_id (our sent row then has NULL id, so the dedup above
+    # misses). Adopt the echo's id onto that row instead of inserting a duplicate
+    # outbound bubble.
+    if direction == "out":
+        adopted = db.execute(
+            select(Message)
+            .where(
+                Message.workspace_id == workspace.id,
+                Message.chat_id == chat.id,
+                Message.direction == "out",
+                Message.wa_message_id.is_(None),
+                Message.body == body,
+            )
+            .order_by(Message.created_at.desc())
+        ).scalars().first()
+        if adopted is not None:
+            adopted.wa_message_id = wa_message_id
+            return
+
     sender_contact = contact if direction == "in" else None
     if chat_type == "group" and direction == "in" and sender_jid:
         sender_contact = _match_existing_contact(db, workspace.id, sender_jid)

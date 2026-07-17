@@ -353,10 +353,12 @@ def access_set(ctx: Ctx) -> dict:
 @method("wavedesk.api.billing.zoho_webhook", allow_guest=True)
 def billing_webhook(ctx: Ctx) -> dict:
     import os
+    import secrets as _secrets
 
     expected = os.environ.get("ZOHO_WEBHOOK_TOKEN")
-    got = ctx.request.headers.get("x-webhook-token")
-    if not expected or got != expected:
+    got = ctx.request.headers.get("x-webhook-token") or ""
+    # constant-time compare — a `!=` leaks the shared secret via timing
+    if not expected or not _secrets.compare_digest(got, expected):
         raise HTTPException(403, "Invalid or missing webhook token")
     event = ctx.params  # normalized contract (raw Zoho mapping finalized at staging)
     if not event.get("type") and not event.get("invoice"):

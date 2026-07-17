@@ -5,10 +5,24 @@ import uuid
 from fastapi import HTTPException
 from sqlalchemy import select
 
+from app.api._ids import parse_uuid
 from app.compat import Ctx, method
-from app.models import Message, Ticket
+from app.models import Message, Ticket, WorkspaceMember
 from app.models.groups import TICKET_PRIORITIES, TICKET_STATUSES
 from app.tenancy import active_workspace
+
+
+def _validated_agent(ctx: Ctx, ws_id, value: str):
+    """Resolve an agent id, ensuring the user belongs to this workspace."""
+    uid = parse_uuid(value, "agent")
+    member = ctx.db.execute(
+        select(WorkspaceMember.id).where(
+            WorkspaceMember.workspace_id == ws_id, WorkspaceMember.user_id == uid
+        )
+    ).scalar_one_or_none()
+    if member is None:
+        raise HTTPException(400, "Assignee must belong to this workspace")
+    return uid
 
 
 def _get_checked(ctx: Ctx, ticket: str) -> Ticket:
@@ -43,9 +57,15 @@ def create_ticket(ctx: Ctx) -> dict:
     title = (ctx.params.get("title") or "").strip()
     chat_id = ctx.params.get("chat")
     source_message = ctx.params.get("source_message")
-    if source_message and not title:
-        msg = ctx.db.get(Message, uuid.UUID(source_message))
-        if msg is not None and msg.workspace_id == ws.id:
+    source_message_id = None
+    if source_message:
+        # The source message must belong to this workspace (never store a
+        # foreign message id, even when a title is supplied).
+        msg = ctx.db.get(Message, parse_uuid(source_message, "source_message"))
+        if msg is None or msg.workspace_id != ws.id:
+            raise HTTPException(404, "Source message not found in this workspace")
+        source_message_id = msg.id
+        if not title:
             title = (msg.body or "Support request")[:140]
     if not title:
         raise HTTPException(400, "title is required")
@@ -60,8 +80,8 @@ def create_ticket(ctx: Ctx) -> dict:
         workspace_id=ws.id,
         title=title[:140],
         priority=priority,
-        chat_id=uuid.UUID(chat_id) if chat_id else None,
-        source_message_id=uuid.UUID(source_message) if source_message else None,
+        chat_id=parse_uuid(chat_id, "chat") if chat_id else None,
+        source_message_id=source_message_id,
     )
     ctx.db.add(row)
     ctx.db.flush()
@@ -109,7 +129,8 @@ def update_ticket(ctx: Ctx) -> dict:
         row.resolution_note = ctx.params.get("resolution_note")
     if "agent" in ctx.params:
         row.assigned_agent_id = (
-            uuid.UUID(ctx.params["agent"]) if ctx.params.get("agent") else None
+            _validated_agent(ctx, row.workspace_id, ctx.params["agent"])
+            if ctx.params.get("agent") else None
         )
     return _serialize(row)
 

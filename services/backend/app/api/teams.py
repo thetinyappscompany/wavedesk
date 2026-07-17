@@ -5,8 +5,9 @@ import uuid
 from fastapi import HTTPException
 from sqlalchemy import select
 
+from app.api._ids import parse_uuid
 from app.compat import Ctx, method
-from app.models import Team, TeamMember, User
+from app.models import Team, TeamMember, User, WorkspaceMember
 from app.models.inbox import ROUTING_MODES
 from app.tenancy import active_workspace, require_manager
 
@@ -38,8 +39,19 @@ def _serialize(ctx: Ctx, team: Team) -> dict:
 
 def _set_members(ctx: Ctx, team: Team, member_ids: list) -> None:
     ctx.db.query(TeamMember).filter(TeamMember.team_id == team.id).delete()
+    # Only users who belong to THIS workspace may be team members — otherwise a
+    # manager could seed a team with foreign user ids (which would then surface
+    # in the roster and be assignable).
+    valid = set(ctx.db.execute(
+        select(WorkspaceMember.user_id).where(
+            WorkspaceMember.workspace_id == team.workspace_id
+        )
+    ).scalars())
     for mid in member_ids or []:
-        ctx.db.add(TeamMember(team_id=team.id, user_id=uuid.UUID(mid)))
+        uid = parse_uuid(mid, "member id")
+        if uid not in valid:
+            raise HTTPException(400, "Team members must belong to this workspace")
+        ctx.db.add(TeamMember(team_id=team.id, user_id=uid))
 
 
 @method("wavedesk.api.teams.list_teams")

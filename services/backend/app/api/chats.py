@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 
 from app import masking
+from app.api._ids import parse_uuid
 from app.compat import Ctx, method
 from app.inbox import needs_reply_threshold
 from app.models import Chat, Contact
@@ -38,14 +39,14 @@ def list_chats(ctx: Ctx) -> dict:
             raise HTTPException(400, f"Invalid status filter: {status}")
         query = query.where(Chat.status == status)
     if p.get("number"):
-        query = query.where(Chat.number_id == uuid.UUID(p["number"]))
+        query = query.where(Chat.number_id == parse_uuid(p["number"], "number"))
     assignee = p.get("assignee")
     if assignee == "me":
         query = query.where(Chat.assigned_agent_id == uuid.UUID(ctx.user_id))
     elif assignee == "unassigned":
         query = query.where(Chat.assigned_agent_id.is_(None))
     elif assignee:
-        query = query.where(Chat.assigned_agent_id == uuid.UUID(assignee))
+        query = query.where(Chat.assigned_agent_id == parse_uuid(assignee, "assignee"))
     if p.get("search"):
         needle = f"%{p['search'].lower()}%"
         query = query.where(

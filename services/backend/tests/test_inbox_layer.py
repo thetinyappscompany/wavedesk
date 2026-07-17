@@ -198,6 +198,13 @@ def test_invite_accept_creates_member_and_logs_in(authed, client):
           token=invite["token"], password="riya-pass-123", expect=400)
 
 
+def test_team_rejects_foreign_member(authed, client, make_user):
+    _, _ws = authed
+    outsider = make_user()  # belongs to no workspace here
+    _call(client, "wavedesk.api.teams.create_team",
+          team_name="Sales", members=[str(outsider.id)], expect=400)
+
+
 def test_invite_existing_user_requires_self_auth(authed, client, make_user):
     """A token for an already-existing account must NOT auto-log-in — managers
     can read invite tokens, so auto-login would be account takeover."""

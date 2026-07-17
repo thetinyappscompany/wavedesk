@@ -5,17 +5,20 @@ actions, webhook update/redeliver."""
 import csv
 import io
 import json
+import logging
 import uuid
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
 
-from app import auth_twofa, sessions, webhooks
+from app import auth_twofa, sessions, tasks, webhooks
 from app.admin import require_platform_admin, suspend
 from app.compat import Ctx, method
 from app.models import Contact, WebhookDelivery, WebhookEndpoint, Workspace, WorkspaceMember
 from app.pipeline.sender import get_redis
 from app.tenancy import active_workspace, require_manager
+
+log = logging.getLogger("wavedesk.admin")
 
 
 # --- CSV contact import -------------------------------------------------------
@@ -105,10 +108,12 @@ def list_sessions(ctx: Ctx) -> list[dict]:
 
 @method("wavedesk.api.security.revoke_session")
 def revoke_session(ctx: Ctx) -> dict:
-    target = ctx.params.get("sid") or ""
+    target = (ctx.params.get("sid") or "").rstrip("…")
+    if not target:
+        raise HTTPException(400, "sid is required")
     # only allow revoking one of the caller's own sessions (prefix-matched)
     for sid in sessions.user_sids(ctx.user_id):
-        if sid.startswith(target.rstrip("…")):
+        if sid.startswith(target):
             sessions.destroy(sid)
             get_redis().srem(f"wd:usersids:{ctx.user_id}", sid)
             return {"revoked": True}
@@ -188,6 +193,9 @@ def admin_impersonate(ctx: Ctx) -> dict:
     if ws is None:
         raise HTTPException(404, "Workspace not found")
     sessions.update(ctx.sid, active_workspace=target)
+    # Audit trail: no dedicated audit-log table on the new backend yet, so record
+    # the impersonation to the admin log stream (who → which workspace).
+    log.warning("admin.impersonate user=%s workspace=%s", ctx.user_id, target)
     return {"active_workspace": target}
 
 
@@ -224,6 +232,9 @@ def webhook_redeliver(ctx: Ctx) -> dict:
     if delivery is None or delivery.workspace_id != ws.id:
         raise HTTPException(404, "Delivery not found")
     delivery.status = "pending"
+    delivery.next_retry_at = None
     ctx.db.commit()
-    webhooks.deliver(str(delivery.id))
+    # Enqueue (don't run inline) — a slow/hung endpoint must not block the request
+    # thread for up to the 15s delivery timeout.
+    tasks.enqueue(webhooks.deliver, delivery_id=str(delivery.id))
     return {"redelivered": str(delivery.id)}
