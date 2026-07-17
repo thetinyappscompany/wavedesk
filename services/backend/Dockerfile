@@ -9,6 +9,10 @@ ENV PYTHONUNBUFFERED=1 \
 
 COPY pyproject.toml ./
 COPY app ./app
+# alembic.ini + migrations/ ship in the image so `alembic upgrade head` runs at
+# deploy time (the migrations/ dir is read by the alembic CLI, not imported).
+COPY alembic.ini ./
+COPY migrations ./migrations
 RUN pip install --upgrade pip && pip install .
 
 EXPOSE 8000
