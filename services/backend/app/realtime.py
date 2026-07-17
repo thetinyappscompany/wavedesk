@@ -31,3 +31,7 @@ def emit_message_status(workspace_id: str, chat_id: str, message_id: str, status
 
 def emit_chat_updated(workspace_id: str, chat_id: str) -> None:
     _safe_emit(workspace_id, "wd:chat", {"chat": chat_id})
+
+
+def emit_group_updated(workspace_id: str, group_id: str) -> None:
+    _safe_emit(workspace_id, "wd:group", {"group": group_id})

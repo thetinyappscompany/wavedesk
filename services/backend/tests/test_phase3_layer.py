@@ -309,3 +309,32 @@ def test_status_change_trigger(authed, db):
     db.commit()
     logs = _call(client, "wavedesk.api.automation.list_logs")
     assert any(entry["detail"] == "status_change" for entry in logs)
+
+
+def test_template_allows_reused_positional_var():
+    import uuid as _uuid
+
+    from app import templates_engine
+    from app.models import MessageTemplate
+
+    t = MessageTemplate(workspace_id=_uuid.uuid4(), template_name="greet",
+                        body="Hi {{1}}, bye {{1}}")
+    templates_engine.validate(t)  # reusing {{1}} is valid — must not raise
+    assert t.variable_count == 1
+
+
+def test_recurring_schedule_uses_its_timezone():
+    import uuid as _uuid
+    from datetime import timezone
+
+    from app import schedules
+    from app.models import ScheduledMessage
+
+    sched = ScheduledMessage(
+        workspace_id=_uuid.uuid4(), schedule_type="recurring",
+        recurrence={"frequency": "daily", "time": "09:00", "timezone": "Asia/Kolkata"},
+    )
+    nxt = schedules.compute_next_run(sched)
+    # 09:00 in Asia/Kolkata (UTC+5:30) is 03:30 UTC
+    in_utc = nxt.astimezone(timezone.utc)
+    assert in_utc.hour == 3 and in_utc.minute == 30

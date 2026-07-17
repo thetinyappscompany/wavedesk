@@ -6,6 +6,7 @@ cron fires due rows and advances recurring ones."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 
@@ -19,19 +20,26 @@ def compute_next_run(sched: ScheduledMessage, after: datetime | None = None) -> 
     rec = sched.recurrence or {}
     time_str = rec.get("time") or "09:00"
     hour, minute = (int(x) for x in time_str.split(":"))
-    now = after or datetime.now(UTC)
+    # Interpret the HH:MM in the schedule's OWN timezone (from the recurrence
+    # JSON), not the server's — a "09:00" daily must fire at 09:00 local. Store
+    # the result as tz-aware UTC so cron comparisons stay consistent.
+    try:
+        tz = ZoneInfo(rec.get("timezone") or "UTC")
+    except (ZoneInfoNotFoundError, ValueError):
+        tz = UTC
+    now = (after or datetime.now(UTC)).astimezone(tz)
     candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
     if rec.get("frequency") == "weekly":
         weekdays = rec.get("weekdays") or [0]
         for offset in range(0, 8):
             probe = candidate + timedelta(days=offset)
             if probe.weekday() in weekdays and probe > now:
-                return probe
+                return probe.astimezone(UTC)
         return None
     # daily
     if candidate <= now:
         candidate += timedelta(days=1)
-    return candidate
+    return candidate.astimezone(UTC)
 
 
 def run_due_schedules() -> int:

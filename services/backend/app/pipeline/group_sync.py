@@ -71,7 +71,7 @@ def _upsert_group(db, workspace, payload: dict) -> Group | None:
         _upsert_member(db, workspace.id, group, participant)
     _refresh_member_count(db, group)
     _backlink_chat(db, workspace.id, group)
-    realtime.emit_chat_updated(str(workspace.id), str(group.id))
+    realtime.emit_group_updated(str(workspace.id), str(group.id))
     return group
 
 

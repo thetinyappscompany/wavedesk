@@ -230,6 +230,21 @@ def test_suspend_blocks_send(authed, db):
         sender.queue_send(db, chat, "hi", None)
 
 
+def test_send_rate_clamp_blocks_over_daily(authed, db):
+    from app import admin
+
+    client, ws, _user = authed
+    number = make_number(db, ws)
+    contact = make_contact(db, ws, "919333309999")
+    chat = make_chat(db, ws, number=number, contact=contact,
+                     wa_chat_id="919333309999@s.whatsapp.net")
+    make_message(db, ws, chat, body="out1", direction="out")  # 1 sent today
+    ws.settings = {**(ws.settings or {}), "send_rate_clamp": 1}
+    db.commit()
+    with pytest.raises(admin.Suspended):
+        admin.assert_can_send(db, ws.id)
+
+
 # --- DPDP -----------------------------------------------------------------------
 
 

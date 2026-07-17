@@ -80,8 +80,14 @@ def queue_send(db, chat: Chat, body: str, agent_user_id: str | None) -> dict:
     }
 
 
-def deliver_message(message_id: str, attempt: int = 0) -> None:
-    """RQ job: rate-limit, dispatch to the gateway, retry or fail."""
+def deliver_message(message_id: str, attempt: int = 0, gateway_attempt: int = 0) -> None:
+    """RQ job: rate-limit, dispatch to the gateway, retry or fail.
+
+    Two INDEPENDENT counters: `attempt` bounds rate-limit re-queues
+    (MAX_RATE_REQUEUES), `gateway_attempt` bounds gateway-error retries
+    (MAX_DELIVERY_ATTEMPTS). Conflating them let a message that was merely
+    rate-requeued a few times get marked failed after a single gateway error.
+    """
     db = get_sessionmaker()()
     try:
         msg = db.get(Message, uuid.UUID(message_id))
@@ -99,7 +105,8 @@ def deliver_message(message_id: str, attempt: int = 0) -> None:
                 return
             if not _in_test():
                 time.sleep(min(2**attempt, 8))
-            tasks.enqueue(deliver_message, message_id=message_id, attempt=attempt + 1)
+            tasks.enqueue(deliver_message, message_id=message_id,
+                          attempt=attempt + 1, gateway_attempt=gateway_attempt)
             return
 
         # Flip BEFORE the gateway call: crash-after-send must never double-send.
@@ -114,12 +121,13 @@ def deliver_message(message_id: str, attempt: int = 0) -> None:
                     number.phone_number_id, chat.wa_chat_id.split("@")[0], msg.body
                 )
         except gateway.GatewayError:
-            if attempt + 1 < MAX_DELIVERY_ATTEMPTS:
+            if gateway_attempt + 1 < MAX_DELIVERY_ATTEMPTS:
                 msg.status = "queued"
                 db.commit()
                 if not _in_test():
-                    time.sleep(min(2 ** (attempt + 1), 8))
-                tasks.enqueue(deliver_message, message_id=message_id, attempt=attempt + 1)
+                    time.sleep(min(2 ** (gateway_attempt + 1), 8))
+                tasks.enqueue(deliver_message, message_id=message_id,
+                              attempt=attempt, gateway_attempt=gateway_attempt + 1)
             else:
                 _mark_failed(db, msg, "gateway error")
             return

@@ -50,9 +50,15 @@ def _dashboard(ctx: Ctx) -> dict:
     created = ctx.db.execute(
         select(Chat.created_at).where(Chat.workspace_id == ws.id, Chat.created_at >= since)
     ).scalars()
+    # cover every calendar day from the window start through today, inclusive —
+    # otherwise chats in the oldest partial day count in totals but drop from the
+    # series.
     trend: dict[str, int] = {}
-    for i in range(days):
-        trend[(since + timedelta(days=i + 1)).date().isoformat()] = 0
+    day = since.date()
+    today = datetime.now(UTC).date()
+    while day <= today:
+        trend[day.isoformat()] = 0
+        day += timedelta(days=1)
     for created_at in created:
         key = created_at.date().isoformat()
         if key in trend:

@@ -21,7 +21,9 @@ def validate(template: MessageTemplate) -> None:
         raise ValueError("Template name may only contain a-z, 0-9 and underscores")
     if not (template.body or "").strip():
         raise ValueError("Template body is required")
-    variables = sorted(int(m) for m in _VAR_RE.findall(template.body))
+    # Distinct positional vars must be 1..N (a body may legitimately reuse
+    # {{1}} several times — dedupe before the sequential check).
+    variables = sorted({int(m) for m in _VAR_RE.findall(template.body)})
     if variables != list(range(1, len(variables) + 1)):
         raise ValueError("Positional variables must be sequential: {{1}}, {{2}}, …")
     template.variable_count = len(variables)

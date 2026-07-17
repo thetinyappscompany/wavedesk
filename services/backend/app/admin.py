@@ -80,7 +80,25 @@ def suspend(db, workspace_id, suspended: bool, reason: str | None = None) -> Non
 
 
 def assert_can_send(db, workspace_id) -> None:
-    """Single outbound chokepoint guard — suspended workspace cannot dispatch."""
+    """Single outbound chokepoint guard — suspended workspace cannot dispatch,
+    and an operator-set daily send clamp caps outbound volume."""
     ws = db.get(Workspace, workspace_id)
-    if ws is not None and (ws.settings or {}).get("suspended"):
+    if ws is None:
+        return
+    settings = ws.settings or {}
+    if settings.get("suspended"):
         raise Suspended("Workspace is suspended")
+    clamp = int(settings.get("send_rate_clamp") or 0)
+    if clamp > 0:
+        from datetime import UTC, datetime
+
+        start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        sent_today = db.execute(
+            select(func.count()).select_from(Message).where(
+                Message.workspace_id == workspace_id,
+                Message.direction == "out",
+                Message.created_at >= start,
+            )
+        ).scalar_one()
+        if sent_today >= clamp:
+            raise Suspended(f"Daily send clamp reached ({clamp})")
