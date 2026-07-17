@@ -34,6 +34,12 @@ vi.mock('@/lib/client', () => ({
     createSlaPolicy: vi.fn(),
     updateSlaPolicy: vi.fn(),
     deleteSlaPolicy: vi.fn(),
+    getProfile: vi.fn(),
+    updateProfile: vi.fn(),
+    changePassword: vi.fn(),
+    billingSummary: vi.fn(),
+    twofaStatus: vi.fn(),
+    listSessions: vi.fn(),
   },
 }));
 
@@ -61,6 +67,10 @@ function renderPage() {
   );
 }
 
+async function openTab(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(await screen.findByRole('tab', { name }));
+}
+
 describe('SettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -78,24 +88,47 @@ describe('SettingsPage', () => {
     vi.mocked(client.listMonitoringRules).mockResolvedValue([]);
     vi.mocked(client.listTeams).mockResolvedValue([]);
     vi.mocked(client.listSlaPolicies).mockResolvedValue([]);
+    vi.mocked(client.getProfile).mockResolvedValue({
+      email: 'owner@x.test',
+      first_name: 'Owner O',
+      is_platform_admin: false,
+    });
+    vi.mocked(client.billingSummary).mockResolvedValue({
+      plan: 'Starter',
+      status: 'trialing',
+      ai_addon: false,
+      current_period_end: '2026-08-01T00:00:00+00:00',
+      wallet_balance: 250,
+    });
+    vi.mocked(client.twofaStatus).mockResolvedValue(false);
+    vi.mocked(client.listSessions).mockResolvedValue([]);
   });
 
-  it('renders labels, canned responses, and the masking toggle', async () => {
+  it('shows the tab bar with the General tab active by default', async () => {
     renderPage();
     expect(await screen.findByText('Asha & Co')).toBeInTheDocument();
-    expect(await screen.findByText('vip')).toBeInTheDocument();
-    expect(screen.getByText('/greet')).toBeInTheDocument();
-    expect(
-      screen.getByLabelText('Mask customer numbers for agents'),
-    ).not.toBeChecked();
+    const general = screen.getByRole('tab', { name: 'General' });
+    expect(general).toHaveAttribute('aria-selected', 'true');
+    // General content mounts; other tabs' content does not
+    expect(screen.getByLabelText(/Needs Reply after/)).toBeInTheDocument();
+    expect(screen.queryByText('vip')).not.toBeInTheDocument();
   });
 
-  it('toggling masking calls the settings API', async () => {
+  it('Inbox tab renders labels and canned responses', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openTab(user, 'Inbox');
+    expect(await screen.findByText('vip')).toBeInTheDocument();
+    expect(screen.getByText('/greet')).toBeInTheDocument();
+  });
+
+  it('toggling masking (Privacy & Data tab) calls the settings API', async () => {
     vi.mocked(client.updateWorkspaceSettings).mockResolvedValue(
       settings({ mask_numbers: true }),
     );
     const user = userEvent.setup();
     renderPage();
+    await openTab(user, 'Privacy & Data');
     await user.click(await screen.findByLabelText('Mask customer numbers for agents'));
     expect(client.updateWorkspaceSettings).toHaveBeenCalledWith({ mask_numbers: true });
   });
@@ -127,6 +160,7 @@ describe('SettingsPage', () => {
     });
     const user = userEvent.setup();
     renderPage();
+    await openTab(user, 'Inbox');
     await user.type(await screen.findByLabelText('Label title'), 'billing');
     const submit = screen.getAllByRole('button', { name: 'Add' })[0];
     if (!submit) {
@@ -146,6 +180,7 @@ describe('SettingsPage', () => {
     });
     const user = userEvent.setup();
     renderPage();
+    await openTab(user, 'Inbox');
     await user.type(await screen.findByLabelText('Canned shortcode'), 'closing');
     await user.type(screen.getByLabelText('Canned content'), 'Anything else?');
     const addButtons = screen.getAllByRole('button', { name: 'Add' });
@@ -173,6 +208,7 @@ describe('SettingsPage', () => {
     });
     const user = userEvent.setup();
     renderPage();
+    await openTab(user, 'Inbox');
     await user.type(await screen.findByLabelText('Rule name'), 'Competitor watch');
     await user.type(screen.getByLabelText('Rule keywords'), 'scam, competitorx');
     await user.click(screen.getByRole('button', { name: 'Add rule' }));
@@ -189,11 +225,12 @@ describe('SettingsPage', () => {
     vi.mocked(client.deleteLabel).mockResolvedValue({ deleted: 'LBL-1' });
     const user = userEvent.setup();
     renderPage();
+    await openTab(user, 'Inbox');
     await user.click(await screen.findByLabelText('Delete label vip'));
     expect(client.deleteLabel).toHaveBeenCalledWith('LBL-1');
   });
 
-  it('team card lists members, invites, and revokes', async () => {
+  it('team tab lists members, invites, and revokes', async () => {
     vi.mocked(client.listInvites).mockResolvedValue([
       {
         name: 'INV-1',
@@ -215,6 +252,7 @@ describe('SettingsPage', () => {
     vi.mocked(client.revokeInvite).mockResolvedValue({ invite: 'INV-1', status: 'revoked' });
     const user = userEvent.setup();
     renderPage();
+    await openTab(user, 'Team & Routing');
     expect(await screen.findByTestId('member-row')).toHaveTextContent('Owner O');
     expect(await screen.findByTestId('invite-row')).toHaveTextContent('riya@x.test');
 
@@ -229,12 +267,57 @@ describe('SettingsPage', () => {
     expect(client.revokeInvite).toHaveBeenCalledWith('INV-1');
   });
 
+  it('account tab shows the profile and changes the password', async () => {
+    vi.mocked(client.changePassword).mockResolvedValue({ ok: true, revoked_sessions: 1 });
+    const user = userEvent.setup();
+    renderPage();
+    await openTab(user, 'Account');
+    expect(await screen.findByLabelText('Email')).toHaveValue('owner@x.test');
+    expect(screen.getByLabelText('Display name')).toHaveValue('Owner O');
+
+    await user.type(screen.getByLabelText('Current password'), 'old-secret-1');
+    await user.type(screen.getByLabelText('New password'), 'new-secret-9');
+    await user.type(screen.getByLabelText('Confirm new password'), 'new-secret-9');
+    await user.click(screen.getByRole('button', { name: 'Update password' }));
+    await waitFor(() => {
+      expect(client.changePassword).toHaveBeenCalledWith('old-secret-1', 'new-secret-9');
+    });
+    expect(await screen.findByRole('status')).toHaveTextContent('Password updated');
+  });
+
+  it('billing tab shows plan, status and wallet balance for managers', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openTab(user, 'Billing');
+    expect(await screen.findByText('Starter')).toBeInTheDocument();
+    expect(screen.getByText('trialing')).toBeInTheDocument();
+    expect(screen.getByText('₹250')).toBeInTheDocument();
+  });
+
+  it('billing tab is hidden behind a note for agents', async () => {
+    vi.mocked(client.getWorkspaceSettings).mockResolvedValue(settings({ role: 'Agent' }));
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('Asha & Co');
+    await openTab(user, 'Billing');
+    expect(
+      await screen.findByText('Only workspace owners and admins can view billing.'),
+    ).toBeInTheDocument();
+    expect(client.billingSummary).not.toHaveBeenCalled();
+  });
+
   it('agents get a read-only page', async () => {
     vi.mocked(client.getWorkspaceSettings).mockResolvedValue(settings({ role: 'Agent' }));
+    const user = userEvent.setup();
     renderPage();
+    await screen.findByText('Asha & Co');
+    await openTab(user, 'Inbox');
     expect(await screen.findByText('vip')).toBeInTheDocument();
-    expect(screen.getByLabelText('Mask customer numbers for agents')).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Delete label vip')).not.toBeInTheDocument();
+    await openTab(user, 'Privacy & Data');
+    expect(
+      await screen.findByLabelText('Mask customer numbers for agents'),
+    ).toBeDisabled();
   });
 });

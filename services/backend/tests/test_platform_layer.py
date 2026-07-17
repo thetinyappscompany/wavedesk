@@ -209,8 +209,20 @@ def test_admin_requires_platform_flag(authed, db):
     # promote the ACTUAL logged-in caller
     db.get(type(user), user.id).is_platform_admin = True
     db.commit()
-    rows = _call(client, "wavedesk.api.admin.list_workspaces")
+    out = _call(client, "wavedesk.api.admin.list_workspaces")
+    rows = out["workspaces"]  # api-client reads r.workspaces — bare list breaks the table
     assert any(r["workspace_name"] == "R6 WS" for r in rows)
+    # Full WdAdminWorkspace row contract (the admin table reads these keys)
+    for key in ("name", "workspace_name", "plan", "owner_user", "suspended",
+                "send_rate_clamp", "members", "messages_total",
+                "subscription_status", "creation"):
+        assert key in rows[0], key
+    # search filter narrows by workspace name
+    hit = _call(client, "wavedesk.api.admin.list_workspaces", search="r6 w")["workspaces"]
+    assert any(r["workspace_name"] == "R6 WS" for r in hit)
+    miss = _call(client, "wavedesk.api.admin.list_workspaces",
+                 search="zz-no-such-ws")["workspaces"]
+    assert miss == []
     stats = _call(client, "wavedesk.api.admin.platform_stats")
     assert stats["totals"]["workspaces"] >= 1
     # Full WdPlatformStats contract — a missing key white-screens the /admin page
@@ -258,7 +270,7 @@ def test_suspended_column_blocks_send_and_counts(authed, db):
 
     stats = _call(client, "wavedesk.api.admin.platform_stats")
     assert stats["operational"]["suspended"] >= 2  # both storage shapes counted
-    rows = _call(client, "wavedesk.api.admin.list_workspaces")
+    rows = _call(client, "wavedesk.api.admin.list_workspaces")["workspaces"]
     flags = {r["workspace_name"]: r["suspended"] for r in rows}
     assert flags["Migrated Suspended"] is True
     assert flags["Legacy Suspended"] is True
