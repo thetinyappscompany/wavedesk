@@ -212,9 +212,11 @@ def admin_whoami(ctx: Ctx) -> dict:
 
 
 @method("wavedesk.api.admin.list_workspaces")
-def admin_list_workspaces(ctx: Ctx) -> list[dict]:
+def admin_list_workspaces(ctx: Ctx) -> dict:
     admin.require_platform_admin(ctx.db, uuid.UUID(ctx.user_id))
-    return admin.list_workspaces(ctx.db)
+    # api-client reads r.workspaces — a bare list makes the admin table query
+    # resolve undefined and error out.
+    return {"workspaces": admin.list_workspaces(ctx.db, ctx.params.get("search"))}
 
 
 @method("wavedesk.api.admin.platform_stats")

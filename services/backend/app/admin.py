@@ -12,6 +12,7 @@ from app.models import (
     Contact,
     Message,
     Subscription,
+    User,
     WhatsAppNumber,
     Workspace,
     WorkspaceMember,
@@ -28,15 +29,19 @@ def _is_suspended(ws: Workspace) -> bool:
 
 
 def require_platform_admin(db, user_id) -> None:
-    from app.models import User
-
     user = db.get(User, user_id)
     if user is None or not user.is_platform_admin:
         raise PermissionError("Platform admin only")
 
 
-def list_workspaces(db) -> list[dict]:
-    rows = db.execute(select(Workspace)).scalars().all()
+def list_workspaces(db, search: str | None = None) -> list[dict]:
+    """Rows in the WdAdminWorkspace shape the SPA's admin table reads
+    (owner_user / send_rate_clamp / messages_total / subscription_status /
+    creation — NOT internal names)."""
+    query = select(Workspace)
+    if search:
+        query = query.where(func.lower(Workspace.name).like(f"%{search.lower()}%"))
+    rows = db.execute(query).scalars().all()
     out = []
     for ws in rows:
         members = db.execute(
@@ -50,12 +55,24 @@ def list_workspaces(db) -> list[dict]:
         sub = db.execute(
             select(Subscription).where(Subscription.workspace_id == ws.id)
         ).scalar_one_or_none()
+        owner = db.execute(
+            select(User.email)
+            .join(WorkspaceMember, WorkspaceMember.user_id == User.id)
+            .where(WorkspaceMember.workspace_id == ws.id,
+                   WorkspaceMember.role == "Owner")
+            .limit(1)
+        ).scalar_one_or_none()
         out.append({
-            "name": str(ws.id), "workspace_name": ws.name,
-            "suspended": _is_suspended(ws),
-            "members": members, "messages": messages,
-            "status": sub.status if sub else "none",
+            "name": str(ws.id),
+            "workspace_name": ws.name,
             "plan": sub.plan if sub else None,
+            "owner_user": owner,
+            "suspended": _is_suspended(ws),
+            "send_rate_clamp": int((ws.settings or {}).get("send_rate_clamp") or 0),
+            "members": members,
+            "messages_total": messages,
+            "subscription_status": sub.status if sub else None,
+            "creation": ws.created_at.isoformat() if ws.created_at else None,
         })
     return out
 

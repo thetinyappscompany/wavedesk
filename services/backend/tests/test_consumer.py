@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.models import Chat, Contact, Message
 from app.pipeline import consumer
-from tests.helpers import baileys_event, make_number, make_workspace
+from tests.helpers import baileys_event, make_contact, make_number, make_workspace
 
 
 @pytest.fixture
@@ -139,3 +139,61 @@ def test_failing_inbound_hook_does_not_lose_message(db, r, stream, monkeypatch):
     assert _drain(r, stream) == 1  # event acked despite the hook failure
     msg = db.execute(select(Message).where(Message.workspace_id == ws.id)).scalar_one()
     assert msg.body == "hi"  # message persisted, not rolled back with the hook
+
+
+def test_push_name_backfills_nameless_contact(db, r, stream):
+    """A contact created without a name (e.g. from an outbound chat) gets the
+    WhatsApp profile name on the next inbound message — the inbox must not
+    title DMs with raw digits forever. An existing name is never overwritten."""
+    ws = make_workspace(db)
+    number = make_number(db, ws)
+    contact = make_contact(db, ws, "919876500042")  # nameless
+    r.xadd(stream, {"event": baileys_event(
+        ws.id, number.session_ref, "919876500042@s.whatsapp.net", "hello",
+        push_name="Riya Sharma",
+    )})
+    _drain(r, stream)
+    db.expire_all()
+    assert db.get(type(contact), contact.id).full_name == "Riya Sharma"
+
+    # A later message with a different profile name must NOT clobber it.
+    r.xadd(stream, {"event": baileys_event(
+        ws.id, number.session_ref, "919876500042@s.whatsapp.net", "again",
+        push_name="R. Sharma (new)",
+    )})
+    _drain(r, stream)
+    db.expire_all()
+    assert db.get(type(contact), contact.id).full_name == "Riya Sharma"
+
+
+def test_group_chat_links_to_late_registry_row(db, r, stream):
+    """A chat that predates its Group registry row (sync failed/ran later) heals
+    its group link on the next inbound message, so the inbox shows the real
+    subject instead of the raw @g.us jid."""
+    from app.models import Group
+
+    ws = make_workspace(db)
+    number = make_number(db, ws)
+    wa_group = "120363000111222333@g.us"
+    # Message first → chat exists with NO group link (registry empty).
+    r.xadd(stream, {"event": baileys_event(
+        ws.id, number.session_ref, wa_group, "pre-sync chatter",
+        participant="919876500043@s.whatsapp.net",
+    )})
+    _drain(r, stream)
+    chat = db.execute(select(Chat).where(
+        Chat.workspace_id == ws.id, Chat.wa_chat_id == wa_group)).scalar_one()
+    assert chat.group_id is None
+
+    # Registry row appears later WITHOUT a group.upsert event reaching the
+    # backlink path (e.g. imported/refetched) — the next message heals the link.
+    group = Group(workspace_id=ws.id, wa_group_id=wa_group, subject="Traders Hub")
+    db.add(group)
+    db.commit()
+    r.xadd(stream, {"event": baileys_event(
+        ws.id, number.session_ref, wa_group, "post-sync chatter",
+        participant="919876500043@s.whatsapp.net",
+    )})
+    _drain(r, stream)
+    db.expire_all()
+    assert chat.group_id == group.id

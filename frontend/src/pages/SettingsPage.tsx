@@ -14,6 +14,8 @@ import ApiKeysCard from '@/components/ApiKeysCard';
 import WebhooksCard from '@/components/WebhooksCard';
 import PrivacyCard from '@/components/PrivacyCard';
 import SecurityCard from '@/components/SecurityCard';
+import ProfileCard from '@/components/ProfileCard';
+import BillingCard from '@/components/BillingCard';
 import StarterTemplatesCard from '@/components/StarterTemplatesCard';
 import AccessControlCard from '@/components/AccessControlCard';
 import { Button } from '@/components/ui/button';
@@ -297,8 +299,21 @@ function CannedCard({ canManage }: { canManage: boolean }): React.JSX.Element {
   );
 }
 
+const TABS = [
+  { key: 'general', label: 'General' },
+  { key: 'account', label: 'Account' },
+  { key: 'billing', label: 'Billing' },
+  { key: 'team', label: 'Team & Routing' },
+  { key: 'inbox', label: 'Inbox' },
+  { key: 'ai', label: 'AI' },
+  { key: 'privacy', label: 'Privacy & Data' },
+  { key: 'developers', label: 'Developers' },
+] as const;
+type TabKey = (typeof TABS)[number]['key'];
+
 export default function SettingsPage(): React.JSX.Element {
   const queryClient = useQueryClient();
+  const [tab, setTab] = useState<TabKey>('general');
   const settings = useQuery({
     queryKey: ['workspace-settings'],
     queryFn: () => client.getWorkspaceSettings(),
@@ -326,7 +341,7 @@ export default function SettingsPage(): React.JSX.Element {
   });
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4 p-6">
+    <div className="mx-auto max-w-3xl space-y-4 p-6">
       <div>
         <h1 className="text-lg font-semibold">Settings</h1>
         {settings.data?.workspace_name && (
@@ -334,95 +349,154 @@ export default function SettingsPage(): React.JSX.Element {
         )}
       </div>
 
-      <section aria-label="Privacy" className="rounded-lg border p-4">
-        <h2 className="font-semibold">Privacy</h2>
-        <label className="mt-2 flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            aria-label="Mask customer numbers for agents"
-            className="mt-0.5"
-            checked={settings.data?.mask_numbers ?? false}
-            disabled={!canManage || toggleMask.isPending}
-            onChange={(e) => {
-              toggleMask.mutate(e.target.checked);
+      <nav
+        aria-label="Settings sections"
+        className="flex gap-1 overflow-x-auto border-b"
+        role="tablist"
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors ${
+              tab === t.key
+                ? 'border-primary font-medium text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => {
+              setTab(t.key);
             }}
-          />
-          <span>
-            Mask customer numbers for agents
-            <span className="block text-xs text-muted-foreground">
-              Agents see +91••••••1234 instead of full numbers. Owners and admins always see
-              full numbers; sending still uses the real number.
-            </span>
-          </span>
-        </label>
-        {toggleMask.isError && (
-          <p role="alert" className="mt-2 text-xs text-destructive">
-            {errorText(toggleMask.error)}
-          </p>
-        )}
-      </section>
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
-      <section aria-label="Inbox rules" className="rounded-lg border p-4">
-        <h2 className="font-semibold">Inbox rules</h2>
-        <label className="mt-2 block text-sm" htmlFor="needs-reply-minutes">
-          Needs Reply after (minutes)
-          <span className="block text-xs text-muted-foreground">
-            An unanswered question in a group enters the Needs Reply queue after this long.
-          </span>
-        </label>
-        <div className="mt-2 flex items-center gap-2">
-          <Input
-            id="needs-reply-minutes"
-            type="number"
-            min={1}
-            max={1440}
-            className="w-24"
-            key={settings.data?.needs_reply_minutes}
-            defaultValue={settings.data?.needs_reply_minutes ?? 10}
-            disabled={!canManage}
-            onBlur={(e) => {
-              const minutes = Number(e.target.value);
-              if (
-                canManage &&
-                minutes >= 1 &&
-                minutes <= 1440 &&
-                minutes !== settings.data?.needs_reply_minutes
-              ) {
-                saveThreshold.mutate(minutes);
-              }
-            }}
-          />
-          <span className="text-xs text-muted-foreground">minutes</span>
-        </div>
-        {saveThreshold.isError && (
-          <p role="alert" className="mt-2 text-xs text-destructive">
-            {errorText(saveThreshold.error)}
-          </p>
-        )}
-      </section>
+      {tab === 'general' && (
+        <>
+          <section aria-label="Inbox rules" className="rounded-lg border p-4">
+            <h2 className="font-semibold">Inbox rules</h2>
+            <label className="mt-2 block text-sm" htmlFor="needs-reply-minutes">
+              Needs Reply after (minutes)
+              <span className="block text-xs text-muted-foreground">
+                An unanswered question in a group enters the Needs Reply queue after this
+                long.
+              </span>
+            </label>
+            <div className="mt-2 flex items-center gap-2">
+              <Input
+                id="needs-reply-minutes"
+                type="number"
+                min={1}
+                max={1440}
+                className="w-24"
+                key={settings.data?.needs_reply_minutes}
+                defaultValue={settings.data?.needs_reply_minutes ?? 10}
+                disabled={!canManage}
+                onBlur={(e) => {
+                  const minutes = Number(e.target.value);
+                  if (
+                    canManage &&
+                    minutes >= 1 &&
+                    minutes <= 1440 &&
+                    minutes !== settings.data?.needs_reply_minutes
+                  ) {
+                    saveThreshold.mutate(minutes);
+                  }
+                }}
+              />
+              <span className="text-xs text-muted-foreground">minutes</span>
+            </div>
+            {saveThreshold.isError && (
+              <p role="alert" className="mt-2 text-xs text-destructive">
+                {errorText(saveThreshold.error)}
+              </p>
+            )}
+          </section>
+          <StarterTemplatesCard canManage={canManage} />
+        </>
+      )}
 
-      <section aria-label="Team" className="rounded-lg border p-4">
-        <h2 className="mb-3 font-semibold">Team</h2>
-        <InvitePanel canManage={canManage} />
-      </section>
+      {tab === 'account' && (
+        <>
+          <ProfileCard />
+          <SecurityCard />
+        </>
+      )}
 
-      <RoutingCard canManage={canManage} settings={settings.data} />
-      {settings.data && <BusinessHoursCard canManage={canManage} settings={settings.data} />}
-      <SlaCard canManage={canManage} />
+      {tab === 'billing' && <BillingCard canManage={canManage} />}
 
-      <AiAgentCard canManage={canManage} />
+      {tab === 'team' && (
+        <>
+          <section aria-label="Team" className="rounded-lg border p-4">
+            <h2 className="mb-3 font-semibold">Team</h2>
+            <InvitePanel canManage={canManage} />
+          </section>
+          <RoutingCard canManage={canManage} settings={settings.data} />
+          {settings.data && (
+            <BusinessHoursCard canManage={canManage} settings={settings.data} />
+          )}
+        </>
+      )}
 
-      <AiFlaggingCard canManage={canManage} />
+      {tab === 'inbox' && (
+        <>
+          <LabelsCard canManage={canManage} />
+          <CannedCard canManage={canManage} />
+          <SlaCard canManage={canManage} />
+          <MonitoringCard canManage={canManage} />
+        </>
+      )}
 
-      <MonitoringCard canManage={canManage} />
-      <LabelsCard canManage={canManage} />
-      <CannedCard canManage={canManage} />
-      <ApiKeysCard canManage={canManage} />
-      <WebhooksCard canManage={canManage} />
-      <PrivacyCard canManage={canManage} />
-      <SecurityCard />
-      <StarterTemplatesCard canManage={canManage} />
-      <AccessControlCard canManage={canManage} />
+      {tab === 'ai' && (
+        <>
+          <AiAgentCard canManage={canManage} />
+          <AiFlaggingCard canManage={canManage} />
+        </>
+      )}
+
+      {tab === 'privacy' && (
+        <>
+          <section aria-label="Privacy" className="rounded-lg border p-4">
+            <h2 className="font-semibold">Privacy</h2>
+            <label className="mt-2 flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                aria-label="Mask customer numbers for agents"
+                className="mt-0.5"
+                checked={settings.data?.mask_numbers ?? false}
+                disabled={!canManage || toggleMask.isPending}
+                onChange={(e) => {
+                  toggleMask.mutate(e.target.checked);
+                }}
+              />
+              <span>
+                Mask customer numbers for agents
+                <span className="block text-xs text-muted-foreground">
+                  Agents see +91••••••1234 instead of full numbers. Owners and admins always
+                  see full numbers; sending still uses the real number.
+                </span>
+              </span>
+            </label>
+            {toggleMask.isError && (
+              <p role="alert" className="mt-2 text-xs text-destructive">
+                {errorText(toggleMask.error)}
+              </p>
+            )}
+          </section>
+          <PrivacyCard canManage={canManage} />
+          <AccessControlCard canManage={canManage} />
+        </>
+      )}
+
+      {tab === 'developers' && (
+        <>
+          <ApiKeysCard canManage={canManage} />
+          <WebhooksCard canManage={canManage} />
+        </>
+      )}
     </div>
   );
 }
