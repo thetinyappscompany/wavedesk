@@ -63,6 +63,12 @@ CapRover → **Apps → One-Click Apps/Databases**:
 - **MinIO** → app name `minio` (or use external S3 in ap-south-1). Create two
   buckets after it's up: `wavedesk-sessions` (gateway auth snapshots) and
   `wavedesk-media`. Internal S3 endpoint: `http://srv-captain--minio:9000`.
+  **REQUIRED for media to render in the browser:** give MinIO a public HTTPS
+  domain — CapRover → the `minio` app → HTTP Settings → Container HTTP Port
+  `9000` → connect `media.<domain>` + Enable HTTPS. Presigned media URLs are
+  signed against this public host (`S3_PUBLIC_ENDPOINT` below); without it the
+  inbox shows broken images because browsers can't reach
+  `srv-captain--minio:9000` (and http URLs are mixed-content-blocked anyway).
 - **Qdrant** (only if AI add-on used) → New App `qdrant`, deploy image
   `qdrant/qdrant:latest`, add a persistent volume at `/qdrant/storage`.
   Internal: `http://srv-captain--qdrant:6333`.
@@ -107,7 +113,8 @@ The image's default CMD is the web process:
 | `WD_COOKIE_SECURE` | `true` | required behind HTTPS |
 | `WD_GATEWAY_URL` | `http://srv-captain--wd-gateway:8081` | internal |
 | `WD_GATEWAY_SECRET` | *(shared secret)* | must equal the gateway's `WA_GATEWAY_INTERNAL_SECRET` |
-| `S3_ENDPOINT` | `http://srv-captain--minio:9000` | media presign |
+| `S3_ENDPOINT` | `http://srv-captain--minio:9000` | server-side get/put (internal) |
+| `S3_PUBLIC_ENDPOINT` | `https://media.<domain>` | **browser-facing presigned URLs** — the MinIO public domain from step 2 |
 | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | *(minio creds)* | |
 | `S3_MEDIA_BUCKET` | `wavedesk-media` | |
 | `S3_REGION` | `us-east-1` (or `ap-south-1`) | |
