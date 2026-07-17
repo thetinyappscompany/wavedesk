@@ -64,3 +64,34 @@ def test_logout_destroys_session(client, login):
 def test_unknown_method_404(client, login):
     login()
     assert client.get("/api/method/no.such.method").status_code == 404
+
+
+def test_login_workspace_binding_is_deterministic_on_ties(client, db, make_user):
+    """Memberships flushed in one transaction share created_at (server_default
+    now()); without the id tiebreaker the same user could land in different
+    workspaces on successive logins."""
+    from app.models import Workspace, WorkspaceMember
+
+    user = make_user()
+    ws_a = Workspace(name="Tie A")
+    ws_b = Workspace(name="Tie B")
+    db.add_all([ws_a, ws_b])
+    db.flush()
+    # One transaction → identical created_at on both memberships.
+    db.add_all([
+        WorkspaceMember(workspace_id=ws_a.id, user_id=user.id, role="Agent"),
+        WorkspaceMember(workspace_id=ws_b.id, user_id=user.id, role="Agent"),
+    ])
+    db.commit()
+
+    def _login_active() -> str:
+        client.cookies.clear()
+        r = client.post("/api/method/login", json={"usr": user.email, "pwd": "s3cret-pass"})
+        assert r.status_code == 200, r.text
+        r = client.get("/api/method/wavedesk.api.workspace.get_active")
+        assert r.status_code == 200, r.text
+        return r.json()["message"]["workspace"]
+
+    first = _login_active()
+    for _ in range(3):
+        assert _login_active() == first  # same pick every login

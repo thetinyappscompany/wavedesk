@@ -23,10 +23,14 @@ def login(ctx: Ctx) -> str:
     # what otherwise sets active_workspace), so without this EVERY
     # workspace-scoped call raises 400 "No active workspace". Pick the earliest
     # membership as the default; multi-workspace users switch via set_active.
+    # Ties on created_at (rows flushed in one transaction share the
+    # server_default now()) need the id tiebreaker — without it the pick is
+    # nondeterministic and the same user can land in different workspaces on
+    # successive logins.
     membership = ctx.db.execute(
         select(WorkspaceMember)
         .where(WorkspaceMember.user_id == user.id)
-        .order_by(WorkspaceMember.created_at.asc())
+        .order_by(WorkspaceMember.created_at.asc(), WorkspaceMember.id.asc())
         .limit(1)
     ).scalar_one_or_none()
     if membership is not None:

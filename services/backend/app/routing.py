@@ -4,7 +4,7 @@ hours + OOO auto-reply, default-team routing for brand-new chats."""
 
 import uuid
 from datetime import UTC, datetime
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import func, select
 
@@ -103,15 +103,24 @@ def within_business_hours(workspace: Workspace, at: datetime | None = None) -> b
     """settings.business_hours = {enabled, timezone, days: {mon: {open, close}, ...},
     holidays: [...]} — the frontend contract. Disabled or missing = 24/7."""
     cfg = (workspace.settings or {}).get("business_hours") or {}
-    if not cfg.get("enabled"):
+    if not isinstance(cfg, dict) or not cfg.get("enabled"):
         return True
-    tz = ZoneInfo(cfg.get("timezone") or "Asia/Kolkata")
+    # New writes are validated at the API chokepoint, but pre-validation data
+    # (or hand-edited settings) may carry a bad tz / the legacy [open, close]
+    # list shape — this runs inside the consumer where an exception is silently
+    # swallowed, so tolerate instead of raising.
+    try:
+        tz = ZoneInfo(cfg.get("timezone") or "Asia/Kolkata")
+    except (ZoneInfoNotFoundError, ValueError):
+        tz = ZoneInfo("Asia/Kolkata")  # bad stored tz — evaluate on the default
     now = (at or datetime.now(UTC)).astimezone(tz)
     if now.date().isoformat() in (cfg.get("holidays") or []):
         return False  # holiday
     day_key = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][now.weekday()]
     window = (cfg.get("days") or {}).get(day_key)
-    if not window or not window.get("open") or not window.get("close"):
+    if isinstance(window, list | tuple) and len(window) == 2:
+        window = {"open": window[0], "close": window[1]}  # legacy shape
+    if not isinstance(window, dict) or not window.get("open") or not window.get("close"):
         return False  # closed day
     return window["open"] <= now.strftime("%H:%M") < window["close"]
 

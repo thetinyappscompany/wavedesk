@@ -364,3 +364,24 @@ def test_recurring_schedule_uses_its_timezone():
     # 09:00 in Asia/Kolkata (UTC+5:30) is 03:30 UTC
     in_utc = nxt.astimezone(timezone.utc)
     assert in_utc.hour == 3 and in_utc.minute == 30
+
+
+def test_within_business_hours_tolerates_legacy_bad_data(db):
+    """Pre-validation rows can hold a bad tz or the old [open, close] list shape;
+    the engine runs inside the consumer where an exception is silently swallowed
+    (OOO would just die) — so it must evaluate, not raise."""
+    from datetime import UTC, datetime
+
+    ws = make_workspace(db)
+    ws.settings = {
+        "business_hours": {
+            "enabled": True,
+            "timezone": "IST",  # not IANA — must fall back, not raise
+            "days": {"mon": ["09:00", "18:00"]},  # legacy list window
+        }
+    }
+    db.commit()
+    # Monday 12:00 IST (fallback tz = Asia/Kolkata) → inside the legacy window
+    assert routing.within_business_hours(ws, datetime(2026, 1, 5, 6, 30, tzinfo=UTC)) is True
+    # Monday 20:00 IST → after close
+    assert routing.within_business_hours(ws, datetime(2026, 1, 5, 14, 30, tzinfo=UTC)) is False

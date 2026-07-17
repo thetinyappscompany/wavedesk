@@ -42,6 +42,21 @@ def compute_next_run(sched: ScheduledMessage, after: datetime | None = None) -> 
     return candidate.astimezone(UTC)
 
 
+def _claim_occurrence(sched: ScheduledMessage) -> bool:
+    """Exactly-once per (schedule, occurrence) across scheduler instances.
+
+    A deploy overlap runs two schedulers side by side; both can SELECT the same
+    due row (queue_send commits mid-loop, so a row lock alone can't cover the
+    whole dispatch). A Redis SET NX keyed on the occurrence timestamp — the same
+    pattern as the daily-run claim — makes the second dispatcher skip it, so a
+    customer never receives a schedule's message twice."""
+    from app.pipeline.sender import get_redis
+
+    stamp = sched.next_run_at.isoformat() if sched.next_run_at else "once"
+    key = f"wd:sched:fire:{sched.id}:{stamp}"
+    return bool(get_redis().set(key, "1", nx=True, ex=3600))
+
+
 def run_due_schedules() -> int:
     """Minutely cron entry."""
     db = get_sessionmaker()()
@@ -56,6 +71,8 @@ def run_due_schedules() -> int:
             )
         ).scalars().all()
         for sched in due:
+            if not _claim_occurrence(sched):
+                continue  # another instance already fired this occurrence
             ok = _fire(db, sched)
             _advance(sched, ok)
             fired += 1

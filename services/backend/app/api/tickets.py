@@ -3,7 +3,7 @@
 import uuid
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api._ids import parse_uuid
 from app.compat import Ctx, method
@@ -91,21 +91,27 @@ def create_ticket(ctx: Ctx) -> dict:
 @method("wavedesk.api.tickets.list_tickets")
 def list_tickets(ctx: Ctx) -> dict:
     ws = active_workspace(ctx)
-    query = select(Ticket).where(Ticket.workspace_id == ws.id)
+    filters = [Ticket.workspace_id == ws.id]
     if ctx.params.get("status"):
         if ctx.params["status"] not in TICKET_STATUSES:
             raise HTTPException(400, f"Invalid status: {ctx.params['status']}")
-        query = query.where(Ticket.status == ctx.params["status"])
+        filters.append(Ticket.status == ctx.params["status"])
     if ctx.params.get("priority"):
-        query = query.where(Ticket.priority == ctx.params["priority"])
+        filters.append(Ticket.priority == ctx.params["priority"])
     assignee = ctx.params.get("assignee")
     if assignee == "me":
-        query = query.where(Ticket.assigned_agent_id == uuid.UUID(ctx.user_id))
+        filters.append(Ticket.assigned_agent_id == uuid.UUID(ctx.user_id))
     elif assignee == "unassigned":
-        query = query.where(Ticket.assigned_agent_id.is_(None))
-    rows = [_serialize(r) for r in
-            ctx.db.execute(query.order_by(Ticket.created_at.desc()).limit(200)).scalars()]
-    return {"tickets": rows, "total": len(rows)}
+        filters.append(Ticket.assigned_agent_id.is_(None))
+    # total = real matching count, NOT len() of the 200-capped page (a workspace
+    # with 1,500 open tickets must not display "200").
+    total = ctx.db.execute(
+        select(func.count()).select_from(Ticket).where(*filters)
+    ).scalar_one()
+    rows = [_serialize(r) for r in ctx.db.execute(
+        select(Ticket).where(*filters).order_by(Ticket.created_at.desc()).limit(200)
+    ).scalars()]
+    return {"tickets": rows, "total": total}
 
 
 @method("wavedesk.api.tickets.get_ticket")

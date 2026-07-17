@@ -201,6 +201,19 @@ def test_tickets_lifecycle(authed, db):
     assert _call(client, "wavedesk.api.tickets.list_tickets")["tickets"] == []
 
 
+def test_tickets_total_counts_beyond_page_cap(authed, db):
+    """total = the real matching count, not len() of the 200-row page — a
+    workspace with 201 open tickets must not display 200."""
+    from app.models import Ticket
+
+    client, ws = authed
+    db.add_all([Ticket(workspace_id=ws.id, title=f"bulk {i}") for i in range(201)])
+    db.commit()
+    listed = _call(client, "wavedesk.api.tickets.list_tickets", status="open")
+    assert len(listed["tickets"]) == 200  # page stays capped
+    assert listed["total"] == 201  # count does not
+
+
 # --- analytics ---------------------------------------------------------------------
 
 

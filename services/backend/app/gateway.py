@@ -4,11 +4,17 @@ Same wire contract as the gateway expects today — the gateway itself is
 unchanged by the rewrite. Env: WD_GATEWAY_URL, WD_GATEWAY_SECRET."""
 
 import os
+import re
 
 import httpx
 
 INTERNAL_HEADER = "X-Wavedesk-Internal"
 TIMEOUT_S = 15
+
+# Paths can embed JIDs — legacy group JIDs (<phone>-<ts>@g.us) contain a raw
+# phone number. Redact digit runs so GatewayError messages stay log-safe
+# (root non-negotiable #6: no raw phone numbers in logs).
+_DIGIT_RUN = re.compile(r"\d{6,}")
 
 
 class GatewayError(Exception):
@@ -31,7 +37,9 @@ def _request(method: str, path: str, json: dict | None = None) -> dict:
     except httpx.HTTPError as err:
         raise GatewayError(f"gateway unreachable: {type(err).__name__}") from err
     if response.status_code >= 400:
-        raise GatewayError(f"gateway returned {response.status_code} for {path}")
+        raise GatewayError(
+            f"gateway returned {response.status_code} for {_DIGIT_RUN.sub('…', path)}"
+        )
     if response.status_code == 204 or not response.content:
         return {}
     return response.json()
