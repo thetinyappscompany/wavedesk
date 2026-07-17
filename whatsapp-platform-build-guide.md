@@ -24,7 +24,7 @@ A WhatsApp-only customer communication platform that lets businesses:
 ## 1.3 Product principles
 1. **Reliability over features** — a missed WhatsApp message is a lost customer. Message pipeline is sacred.
 2. **Number safety** — protect customer numbers from bans (throttling, warm-up, humanized sending).
-3. **Multi-tenant from day one** — every table/DocType carries workspace isolation.
+3. **Multi-tenant from day one** — every table carries workspace isolation.
 4. **API-first** — every UI action is a documented REST call.
 5. **Audit everything** — who sent what, from which number, when, and why.
 
@@ -51,30 +51,27 @@ A WhatsApp-only customer communication platform that lets businesses:
 
 # 2. Technology Stack (Recommended)
 
-## 2.1 Backend — Frappe Framework (v16, stable) ✅ (as preferred)
-Frappe v16 (stable since Dec 2025) is the chosen backend:
-- **DocType system** → rapid schema + auto CRUD REST APIs (`/api/resource/*`).
-- **Built-in**: users, roles, permissions (row + field level), background jobs (RQ), scheduler, email, webhooks, audit trail (Version DocType), multi-tenancy via sites.
-- **Redis** (queues + cache + socketio pub/sub) and **MariaDB** (firm choice — Frappe's first-class database; Postgres remains second-class in the ecosystem) included in the standard bench setup.
-- **Socket.io realtime** built in — required for live inbox.
+## 2.1 Backend — FastAPI + SQLAlchemy 2 + PostgreSQL ✅
+The backend is a **FastAPI + SQLAlchemy 2 + PostgreSQL** service (`services/backend`, Python package `app/`), with **Redis** (RQ queues + cache + socket.io pub/sub) and **socket.io** (ASGI) for the live inbox.
 
-**v16 features to exploit deliberately in this product:**
-| v16 feature | Where we use it |
+> **History — backend rewrite (founder pivot, 2026-07-16).** The product was first built on **Frappe Framework v16** (DocTypes, bench, MariaDB). The founder chose — fully informed of the 2–4 month cost — to **rewrite the backend without Frappe** on FastAPI + SQLAlchemy + Postgres for full control over the data model, query layer, and deploy story. The rewrite (phases R0–R8) reproduced the entire Phase 0–5 feature set behind a **frozen `/api/method/<dotted>` contract** (the `{"message": ...}` envelope + `sid` cookie sessions), so the frontend, `packages/api-client`, and `wa-gateway` shipped **unchanged**. **Frappe was fully removed on 2026-07-17**; `services/backend` is now the only backend. A one-time cutover ETL (`app/etl/`) reads the old Frappe-Postgres DB and imports nothing from Frappe. Plan: `docs/rewrite/backend-rewrite-plan.md`.
+
+**What the backend provides (and how it replaces the old Frappe built-ins):**
+| Capability | Implementation |
 |---|---|
-| ~2× performance ("Caffeine" optimizations, faster DB/Redis connections) | Message pipeline throughput; more agents per server |
-| **Role-based data masking** (native field masking by permission) | Implements our **number masking** feature (Phase 1) with framework-level enforcement instead of custom code |
-| **UUID naming rule** for records | Use short-UUID naming on `WD Message` and other high-volume DocTypes — faster inserts, smaller indexes at millions of rows |
-| **Permission Change Log** + User DocType Permissions report | Feeds our audit/compliance story (Phase 5) for free |
-| **Per-user API usage tracking** | Foundation for public API rate limiting & usage metering (Phase 5) |
-| Workflow state-change hooks | Ticket/chat status automations without touching core |
-| Chrome-based PDF generation | Clean exported analytics reports & invoices |
-| Native inter-app dependency management | Clean packaging of the `wavedesk` app + future plugin apps |
-| Class extension for DocTypes (extend without overriding core) | Safer long-term maintainability of customizations |
+| Schema + REST | SQLAlchemy 2 models + a **compat dispatcher** (`app/compat.py`) that maps every `/api/method/<dotted>` name to a handler and wraps the result in `{"message": ...}` — the frozen contract the SPA/api-client/gateway depend on |
+| Users, roles, permissions (row + field level) | `app/tenancy.py` (workspace scoping) + role guards on every handler; field masking in `app/masking.py` |
+| Background jobs + scheduler | **RQ** workers (queues `default`/`short`/`long`) draining the `wa:events` consumer, queued sender, webhook delivery; cron-style periodic jobs (SLA checks, schedules, reconciliation, retention) |
+| Audit trail | append-only **WD Audit Log** rows written at every privileged mutation |
+| Realtime | **python-socket.io** ASGI server, rooms `ws:<workspace_id>`, sid-cookie auth on connect; write-only Redis emitter from workers |
+| High-volume PKs | native **UUID** primary keys on `WD Message` and other high-volume tables — small indexes at millions of rows |
+| API usage tracking | per-key Redis rate limiting + `WD Usage Record` metering (Phase 5) |
+| Sessions/auth | `sid` cookie sessions in Redis (`app/sessions.py`); bcrypt password hashing |
 
-**Structure:** Build as a custom Frappe **app** named `wavedesk` on a bench (branch `version-16`). Do NOT build on top of ERPNext (too heavy); pure Frappe framework only. Pin to v16.x point releases; test point-release upgrades on staging before prod.
+**Structure:** a single FastAPI app (`app.main:create_asgi`, run via `uvicorn --factory`) serving REST + socket.io; the same image runs the RQ worker with a different command. Config is **env-only** (`WD_*`; see `app/config.py`) — no secrets in the repo.
 
 ## 2.2 WhatsApp Connectivity Layer — separate Node.js microservice
-Frappe (Python) should NOT hold WhatsApp socket connections. Build a dedicated service:
+The backend (Python) should NOT hold WhatsApp socket connections. Build a dedicated service:
 
 | Component | Choice | Why |
 |---|---|---|
@@ -83,30 +80,30 @@ Frappe (Python) should NOT hold WhatsApp socket connections. Build a dedicated s
 | Service name | `wa-gateway` | Node.js 20 + TypeScript + Fastify |
 | Session storage | Redis (hot state) + encrypted snapshots to S3 every 5 min (auth creds per number, AES-256-GCM) | Survive restarts/pod loss without re-scanning QR; no extra DB dependency |
 | Media storage | S3-compatible (AWS S3 / MinIO self-host) | Never store media on app disk |
-| Gateway ↔ Frappe | **Webhooks (HTTP) + Redis Streams** for message events; Frappe calls gateway REST API for outbound | Decoupled, replayable, horizontally scalable |
+| Gateway ↔ Backend | **Redis Streams** (`wa:events`) for inbound message events; the backend calls the gateway REST API for outbound | Decoupled, replayable, horizontally scalable |
 
 **Critical design rule:** one `wa-gateway` process manages N sessions (target 50–100 sessions/pod), horizontally scaled with session-affinity by number ID. Session state checkpointed so a pod crash re-attaches without QR re-scan.
 
 ## 2.3 Frontend — React SPA (market standard)
-Frappe's Desk UI is not acceptable for a commercial inbox product. Build a standalone frontend:
+A back-office admin UI is not acceptable for a commercial inbox product. Build a standalone frontend:
 
 | Layer | Choice |
 |---|---|
 | Framework | **React 18 + TypeScript + Vite** |
 | UI kit | **shadcn/ui + Tailwind CSS** (clean, modern, WhatsApp-adjacent aesthetics) |
 | State/data | **TanStack Query** (server state) + **Zustand** (UI state) |
-| Realtime | socket.io-client → Frappe socketio |
+| Realtime | socket.io-client → backend socket.io (ASGI) |
 | Routing | React Router v7 |
 | Virtualized lists | `@tanstack/react-virtual` (inbox with 10k+ chats must stay 60fps) |
 | Forms | react-hook-form + zod |
 | Charts | Recharts |
 | i18n | i18next (English + Hindi at launch; RTL-ready) |
 
-Alternative if you want to stay in Frappe ecosystem: **Frappe UI (Vue 3)** — acceptable, but React has a larger hiring pool and component ecosystem. **Recommendation: React.**
+The frontend talks only to the backend over the frozen `/api/method/<dotted>` REST contract + socket.io; it has no knowledge of the backend's internals, which is why the Frappe→FastAPI rewrite shipped it unchanged.
 
 ## 2.4 AI Layer
-- Provider-agnostic wrapper in Frappe (`wavedesk/ai/provider.py`), **add-on-gated per §3.2**: platform holds two pooled keys (mini-model provider for classification + Anthropic for replies) with per-model routing from WD AI Pricing Config; BYOK key per workspace overrides both when configured.
-- **RAG for AI Agent:** embeddings in **Qdrant (self-hosted container)** — firm choice since the primary DB is MariaDB (no pgvector). Workspace-scoped collections; chunked FAQs/SOPs/docs.
+- Provider-agnostic wrapper in the backend (`app/ai/provider.py`), **add-on-gated per §3.2**: platform holds two pooled keys (mini-model provider for classification + Anthropic for replies) with per-model routing from WD AI Pricing Config; BYOK key per workspace overrides both when configured.
+- **RAG for AI Agent:** embeddings in **Qdrant (self-hosted container)** — kept as a dedicated vector store (rather than pgvector on the primary Postgres) to isolate vector search from the OLTP database and keep it independently scalable. Workspace-scoped collections; chunked FAQs/SOPs/docs.
 - Voice note transcription: **self-hosted Whisper only** (`faster-whisper` container) — no external transcription APIs, ever. Voice notes are among the most sensitive customer data (voices, names, payment talk); they never leave your infrastructure. Zero marginal cost per transcription also means it can be included in the AI Add-on generously.
 
 ## 2.5 Infrastructure (solo-operable, quality-first, India-hosted)
@@ -116,7 +113,7 @@ Design rule: **buy managed services for anything stateful; keep the compute laye
 |---|---|
 | Region | **AWS ap-south-1 (Mumbai)** or DigitalOcean BLR — India data residency (DPDP-friendly, low latency) |
 | Compute (launch) | Docker Compose on 2–3 VMs (app / gateway / monitoring), deployed via **Kamal or docker-compose + GitHub Actions**; scale-out path documented → managed K8s only when >~50 gateway pods needed |
-| Database | **Managed MariaDB** (RDS MariaDB / DO Managed MySQL-compatible) — automated backups, PITR, failover handled for you |
+| Database | **Managed PostgreSQL** (RDS Postgres / DO Managed Postgres) — automated backups, PITR, failover handled for you |
 | Redis | Managed Redis (ElastiCache / DO) |
 | Media | S3 (Mumbai) with SSE |
 | Self-hosted AI services | **Qdrant** (vectors) + **faster-whisper** (transcription) containers on the app VMs — stateful volumes backed up nightly; deliberately self-hosted for privacy + zero marginal cost |
@@ -134,13 +131,13 @@ Design rule: **buy managed services for anything stateful; keep the compute laye
 
 ```
 ┌─────────────┐   HTTPS    ┌──────────────────────────┐
-│ React SPA   │◄──────────►│  Frappe (wavedesk app)   │
-│ (Inbox UI)  │  socket.io │  - REST APIs             │
-└─────────────┘            │  - Business logic        │
+│ React SPA   │◄──────────►│  Backend (FastAPI app)   │
+│ (Inbox UI)  │  socket.io │  - REST (/api/method/*)  │
+└─────────────┘            │  - SQLAlchemy + business │
                            │  - RQ workers (jobs)     │
-                           │  - Scheduler (SLA, cron) │
+                           │  - Cron jobs (SLA, etc.) │
                            └─────┬──────────▲─────────┘
-                                 │ REST     │ Webhooks/Redis Streams
+                                 │ REST     │ Redis Streams (wa:events)
                                  ▼          │
                         ┌──────────────────┴───┐     ┌──────────────┐
                         │  wa-gateway (Node)   │◄───►│ WhatsApp     │
@@ -150,7 +147,7 @@ Design rule: **buy managed services for anything stateful; keep the compute laye
                                    │
                     ┌──────────────┼──────────────┐
                     ▼              ▼              ▼
-               MariaDB        Redis          S3 (media,      Qdrant + Whisper
+              PostgreSQL       Redis          S3 (media,      Qdrant + Whisper
                (managed)   (queues, cache,    session         (self-hosted
                             session state)    snapshots)       containers)
 ```
@@ -162,13 +159,13 @@ Design rule: **buy managed services for anything stateful; keep the compute laye
 This product is a **multi-tenant, subscription-based SaaS**. Tenancy and billing are not Phase 5 add-ons — the enforcement skeleton is built in Phase 0 and every feature ships plan-aware.
 
 ## 3.1 Multi-tenancy model
-**Decision: single Frappe site + workspace-scoped row isolation** (recommended over site-per-tenant for SaaS ops: one deploy, one migration, shared connection pools, instant tenant provisioning).
+**Decision: single database + workspace-scoped row isolation** (recommended over db-per-tenant for SaaS ops: one deploy, one migration, shared connection pools, instant tenant provisioning). Every model carries a `workspace_id` column.
 
 Enforcement (all four layers, no exceptions):
-1. **Permission query conditions** — a single `get_permission_query_conditions` hook applied to every WD DocType filters all list/report queries by the user's workspace memberships. Written once in `wavedesk/tenancy.py`, registered for all DocTypes via hooks.
-2. **Document-level `has_permission`** — blocks direct access by name/ID across tenants (IDOR protection).
-3. **API layer** — every whitelisted method resolves workspace from the session (never from client input) ; public API keys are bound to exactly one workspace.
-4. **Realtime** — socket.io rooms namespaced `workspace:{id}`; server-side membership check on subscribe. Media URLs are signed, workspace-scoped, expiring.
+1. **Query scoping** — every read/list query filters by the caller's active workspace, resolved from the session, via the helpers in `app/tenancy.py`. No handler issues a cross-workspace query; a cross-tenant test suite proves user A can never read workspace B data.
+2. **Object-level checks** — fetch-by-id paths assert the row's `workspace_id` matches the caller's workspace before returning (IDOR protection); a mismatch raises 403.
+3. **API layer** — every `/api/method/<dotted>` handler resolves the workspace from the `sid` session (never from client input); public API keys are bound to exactly one workspace.
+4. **Realtime** — socket.io rooms namespaced `ws:{workspace_id}`; server-side membership check on connect. Media URLs are signed, workspace-scoped, expiring.
 
 Tenant lifecycle: `provisioning → trialing → active → past_due → suspended (read-only) → cancelled → purged (after retention window)`. Suspension disables sending/AI/broadcasts but preserves inbox read access; purge is a background job with export-before-delete.
 
@@ -177,7 +174,7 @@ Tenant lifecycle: `provisioning → trialing → active → past_due → suspend
 **Escape hatch:** the workspace-scoping design keeps a clean path to dedicated single-tenant deployments (enterprise/self-host) later — same app, one workspace per site.
 
 ## 3.2 Subscription & billing model
-Billing DocTypes (added to data model below): **WD Plan**, **WD Subscription**, **WD Usage Record**, **WD Invoice Ref**.
+Billing models (added to data model below): **WD Plan**, **WD Subscription**, **WD Usage Record**, **WD Invoice Ref**.
 
 **Plan matrix (launch defaults — configurable in WD Plan, not hardcoded):**
 
@@ -201,7 +198,7 @@ Billing DocTypes (added to data model below): **WD Plan**, **WD Subscription**, 
 **Internal pricing mechanics (client never sees this):**
 - Clients see exactly two things: **"AI Add-on — ₹1,200/mo (includes monthly AI usage)"** and **"Buy AI credits"** packs with flat INR prices. No token math, no markup %, no provider names or per-model rates in any client-facing surface.
 - Internally, every AI call's cost is computed in USD at real provider rates, converted at a buffered FX rate, and deducted first from the monthly $5 allowance, then from wallet AI credits at **cost × 1.25**.
-- All rates live in a **WD AI Pricing Config** DocType (admin/System Manager only, excluded from all client APIs): per-model input/output rates, markup multiplier (default 1.25), USD→INR FX rate + buffer %, allowance value ($5), pack definitions (e.g., ₹500 / ₹1,000 / ₹2,500 packs → internally: pack_price ÷ 1.25 ÷ FX = deliverable token value). Changing a provider's price or the margin is a config edit, not a code change.
+- All rates live in a **WD AI Pricing Config** model (platform-admin only, excluded from all client APIs): per-model input/output rates, markup multiplier (default 1.25), USD→INR FX rate + buffer %, allowance value ($5), pack definitions (e.g., ₹500 / ₹1,000 / ₹2,500 packs → internally: pack_price ÷ 1.25 ÷ FX = deliverable token value). Changing a provider's price or the margin is a config edit, not a code change.
 - Margin protection: quarterly rate review task; alert if any workspace's realized margin < 15% (heavy Sonnet usage skew); model routing (§Phase 4) is the primary cost lever.
 
 Pricing: monthly + annual (2 months free). **Flat per-workspace pricing is the positioning weapon** — most Indian competitors (WATI, Interakt, AiSensy class) charge per-user or per-conversation; "one price, your whole team" is a clean sales line. Add-ons: AI Add-on ₹1,200/mo, extra number ₹499/mo, extra agent seat ₹299/mo — available on **all plans** (every plan has hard included caps; growth beyond caps is add-on revenue, so heavy accounts pay proportionally to the infra they consume). Review pricing after first 10 paying customers.
@@ -237,15 +234,15 @@ Alongside subscriptions, every workspace has a **prepaid INR wallet** — the re
 - Safety: low-balance alerts (in-app, email, WhatsApp to owner), optional auto-top-up via saved UPI Autopay/card, credits expiry policy (e.g., 12 months, clearly disclosed), full statement export.
 - Refunds: to source via Razorpay for unused top-ups per policy; ledger `refund` entries keep the audit trail intact.
 
-**Build placement:** DocTypes + ledger logic + `wallet.charge()`/`wallet.credit()` helpers land in **Phase 0** (so Phase 4 AI metering can charge it); Razorpay top-up UI + invoices + auto-top-up land in **Phase 5** with the rest of billing.
+**Build placement:** models + ledger logic + `wallet.charge()`/`wallet.credit()` helpers land in **Phase 0** (so Phase 4 AI metering can charge it); Razorpay top-up UI + invoices + auto-top-up land in **Phase 5** with the rest of billing.
 
 ---
 
-# 4. Core Data Model (Frappe DocTypes)
+# 4. Core Data Model (SQLAlchemy models)
 
-All DocTypes carry `workspace` (Link → WD Workspace) and are permission-scoped by it. Prefix: `WD`.
+The entities below are **SQLAlchemy 2 models** (PostgreSQL tables in `app/models/`). Every model carries a `workspace_id` FK → WD Workspace and is workspace-scoped by it (§3.1). The `WD <Entity>` names are the product's logical entity vocabulary, carried over from the original Frappe DocTypes and preserved through the rewrite so this spec, the API contract, and the ETL id-map all line up.
 
-| DocType | Key fields | Notes |
+| Entity | Key fields | Notes |
 |---|---|---|
 | **WD Workspace** | name, plan, owner, settings(JSON), ai_config | Tenant root |
 | **WD WhatsApp Number** | phone, display_name, connection_type (baileys/cloud_api), status (connecting/connected/disconnected/banned), session_ref, health_score, daily_send_limit, warmup_stage | One per connected number |
@@ -303,29 +300,29 @@ Six phases + a parallel mobile track — a **24-week (~6 month) plan for a solo 
 
 ### Scope
 1. **Repos & structure**
-   - Monorepo: `/apps/wavedesk` (Frappe app), `/services/wa-gateway` (Node/TS), `/frontend` (React), `/deploy` (Docker, Helm, compose).
-2. **Frappe bench setup**
-   - Bench with **Frappe v16** (`bench init --frappe-branch version-16`), custom app `wavedesk`, MariaDB, Redis.
-   - Enable v16 UUID naming rule on WD Message from the first migration (retrofitting naming on a huge table later is painful).
-   - Create WD Workspace, WD WhatsApp Number, WD Contact, WD Chat, WD Message DocTypes (minimal fields).
-   - Multi-tenancy: implement the **workspace isolation layer from §3.1 now** — `tenancy.py` with permission query conditions + `has_permission` hooks applied to all WD DocTypes, socket room namespacing, and a cross-tenant access test suite (user A must never read workspace B data — automated tests, not manual checks).
-   - Subscription skeleton: WD Plan / WD Subscription DocTypes, `check_quota()` and `has_feature()` helpers (limits from seeded plan fixtures), trial auto-created on workspace signup. Payment providers come in Phase 5; enforcement exists from day one so every later feature is built plan-aware.
-   - **Wallet skeleton (§3.3):** WD Wallet + WD Wallet Transaction ledger with `wallet.charge()`/`wallet.credit()` (idempotent), unit tests proving no double-charge on retry and correct derived balance. No payment UI yet — internal credits only.
-   - **WD AI Pricing Config (internal-only):** per-model rates, markup multiplier (1.25), FX rate + buffer, $5 allowance value, credit pack definitions; permission-locked to System Manager and excluded from client-facing APIs (add an automated test asserting it never serializes into any /api response for workspace users).
+   - Monorepo: `/services/backend` (FastAPI app, package `app/`), `/services/wa-gateway` (Node/TS), `/frontend` (React), `/packages/api-client` (shared TS client), `/deploy` (Docker, compose).
+2. **Backend setup**
+   - FastAPI + SQLAlchemy 2 + PostgreSQL scaffold: the `app` package, Alembic migrations, Redis (sessions + RQ), the **compat dispatcher** (`app/compat.py`) that exposes the frozen `/api/method/<dotted>` + `{"message": ...}` contract, and `sid` cookie sessions.
+   - Use native **UUID** primary keys on WD Message and other high-volume tables from the first migration (small indexes at millions of rows).
+   - Create WD Workspace, WD WhatsApp Number, WD Contact, WD Chat, WD Message models (minimal fields).
+   - Multi-tenancy: implement the **workspace isolation layer from §3.1 now** — `app/tenancy.py` (query scoping + object-level workspace checks) applied across all handlers, socket room namespacing, and a cross-tenant access test suite (user A must never read workspace B data — automated tests, not manual checks).
+   - Subscription skeleton: WD Plan / WD Subscription models, `check_quota()` and `has_feature()` helpers (limits from seeded plan fixtures), trial auto-created on workspace signup. Payment providers come in Phase 5; enforcement exists from day one so every later feature is built plan-aware.
+   - **Wallet skeleton (§3.3):** WD Wallet + WD Wallet Transaction append-only ledger with `wallet.charge()`/`wallet.credit()` (idempotent), unit tests proving no double-charge on retry and correct derived balance. No payment UI yet — internal credits only.
+   - **WD AI Pricing Config (internal-only):** per-model rates, markup multiplier (1.25), FX rate + buffer, $5 allowance value, credit pack definitions; access-locked to platform admins and excluded from client-facing APIs (add an automated test asserting it never serializes into any /api response for workspace users).
 3. **wa-gateway skeleton**
    - Fastify server, health endpoint, Baileys dependency wired, session manager class (create/destroy/list sessions), encrypted session persistence: Redis hot state + AES-256-GCM snapshots to S3 every 5 min.
    - REST: `POST /sessions` (start + return QR as base64 stream via SSE), `DELETE /sessions/:id`, `POST /sessions/:id/messages` (stub).
-   - **Cloud API adapter skeleton (day-one requirement):** Meta webhook receiver endpoint (verify token + signature), Graph API send client, and a unified internal event shape so Frappe never cares which transport a message came from. Register a Meta developer app + test number now — app review lead time is real.
+   - **Cloud API adapter skeleton (day-one requirement):** Meta webhook receiver endpoint (verify token + signature), Graph API send client, and a unified internal event shape so the backend never cares which transport a message came from. Register a Meta developer app + test number now — app review lead time is real.
    - Event publisher: pushes `message.received`, `session.status` to Redis Stream `wa:events` (same stream for both transports).
-4. **Frappe consumer**
-   - RQ worker consuming `wa:events` → upserts WD Contact/Chat/Message.
+4. **Backend consumer**
+   - RQ worker consuming `wa:events` → upserts WD Contact/Chat/Message (commit-before-ack, exactly-once via unique `(workspace, wa_message_id)`).
 5. **Frontend skeleton**
-   - Vite + React + Tailwind + shadcn scaffold, login against Frappe (`/api/method/login`, cookie session), empty inbox layout (3-pane: chat list / conversation / details).
+   - Vite + React + Tailwind + shadcn scaffold, login against the backend (`/api/method/login`, `sid` cookie session), empty inbox layout (3-pane: chat list / conversation / details).
 6. **DevOps**
    - docker-compose for full local stack; GitHub Actions: lint + test + build images; staging deploy; Sentry wired FE+BE; structured JSON logging everywhere.
 
 ### Exit checklist
-- [ ] `docker compose up` gives working Frappe + gateway + frontend locally.
+- [ ] `docker compose up` gives working backend + gateway + frontend locally.
 - [ ] Scan QR with a test number → session persists across gateway restart without re-scan.
 - [ ] Incoming WhatsApp text appears as WD Message row within 2s.
 - [ ] CI green; staging URL live behind HTTPS.
@@ -347,7 +344,7 @@ Six phases + a parallel mobile track — a **24-week (~6 month) plan for a solo 
    - Composer: text, emoji picker, attach (image/video/doc up to WhatsApp limits — server-side MIME/type validation + size caps on every upload), voice-note recording, `/` canned responses, `@` internal note toggle.
    - **Realtime:** new messages, status updates, typing/assignment changes pushed via socket.io. No refresh, ever.
 3. **Team collaboration**
-   - Agents & roles: Owner, Admin, Agent (Frappe roles + workspace membership).
+   - Agents & roles: Owner, Admin, Agent (role on the workspace membership row).
    - Chat assignment (manual): assign to agent/team; "Mine / Unassigned / All" inbox views.
    - Private internal notes with @mentions (in-app notification).
    - **Collision detection:** "Riya is viewing / typing…" indicator via socket presence.
@@ -355,7 +352,7 @@ Six phases + a parallel mobile track — a **24-week (~6 month) plan for a solo 
 4. **Contacts (basic CRM)**
    - Auto-created contacts; profile drawer in inbox (name, phone, tags, custom attributes, full history across numbers); CSV import.
 5. **Labels & canned responses** — CRUD + apply in inbox.
-6. **Number masking** — workspace setting; agents see `+91••••••1234` and masked names unless role permits. Implement with **Frappe v16 role-based field masking** on `WD Contact.phone` (framework-enforced: masked in UI/API responses, real value used internally for sending) plus masking in socket payloads emitted to non-privileged agents.
+6. **Number masking** — workspace setting; agents see `+91••••••1234` and masked names unless role permits. Implemented in `app/masking.py`, applied in the API responses that serialize contacts/chats when the workspace masks and the caller is an Agent (real value used internally for sending), plus masking in socket payloads emitted to non-privileged agents (sockets are ids-only anyway).
 7. **Outbound pipeline (production-grade from day 1)**
    - All sends queued (RQ) → gateway; per-number rate limiter (default 20 msgs/min, configurable); exponential retry ×3 on failure → failed state with UI retry; idempotency keys to prevent double-send.
 8. **Onboarding flow** — create workspace → connect first number → invite teammates (email invite).
@@ -369,7 +366,7 @@ Six phases + a parallel mobile track — a **24-week (~6 month) plan for a solo 
 - Inbound message → visible in UI: **p95 < 2s**.
 - Inbox loads 5,000 chats without jank (virtualization verified).
 - Zero message loss on gateway restart (Redis Stream consumer groups + ack).
-- Unit tests on message pipeline (Frappe + gateway); Playwright E2E: connect → receive → reply → resolve.
+- Unit tests on message pipeline (backend + gateway); Playwright E2E: connect → receive → reply → resolve.
 
 ### Exit checklist
 - [ ] 3 real numbers connected for 7 days continuously without manual re-scan.
@@ -529,12 +526,12 @@ Six phases + a parallel mobile track — a **24-week (~6 month) plan for a solo 
    - Upgrade/downgrade with proration; plan-change effects applied immediately via `check_quota`/`has_feature` (built in Phase 0 — this phase only adds money movement).
    - Admin tooling: comp plans, manual extensions, coupon codes.
 6. **Security & compliance hardening**
-   - 2FA (TOTP), session management UI, IP allowlist (Business plan), SSO/SAML (Business plan, via WorkOS or Frappe OAuth).
+   - 2FA (TOTP), session management UI, IP allowlist (Business plan), SSO/SAML (Business plan, via WorkOS or an OIDC provider).
    - Encryption: session creds AES-256-GCM app-layer; S3 SSE; TLS everywhere.
    - **DPDP Act (India) first-class** + GDPR-ready: data export per workspace, right-to-delete (contact erasure job), consent records for broadcasts, DPA template, configurable retention policies, India data residency (Mumbai region) stated in ToS.
    - Pen-test pass (external or thorough automated: OWASP ZAP + dependency audit); rate limiting & brute-force protection on auth.
 7. **Reliability engineering**
-   - K8s: HPA for Frappe workers & gateway pods; gateway session-rebalancing on pod loss; PodDisruptionBudgets.
+   - K8s: HPA for backend web/worker pods & gateway pods; gateway session-rebalancing on pod loss; PodDisruptionBudgets.
    - Load test: 500 concurrent agents, 200 msgs/sec inbound sustained.
    - Backup restore drill documented + executed; RPO ≤ 15 min (WAL/binlog shipping), RTO ≤ 1 hr.
    - Status page (public) + incident runbooks (gateway ban wave, Redis loss, DB failover, Baileys protocol break → hotfix process, since WhatsApp updates can break unofficial libs — pin versions, canary number farm to detect breakage before customers do).
@@ -558,8 +555,8 @@ Six phases + a parallel mobile track — a **24-week (~6 month) plan for a solo 
 **Goal:** iOS + Android agent apps in stores on launch day. Scope is deliberately narrow: **agents reply on the go** — not full admin.
 
 ### Stack
-- **React Native + Expo** (EAS Build for store submission) — one codebase, reuses the entire Frappe API + socket layer; share TypeScript API client and types with the web app in a monorepo package (`/packages/api-client`).
-- Push notifications: **FCM + APNs via Expo Notifications**; server-side notification service in Frappe (new message on assigned/mentioned chats, SLA warnings, number disconnected).
+- **React Native + Expo** (EAS Build for store submission) — one codebase, reuses the entire backend API + socket layer; share TypeScript API client and types with the web app in a monorepo package (`/packages/api-client`).
+- Push notifications: **FCM + APNs via Expo Notifications**; server-side notification service in the backend (new message on assigned/mentioned chats, SLA warnings, number disconnected).
 
 ### In scope (launch)
 1. Login + workspace switcher, biometric app lock.
@@ -617,10 +614,10 @@ Prioritized backlog. Each item is spec'd briefly so it can be picked up independ
 
 # 6. Cross-Cutting Engineering Standards (apply in every phase)
 
-1. **Testing:** unit (pytest for Frappe, vitest for Node/React), integration on message pipeline, Playwright E2E on critical paths; CI blocks merge on red. Target: pipeline code ≥ 85% coverage.
+1. **Testing:** unit (pytest for the backend, vitest for Node/React), integration on message pipeline (run against real Postgres + Redis), Playwright E2E on critical paths; CI blocks merge on red. Target: pipeline code ≥ 85% coverage.
 2. **Code quality:** ruff/black (Python), eslint/prettier (TS), typed everywhere (mypy strict on pipeline modules, TS strict).
-3. **Migrations:** every DocType change via Frappe migrations/patches; never manual DB edits.
-4. **Feature flags:** simple workspace-level flags DocType from Phase 1; ship dark, enable per customer.
+3. **Migrations:** every schema change via Alembic migrations; never manual DB edits.
+4. **Feature flags:** simple workspace-level flags table from Phase 1; ship dark, enable per customer.
 5. **Observability:** every message carries a trace ID from gateway → queue → DB → socket; Grafana dashboard "Message Pipeline" (lag, throughput, failure rate) is the #1 on-call screen.
 5a. **PII log hygiene (DPDP-critical):** phone numbers masked and message bodies excluded in all logs and Sentry events (scrubbing rules at the SDK level + a structured-logging helper that refuses raw phone/body fields); media URLs logged as object keys, never signed URLs.
 5b. **Dependency hygiene:** Renovate/Dependabot on all four repos; weekly patch window; `npm audit`/`pip-audit` in CI blocking on critical CVEs; Baileys pinned + canary-farm tested before every bump.
@@ -634,8 +631,8 @@ Prioritized backlog. Each item is spec'd briefly so it can be picked up independ
 You are one person with an AI pair. Structure the work so Claude Code does the volume and you do judgment, testing against real WhatsApp, and customer conversations.
 
 **Working model**
-- Run phases sequentially; within a phase, run **one epic at a time** across four codebases: `wavedesk` (Frappe), `wa-gateway` (Node), `frontend` (React), `mobile` (Expo, from wk 14).
-- Every Claude Code session prompt includes: (a) the relevant section of this document verbatim (DocType/API contracts, feature spec), (b) the exit-checklist items the task must satisfy, (c) the testing standard (§6.1), (d) instruction to write tests alongside code.
+- Run phases sequentially; within a phase, run **one epic at a time** across four codebases: `backend` (FastAPI, `services/backend`), `wa-gateway` (Node), `frontend` (React), `mobile` (Expo, from wk 14).
+- Every Claude Code session prompt includes: (a) the relevant section of this document verbatim (model/API contracts, feature spec), (b) the exit-checklist items the task must satisfy, (c) the testing standard (§6.1), (d) instruction to write tests alongside code.
 - Keep a `CLAUDE.md` in each repo: architecture summary, conventions, commands, current phase, contract references — so every session starts oriented.
 - **Definition of done is the exit checklist, verified by you on real devices/numbers** — never merge on green CI alone for pipeline code; test with 2–3 real numbers you own (one warmed, one fresh, one Cloud API test number).
 - Weekly rhythm: 4 build days, ~1 day testing/deploying/talking to design partners. Onboard your 3+ committed design partners at end of Phase 1; their real numbers and groups are the test fleet for Phases 2–5. Keep a shared WhatsApp group with them (dogfood your own product to run it).
