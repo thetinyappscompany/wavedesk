@@ -69,18 +69,19 @@ CapRover → **Apps → One-Click Apps/Databases**:
 
 ---
 
-## 3. First-run: create the database schema  ⚠
+## 3. First-run + every release: run migrations
 
-There are **no Alembic migrations** in the repo yet (see Known gaps). Create the
-tables once from the backend image. After deploying `wd-backend` (step 4) open
-CapRover → `wd-backend` → **App Logs / Exec**, or run a one-off container:
+The schema is managed by **Alembic** (`services/backend/migrations/`, shipped in
+the image). Run this once per release, **before** the new web/worker images
+serve traffic — as a one-off exec or a short-lived job, not baked into the web
+CMD (so multiple web replicas don't race):
 
 ```bash
-# inside the wd-backend container (env already set):
-python -c "from app.db import get_engine; from app.models import Base; Base.metadata.create_all(get_engine())"
+# inside the backend image (env already set), from /srv:
+alembic upgrade head
 ```
 
-This is idempotent (only creates missing tables). Also seed the plan catalog +
+Idempotent — re-running is a no-op once at `head`. Also seed the plan catalog +
 AI pricing config if you have a seed script; otherwise trial provisioning and
 gating fall back to defaults.
 
@@ -232,17 +233,14 @@ culprit. If step 3 fails, check the shared gateway secret and `gw.<domain>` TLS.
 
 ---
 
-## Known gaps to close before real production
+## Notes before real production
 
-1. **No Alembic migrations.** Schema is created via `Base.metadata.create_all()`
-   (step 3). Fine for first bring-up; add Alembic before you need to evolve the
-   schema without data loss.
-2. **Secrets:** every value above comes from env only. Rotate the AI/Zoho keys
+1. **Secrets:** every value above comes from env only. Rotate the AI/Zoho keys
    that were shared in chat before going live.
-3. **Backups:** enable Postgres PITR (or nightly `pg_dump` to S3), back up the
+2. **Backups:** enable Postgres PITR (or nightly `pg_dump` to S3), back up the
    MinIO `wavedesk-sessions` bucket and Qdrant volume — losing session snapshots
    means re-pairing every number.
-4. **Billing reconciliation + engagement scores** are not yet on the scheduler
+3. **Billing reconciliation + engagement scores** are not yet on the scheduler
    (step 6) — wire them in when their all-workspace entrypoints are added.
 
 ---
