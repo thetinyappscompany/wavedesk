@@ -30,7 +30,7 @@ server {
 
   # Everything Frappe-shaped goes to the Frappe http tier (which serves
   # assets/files and proxies web + socket.io itself).
-  location ~ ^/(api|app|assets|files|private|socket\.io)(/|$) {
+  location ~ ^/(api|socket\.io)(/|$) {
     proxy_pass $wd_backend;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
