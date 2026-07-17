@@ -7,6 +7,7 @@ from app.models import (
     Contact,
     Message,
     Subscription,
+    WhatsAppNumber,
     Workspace,
     WorkspaceMember,
 )
@@ -56,15 +57,33 @@ def platform_stats(db) -> dict:
     ).scalar_one()
     messages = db.execute(select(func.count()).select_from(Message)).scalar_one()
     contacts = db.execute(select(func.count()).select_from(Contact)).scalar_one()
+    numbers = db.execute(select(func.count()).select_from(WhatsAppNumber)).scalar_one()
     by_status: dict[str, int] = {}
     for status, count in db.execute(
         select(Subscription.status, func.count()).group_by(Subscription.status)
     ).all():
         by_status[status] = count
+    by_plan = [
+        {"plan": plan, "count": count}
+        for plan, count in db.execute(
+            select(Workspace.plan, func.count()).group_by(Workspace.plan)
+        ).all()
+    ]
+    suspended = sum(
+        1 for (s,) in db.execute(select(Workspace.settings)).all()
+        if (s or {}).get("suspended")
+    )
     return {
-        "totals": {"workspaces": workspaces, "users": users,
-                   "messages": messages, "contacts": contacts},
+        "totals": {"workspaces": workspaces, "users": users, "messages": messages,
+                   "contacts": contacts, "numbers": numbers},
+        "operational": {"suspended": suspended},
         "by_subscription_status": by_status,
+        "trial_vs_paid": {
+            "trial": by_status.get("trialing", 0),
+            "paid": by_status.get("active", 0),
+            "past_due": by_status.get("past_due", 0),
+        },
+        "by_plan": by_plan,
     }
 
 
