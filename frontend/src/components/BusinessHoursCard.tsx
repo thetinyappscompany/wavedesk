@@ -28,13 +28,20 @@ export default function BusinessHoursCard({
   settings: WdWorkspaceSettings;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
-  const bh = settings.business_hours;
+  // Defensive default: a settings payload missing business_hours must never
+  // crash the whole Settings page (reading `.enabled` off undefined).
+  const bh: WdBusinessHours = settings.business_hours ?? {
+    enabled: false,
+    timezone: 'Asia/Kolkata',
+    days: {},
+    holidays: [],
+  };
   const [enabled, setEnabled] = useState(bh.enabled);
   const [timezone, setTimezone] = useState(bh.timezone);
   const [days, setDays] = useState<WdBusinessHours['days']>(bh.days);
   const [holidays, setHolidays] = useState((bh.holidays ?? []).join(', '));
-  const [oooEnabled, setOooEnabled] = useState(settings.ooo_reply_enabled);
-  const [oooMessage, setOooMessage] = useState(settings.ooo_reply_message);
+  const [oooEnabled, setOooEnabled] = useState(settings.ooo_reply_enabled ?? false);
+  const [oooMessage, setOooMessage] = useState(settings.ooo_reply_message ?? '');
 
   const save = useMutation({
     mutationFn: () =>

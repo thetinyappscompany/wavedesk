@@ -54,7 +54,17 @@ def set_active(ctx: Ctx) -> dict:
     return {"workspace": ws_id}
 
 
-SETTINGS_KEYS = ("mask_numbers", "needs_reply_minutes")
+def _business_hours(settings: dict) -> dict:
+    """Frontend-shaped business hours ({enabled, timezone, days:{mon:{open,close}},
+    holidays}). Always returns a full object so BusinessHoursCard never reads
+    `.enabled` off undefined (which white-screens the Settings page)."""
+    bh = settings.get("business_hours") or {}
+    return {
+        "enabled": bool(bh.get("enabled")),
+        "timezone": bh.get("timezone") or "Asia/Kolkata",
+        "days": bh.get("days") or {},
+        "holidays": bh.get("holidays") or [],
+    }
 
 
 @method("wavedesk.api.workspace.get_workspace_settings")
@@ -62,14 +72,22 @@ def get_workspace_settings(ctx: Ctx) -> dict:
     ws = active_workspace(ctx)
     settings = ws.settings or {}
     return {
+        "workspace": str(ws.id),
+        "workspace_name": ws.name,
+        "role": get_role(ctx, ws.id),
         "mask_numbers": bool(settings.get("mask_numbers")),
         "needs_reply_minutes": int(settings.get("needs_reply_minutes", 10)),
-        "role": get_role(ctx, ws.id),
+        "default_routing_team": settings.get("default_routing_team"),
+        "business_hours": _business_hours(settings),
+        "ooo_reply_enabled": bool(settings.get("ooo_reply_enabled")),
+        "ooo_reply_message": settings.get("ooo_reply_message") or "",
     }
 
 
 @method("wavedesk.api.workspace.update_workspace_settings")
 def update_workspace_settings(ctx: Ctx) -> dict:
+    import json
+
     from app.tenancy import require_manager
 
     ws = active_workspace(ctx)
@@ -82,5 +100,14 @@ def update_workspace_settings(ctx: Ctx) -> dict:
         if not 1 <= minutes <= 1440:
             raise HTTPException(400, "needs_reply_minutes must be 1–1440")
         settings["needs_reply_minutes"] = minutes
+    if "default_routing_team" in ctx.params:
+        settings["default_routing_team"] = ctx.params["default_routing_team"] or None
+    if "business_hours" in ctx.params:
+        raw = ctx.params["business_hours"]  # api-client sends this JSON-stringified
+        settings["business_hours"] = json.loads(raw) if isinstance(raw, str) else (raw or {})
+    if "ooo_reply_enabled" in ctx.params:
+        settings["ooo_reply_enabled"] = bool(ctx.params["ooo_reply_enabled"])
+    if "ooo_reply_message" in ctx.params:
+        settings["ooo_reply_message"] = ctx.params["ooo_reply_message"] or ""
     ws.settings = settings  # full reassign so JSONB change is tracked
     return get_workspace_settings(ctx)

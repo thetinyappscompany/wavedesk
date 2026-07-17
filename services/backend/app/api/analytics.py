@@ -13,7 +13,7 @@ from fastapi.responses import Response
 from sqlalchemy import func, select
 
 from app.compat import Ctx, method
-from app.models import Chat, Group, Message, User
+from app.models import Chat, Group, Message, User, WhatsAppNumber
 from app.tenancy import active_workspace
 
 MAX_DAYS = 90
@@ -87,32 +87,48 @@ def _dashboard(ctx: Ctx) -> dict:
         .group_by(User.id)
         .order_by(func.count(Message.id).desc())
     ).all()
-    # per-number volume
+    # per-number volume (joined to the number for its display name)
     per_number = ctx.db.execute(
-        select(Chat.number_id, func.count(Message.id))
+        select(Chat.number_id, WhatsAppNumber.display_name, func.count(Message.id))
         .join(Message, Message.chat_id == Chat.id)
+        .join(WhatsAppNumber, WhatsAppNumber.id == Chat.number_id)
         .where(Message.workspace_id == ws.id, Message.created_at >= since,
                Chat.number_id.is_not(None))
-        .group_by(Chat.number_id)
+        .group_by(Chat.number_id, WhatsAppNumber.display_name)
         .order_by(func.count(Message.id).desc())
     ).all()
+    sla_breached = ctx.db.execute(
+        select(func.count()).select_from(Chat).where(
+            Chat.workspace_id == ws.id,
+            (Chat.first_response_breached.is_(True)) | (Chat.resolution_breached.is_(True)),
+        )
+    ).scalar_one()
 
+    first_response = _timing(Chat.first_response_at)
+    resolution = _timing(Chat.resolved_at)
+    trend_points = [{"date": d, "count": c} for d, c in trend.items()]
     return {
+        "days": days,
         "live": {
             "open": open_count,
             "unassigned": unassigned,
             "needs_reply": needs_reply,
+            "sla_breached": sla_breached,
         },
-        "trend": [{"date": d, "count": c} for d, c in trend.items()],
-        "first_response": _timing(Chat.first_response_at),
-        "resolution": _timing(Chat.resolved_at),
-        "per_agent": [
-            {"agent": name or email, "messages": count} for name, email, count in per_agent
+        "conversations_trend": trend_points,
+        "conversations_total": sum(p["count"] for p in trend_points),
+        "first_response_avg_mins": first_response["avg"],
+        "first_response_p90_mins": first_response["p90"],
+        "resolution_avg_mins": resolution["avg"],
+        "resolution_p90_mins": resolution["p90"],
+        "messages_per_agent": [
+            {"agent": email, "agent_name": name or email, "messages": count}
+            for name, email, count in per_agent
         ],
-        "per_number": [
-            {"number": str(nid), "messages": count} for nid, count in per_number
+        "per_number_volume": [
+            {"number": str(nid), "display_name": display_name, "messages": count}
+            for nid, display_name, count in per_number
         ],
-        "days": days,
     }
 
 
@@ -129,11 +145,11 @@ def export_dashboard_csv(ctx: Ctx):
     writer.writerow(["metric", "value"])
     for key, value in data["live"].items():
         writer.writerow([key, value])
-    writer.writerow(["first_response_avg_min", data["first_response"]["avg"]])
-    writer.writerow(["resolution_avg_min", data["resolution"]["avg"]])
+    writer.writerow(["first_response_avg_min", data["first_response_avg_mins"]])
+    writer.writerow(["resolution_avg_min", data["resolution_avg_mins"]])
     writer.writerow([])
     writer.writerow(["date", "new_conversations"])
-    for row in data["trend"]:
+    for row in data["conversations_trend"]:
         writer.writerow([row["date"], row["count"]])
     return Response(
         content=buf.getvalue(),

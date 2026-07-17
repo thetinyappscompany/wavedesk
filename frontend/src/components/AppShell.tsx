@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router';
+import { NavLink, Outlet, useLocation } from 'react-router';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
@@ -39,6 +40,7 @@ const NAV = [
 /** Sidebar navigation shell — grows per master doc Phase 1 UI spec
  * (Contacts, Groups, Broadcasts, Automation, Analytics, Settings land per epic). */
 export default function AppShell(): React.JSX.Element {
+  const location = useLocation();
   const alerts = useQuery({
     queryKey: ['alerts'],
     queryFn: () => client.listAlerts(),
@@ -88,7 +90,9 @@ export default function AppShell(): React.JSX.Element {
         </div>
       </nav>
       <div className="min-w-0 flex-1 overflow-auto">
-        <Outlet />
+        <ErrorBoundary resetKey={location.pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </div>
     </div>
   );

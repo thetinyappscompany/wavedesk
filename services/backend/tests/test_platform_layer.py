@@ -213,6 +213,11 @@ def test_admin_requires_platform_flag(authed, db):
     assert any(r["workspace_name"] == "R6 WS" for r in rows)
     stats = _call(client, "wavedesk.api.admin.platform_stats")
     assert stats["totals"]["workspaces"] >= 1
+    # Full WdPlatformStats contract — a missing key white-screens the /admin page
+    assert "numbers" in stats["totals"]
+    assert set(stats["trial_vs_paid"]) == {"trial", "paid", "past_due"}
+    assert "suspended" in stats["operational"]
+    assert isinstance(stats["by_plan"], list)
 
 
 def test_suspend_blocks_send(authed, db):

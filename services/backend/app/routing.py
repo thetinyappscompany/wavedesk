@@ -100,26 +100,29 @@ def route_new_chat(db, chat: Chat) -> None:
 
 
 def within_business_hours(workspace: Workspace, at: datetime | None = None) -> bool:
-    """settings.business_hours = {enabled, tz, days: {mon: [09:00, 18:00], ...}}.
-    Disabled or missing = 24/7."""
+    """settings.business_hours = {enabled, timezone, days: {mon: {open, close}, ...},
+    holidays: [...]} — the frontend contract. Disabled or missing = 24/7."""
     cfg = (workspace.settings or {}).get("business_hours") or {}
     if not cfg.get("enabled"):
         return True
-    tz = ZoneInfo(cfg.get("tz") or "Asia/Kolkata")
+    tz = ZoneInfo(cfg.get("timezone") or "Asia/Kolkata")
     now = (at or datetime.now(UTC)).astimezone(tz)
+    if now.date().isoformat() in (cfg.get("holidays") or []):
+        return False  # holiday
     day_key = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][now.weekday()]
     window = (cfg.get("days") or {}).get(day_key)
-    if not window:
+    if not window or not window.get("open") or not window.get("close"):
         return False  # closed day
-    start, end = window
-    return start <= now.strftime("%H:%M") < end
+    return window["open"] <= now.strftime("%H:%M") < window["close"]
 
 
 def maybe_ooo_reply(db, workspace: Workspace, chat: Chat) -> bool:
-    """Inbound DM outside hours → one queued auto-reply per chat per hour."""
-    cfg = (workspace.settings or {}).get("business_hours") or {}
-    message = cfg.get("ooo_message")
-    if chat.chat_type != "dm" or not cfg.get("ooo_enabled") or not message:
+    """Inbound DM outside hours → one queued auto-reply per chat per hour.
+    OOO config lives at the settings top level (ooo_reply_enabled/message) —
+    the frontend contract."""
+    settings = workspace.settings or {}
+    message = settings.get("ooo_reply_message")
+    if chat.chat_type != "dm" or not settings.get("ooo_reply_enabled") or not message:
         return False
     if within_business_hours(workspace):
         return False

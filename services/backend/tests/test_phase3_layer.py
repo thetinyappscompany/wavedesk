@@ -10,6 +10,32 @@ from app import antiban, gateway, inbox, routing, schedules, sla
 from tests.helpers import baileys_event, make_chat, make_contact, make_number, make_workspace
 
 
+def test_within_business_hours_reads_frontend_shape(db):
+    """The engine must read the frontend contract: timezone + days:{mon:{open,close}}
+    + holidays (not the old tz + [open,close] list shape)."""
+    ws = make_workspace(db)
+    ws.settings = {
+        "business_hours": {
+            "enabled": True,
+            "timezone": "Asia/Kolkata",
+            "days": {"mon": {"open": "09:00", "close": "18:00"}},
+            "holidays": ["2026-01-26"],
+        }
+    }
+    db.commit()
+    # Monday 12:00 IST → inside the window
+    monday_noon = datetime(2026, 1, 5, 6, 30, tzinfo=UTC)  # 12:00 IST
+    assert routing.within_business_hours(ws, monday_noon) is True
+    # Monday 20:00 IST → after close
+    assert routing.within_business_hours(ws, datetime(2026, 1, 5, 14, 30, tzinfo=UTC)) is False
+    # A holiday (2026-01-26 is a Monday) → closed even during the window
+    assert routing.within_business_hours(ws, datetime(2026, 1, 26, 6, 30, tzinfo=UTC)) is False
+    # Disabled → always open
+    ws.settings = {"business_hours": {"enabled": False}}
+    db.commit()
+    assert routing.within_business_hours(ws) is True
+
+
 @pytest.fixture
 def authed(client, login, db):
     login()
