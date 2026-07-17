@@ -294,6 +294,23 @@ export interface WdAdminWorkspace {
   creation: string;
 }
 
+/** The logged-in user's own profile (Settings → Account). */
+export interface WdProfile {
+  email: string;
+  first_name: string;
+  is_platform_admin: boolean;
+}
+
+/** Workspace subscription + wallet snapshot (Settings → Billing; managers only). */
+export interface WdBillingSummary {
+  plan: string | null;
+  status: string;
+  ai_addon: boolean;
+  current_period_end: string | null;
+  /** Prepaid wallet balance in ₹. */
+  wallet_balance: number;
+}
+
 /** Platform-wide roll-up for the SaaS-provider overview (P5). */
 export interface WdPlatformStats {
   totals: {
@@ -1878,6 +1895,30 @@ export class WaveDeskClient {
 
   revokeOtherSessions(): Promise<{ revoked: number }> {
     return this.call('wavedesk.api.security.revoke_other_sessions');
+  }
+
+  // --- profile (Settings → Account) ---
+  getProfile(): Promise<WdProfile> {
+    return this.call('wavedesk.api.profile.get_profile');
+  }
+
+  updateProfile(firstName: string): Promise<WdProfile> {
+    return this.call('wavedesk.api.profile.update_profile', { first_name: firstName });
+  }
+
+  changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ ok: boolean; revoked_sessions: number }> {
+    return this.call('wavedesk.api.profile.change_password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+  }
+
+  // --- billing (Settings → Billing; managers only) ---
+  billingSummary(): Promise<WdBillingSummary> {
+    return this.call('wavedesk.api.billing.billing_summary');
   }
 
   // --- IP allowlist (Phase 5, Business plan) ---
