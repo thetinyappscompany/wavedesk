@@ -13,6 +13,7 @@ COPY app ./app
 # deploy time (the migrations/ dir is read by the alembic CLI, not imported).
 COPY alembic.ini ./
 COPY migrations ./migrations
+COPY scripts ./scripts
 RUN pip install --upgrade pip && pip install .
 
 EXPOSE 8000
