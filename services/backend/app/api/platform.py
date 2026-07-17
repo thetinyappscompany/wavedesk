@@ -362,7 +362,7 @@ def billing_webhook(ctx: Ctx) -> dict:
     # constant-time compare — a `!=` leaks the shared secret via timing
     if not expected or not _secrets.compare_digest(got, expected):
         raise HTTPException(403, "Invalid or missing webhook token")
-    event = ctx.params  # normalized contract (raw Zoho mapping finalized at staging)
+    event = billing.normalize_webhook(ctx.db, ctx.params)  # raw Zoho → internal
     if not event.get("type") and not event.get("invoice"):
         return {"ignored": True}
     return billing.process(ctx.db, event)

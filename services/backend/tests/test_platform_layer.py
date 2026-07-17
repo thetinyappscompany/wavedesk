@@ -370,3 +370,79 @@ def test_ip_allowlist_enforced_on_public_api(authed, db, monkeypatch):
     # TestClient's peer IP (testclient) isn't in the allowlist → 403
     _call(client, "wavedesk.api.v1.list_chats", expect=403,
           headers={"Authorization": f"Bearer {key['key']}"})
+
+
+def test_zoho_webhook_normalizes_raw_payload(db, client, monkeypatch):
+    """A REAL Zoho delivery (event_type + data.subscription nesting + Baileys
+    field names) must activate the plan, flip the AI add-on, and persist the
+    Zoho linkage — previously it was silently {"ignored": True}."""
+    from app.gating import ensure_subscription, has_feature
+    from app.models import Subscription
+    from sqlalchemy import select
+
+    ws = make_workspace(db)
+    ensure_subscription(db, ws.id)
+    db.commit()
+    monkeypatch.setenv("ZOHO_WEBHOOK_TOKEN", "tok-test-123")
+
+    raw = {
+        "event_type": "subscription_activation",
+        "event_time": "2026-07-18T10:00:00",
+        "data": {"subscription": {
+            "subscription_id": "zsub-777",
+            "reference_id": str(ws.id),
+            "plan": {"plan_code": "WD-PRO"},
+            "addons": [{"addon_code": "WD-ADDON-AI"}],
+            "customer": {"customer_id": "zcust-9"},
+            "current_term_ends_at": "2026-08-18",
+        }},
+    }
+    r = client.post("/api/method/wavedesk.api.billing.zoho_webhook",
+                    json=raw, headers={"X-Webhook-Token": "tok-test-123"})
+    assert r.status_code == 200, r.text
+    assert "subscription" in r.json()["message"]["actions"]
+    db.expire_all()
+    sub = db.execute(select(Subscription).where(
+        Subscription.workspace_id == ws.id)).scalar_one()
+    assert sub.status == "active"
+    assert sub.plan == "WD-PRO"
+    assert sub.zoho_subscription_id == "zsub-777"
+    assert has_feature(db, ws.id, "ai_addon") is True
+
+    # A later event WITHOUT reference_id resolves via the persisted Zoho id.
+    raw2 = {"event_type": "subscription_cancelled",
+            "event_time": "2026-07-18T11:00:00",
+            "data": {"subscription": {"subscription_id": "zsub-777"}}}
+    r = client.post("/api/method/wavedesk.api.billing.zoho_webhook",
+                    json=raw2, headers={"X-Webhook-Token": "tok-test-123"})
+    assert r.status_code == 200, r.text
+    db.expire_all()
+    assert db.execute(select(Subscription).where(
+        Subscription.workspace_id == ws.id)).scalar_one().status == "cancelled"
+
+    # Wrong/missing token → 403 (constant-time verified server-side).
+    r = client.post("/api/method/wavedesk.api.billing.zoho_webhook",
+                    json=raw, headers={"X-Webhook-Token": "wrong"})
+    assert r.status_code == 403
+
+
+def test_zoho_webhook_raw_topup_invoice_credits_wallet(db, client, monkeypatch):
+    from app.gating import ensure_subscription
+
+    ws = make_workspace(db)
+    ensure_subscription(db, ws.id)
+    db.commit()
+    monkeypatch.setenv("ZOHO_WEBHOOK_TOKEN", "tok-test-123")
+    inv_id = f"zinv-{uuid.uuid4().hex[:8]}"
+    raw = {
+        "event_type": "payment_success",
+        "data": {"invoice": {
+            "invoice_id": inv_id, "total": 1000,
+            "plan_code": "topup-1000", "reference_id": str(ws.id),
+        }},
+    }
+    for _ in range(2):  # Zoho retries — idempotent by invoice id
+        r = client.post("/api/method/wavedesk.api.billing.zoho_webhook",
+                        json=raw, headers={"X-Webhook-Token": "tok-test-123"})
+        assert r.status_code == 200, r.text
+    assert wallet.get_balance(db, ws.id) == 1000.0
