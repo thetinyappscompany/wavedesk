@@ -425,6 +425,12 @@ def _upsert_contact(db, workspace_id, phone: str, push_name: str | None = None) 
         select(Contact).where(Contact.workspace_id == workspace_id, Contact.phone == phone)
     ).scalar_one_or_none()
     if existing:
+        if push_name and not existing.full_name:
+            # Backfill the WhatsApp profile name onto contacts created before
+            # we saw one (e.g. from an outbound chat) — otherwise the inbox
+            # titles the chat with raw digits forever. Never overwrite a name
+            # someone already set.
+            existing.full_name = push_name
         return existing
     contact = Contact(workspace_id=workspace_id, phone=phone, full_name=push_name or None)
     db.add(contact)
@@ -496,4 +502,18 @@ def _upsert_chat(
         chat.number_id = number.id
     if contact is not None and chat.contact_id is None:
         chat.contact_id = contact.id
+    if chat.chat_type == "group" and chat.group_id is None:
+        # The group registry row can arrive AFTER the chat (messages stream in
+        # before syncGroups completes, or a failed sync retried later) — heal
+        # the link on every inbound message so the inbox shows the real group
+        # subject instead of the raw @g.us jid.
+        from app.models import Group
+
+        group = db.execute(
+            select(Group).where(
+                Group.workspace_id == workspace_id, Group.wa_group_id == wa_chat_id
+            )
+        ).scalar_one_or_none()
+        if group:
+            chat.group_id = group.id
     return chat
