@@ -4,10 +4,11 @@ A step-by-step guide to deploy the **FastAPI + Postgres** WaveDesk stack on a
 single CapRover VM. This matches `main` after the Frappe removal — the backend
 is `services/backend`, and CI publishes four images to GHCR.
 
-> **Read the two "Known gaps" at the bottom first** (schema bootstrap + the
-> periodic-job scheduler). They are not wired yet and you must handle them, or
-> parts of the product (SLA breaches, scheduled messages, webhook retries,
-> retention, billing reconciliation) will silently never run.
+> **Three separate app processes run from the one backend image** — the web app
+> (`wd-backend`), the RQ worker (`wd-worker`, step 5), and the scheduler
+> (`wd-scheduler`, step 6). All three are required: skip the worker and the inbox
+> never receives messages; skip the scheduler and SLA breaches, scheduled
+> messages, webhook retries, and retention never fire.
 
 ---
 
