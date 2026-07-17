@@ -1,0 +1,33 @@
+name: Deploy to CapRover
+
+on:
+  workflow_run:
+    workflows: ["Publish images"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-caprover
+
+env:
+  CAPROVER_URL: https://captain.manage.reformiqo.in
+  REGISTRY: ghcr.io/thetinyappscompany
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy wd-backend
+        run: npx caprover deploy --caproverUrl "$CAPROVER_URL" --appToken "${{ secrets.CAPROVER_APP_TOKEN_BACKEND }}" --appName wd-backend --imageName "$REGISTRY/wavedesk-backend:latest"
+      - name: Deploy wd-worker
+        run: npx caprover deploy --caproverUrl "$CAPROVER_URL" --appToken "${{ secrets.CAPROVER_APP_TOKEN_WORKER }}" --appName wd-worker --imageName "$REGISTRY/wavedesk-backend:latest"
+      - name: Deploy wd-scheduler
+        run: npx caprover deploy --caproverUrl "$CAPROVER_URL" --appToken "${{ secrets.CAPROVER_APP_TOKEN_SCHEDULER }}" --appName wd-scheduler --imageName "$REGISTRY/wavedesk-backend:latest"
+      - name: Deploy wd-gateway
+        run: npx caprover deploy --caproverUrl "$CAPROVER_URL" --appToken "${{ secrets.CAPROVER_APP_TOKEN_GATEWAY }}" --appName wd-gateway --imageName "$REGISTRY/wavedesk-gateway:latest"
+      - name: Deploy wd-frontend
+        run: npx caprover deploy --caproverUrl "$CAPROVER_URL" --appToken "${{ secrets.CAPROVER_APP_TOKEN_FRONTEND }}" --appName wd-frontend --imageName "$REGISTRY/wavedesk-frontend:latest"
+      - name: Deploy wd-whisper
+        run: npx caprover deploy --caproverUrl "$CAPROVER_URL" --appToken "${{ secrets.CAPROVER_APP_TOKEN_WHISPER }}" --appName wd-whisper --imageName "$REGISTRY/wavedesk-whisper:latest"
