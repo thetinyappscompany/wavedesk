@@ -18,6 +18,7 @@ function makeManager(overrides?: {
   snapshots?: MemorySnapshotStorage;
   snapshotKey?: Buffer;
   autoOpen?: boolean;
+  credsPromoteGraceMs?: number;
 }) {
   const redis = overrides?.redis ?? (new RedisMock());
   const snapshots = overrides?.snapshots ?? new MemorySnapshotStorage();
@@ -33,6 +34,7 @@ function makeManager(overrides?: {
     mediaStorage,
     logger,
     snapshotIntervalMs: 60_000,
+    credsPromoteGraceMs: overrides?.credsPromoteGraceMs ?? 20,
   });
   return { manager, redis, snapshots, snapshotKey, sockets, mediaStorage };
 }
@@ -43,6 +45,7 @@ async function readEvents(redis: Redis): Promise<WaEvent[]> {
 }
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('SessionManager lifecycle', () => {
   let ctx: ReturnType<typeof makeManager>;
@@ -83,9 +86,13 @@ describe('SessionManager lifecycle', () => {
     await tick();
     expect(handle.info.status).toBe('connecting'); // no 'open' arrived
 
-    // A creds update carrying the registered device promotes it to connected.
+    // A creds update carrying the registered device promotes it to connected —
+    // after the grace window (an instant promotion would false-connect restored
+    // sessions whose creds rotate mid-handshake).
     noOpen.sockets[0]!.emitCreds();
     await tick();
+    expect(handle.info.status).toBe('connecting'); // grace window still open
+    await sleep(40); // > credsPromoteGraceMs (20ms in tests)
     expect(statuses).toContain('connected');
     expect(noOpen.manager.list()[0]).toMatchObject({
       status: 'connected',
@@ -95,6 +102,36 @@ describe('SessionManager lifecycle', () => {
     // ioredis-mock shares its store across instances — clear s2 from the shared
     // registry so later tests that assert registry contents aren't polluted.
     await noOpen.manager.destroy('s2');
+  });
+
+  it('never publishes connected for a creds update during a doomed handshake', async () => {
+    // A RESTORED session persists routine key rotations during a reconnect
+    // handshake — before 'open', and before the failure close arrives. The
+    // grace-delayed promotion must be cancelled by the close, so the backend
+    // never sees a false 'connected'.
+    const noOpen = makeManager({ autoOpen: false });
+    const statuses: string[] = [];
+    const handle = await noOpen.manager.create('s3', 'WS-00003');
+    handle.emitter.on('status', (s: string) => statuses.push(s));
+    await tick();
+
+    noOpen.sockets[0]!.emitCreds(); // mid-handshake creds rotation
+    await tick();
+    // The doomed handshake closes within the grace window (e.g. 401 logged out).
+    noOpen.sockets[0]!.emitConnection({ connection: 'close' });
+    await sleep(40); // let the (cancelled) grace timer elapse
+
+    expect(statuses).not.toContain('connected');
+    expect(handle.info.status).toBe('disconnected');
+    const events = await readEvents(noOpen.redis);
+    const published = events
+      .filter((e) => e.type === 'session.status')
+      .map((e) => (e.payload as { session_id: string; status: string }))
+      .filter((p) => p.session_id === 's3')
+      .map((p) => p.status);
+    expect(published).not.toContain('connected');
+
+    await noOpen.manager.destroy('s3');
   });
 
   it('rejects duplicate session ids', async () => {

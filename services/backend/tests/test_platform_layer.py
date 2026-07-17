@@ -235,6 +235,42 @@ def test_suspend_blocks_send(authed, db):
         sender.queue_send(db, chat, "hi", None)
 
 
+def test_suspended_column_blocks_send_and_counts(authed, db):
+    """The R8 ETL writes Workspace.suspended (the COLUMN) — a migrated suspended
+    workspace must be blocked from sending and visible in admin stats, and the
+    legacy settings-JSON flag from earlier deploys must still be honored too."""
+    from app import admin
+    from app.models import Workspace
+
+    client, ws, user = authed
+    db.get(type(user), user.id).is_platform_admin = True
+    # ETL-style: column set, settings untouched.
+    etl_ws = Workspace(name="Migrated Suspended", suspended=True)
+    # Legacy-style: settings flag only (written by pre-fix admin.suspend).
+    legacy_ws = Workspace(name="Legacy Suspended", settings={"suspended": True})
+    db.add_all([etl_ws, legacy_ws])
+    db.commit()
+
+    with pytest.raises(admin.Suspended):
+        admin.assert_can_send(db, etl_ws.id)
+    with pytest.raises(admin.Suspended):
+        admin.assert_can_send(db, legacy_ws.id)
+
+    stats = _call(client, "wavedesk.api.admin.platform_stats")
+    assert stats["operational"]["suspended"] >= 2  # both storage shapes counted
+    rows = _call(client, "wavedesk.api.admin.list_workspaces")
+    flags = {r["workspace_name"]: r["suspended"] for r in rows}
+    assert flags["Migrated Suspended"] is True
+    assert flags["Legacy Suspended"] is True
+
+    # New suspend() writes the column (and converges the legacy flag away).
+    admin.suspend(db, legacy_ws.id, True, "abuse")
+    db.commit()
+    db.expire_all()
+    assert legacy_ws.suspended is True
+    assert "suspended" not in (legacy_ws.settings or {})
+
+
 def test_send_rate_clamp_blocks_over_daily(authed, db):
     from app import admin
 

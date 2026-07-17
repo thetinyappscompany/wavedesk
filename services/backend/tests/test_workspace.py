@@ -75,3 +75,36 @@ def test_workspace_settings_persists_business_hours_and_ooo(client, login):
     assert out["business_hours"] == bh
     assert out["ooo_reply_enabled"] is True
     assert out["ooo_reply_message"] == "Away — back at 9am"
+
+
+def test_business_hours_rejects_invalid_payloads(client, login):
+    """Bad business_hours must 400 at the write chokepoint — stored bad values
+    fail SILENTLY later (the consumer swallows the routing engine's exceptions,
+    killing OOO replies with no visible error)."""
+    login()
+    _create(client)
+
+    def _update(payload, expect=400):
+        r = client.post(
+            "/api/method/wavedesk.api.workspace.update_workspace_settings",
+            json={"business_hours": payload},
+        )
+        assert r.status_code == expect, r.text
+        return r
+
+    _update("not json at all")                       # malformed JSON string
+    _update(["not", "an", "object"])                 # valid JSON, wrong type
+    _update({"enabled": True, "timezone": "IST"})    # not an IANA timezone
+    _update({"enabled": True, "timezone": "Asia/Kolkata",
+             "days": {"mon": ["09:00", "18:00"]}})   # legacy list window shape
+    _update({"enabled": True, "timezone": "Asia/Kolkata",
+             "days": {"mon": {"open": "9am", "close": "18:00"}}})  # not HH:MM
+    _update({"enabled": True, "timezone": "Asia/Kolkata", "holidays": "2026-01-01"})
+
+    # A valid payload still round-trips.
+    r = _update({"enabled": True, "timezone": "Asia/Kolkata",
+                 "days": {"mon": {"open": "09:00", "close": "18:00"}},
+                 "holidays": ["2026-01-01"]}, expect=200)
+    out = r.json()["message"]["business_hours"]
+    assert out["timezone"] == "Asia/Kolkata"
+    assert out["days"] == {"mon": {"open": "09:00", "close": "18:00"}}

@@ -1,7 +1,12 @@
 """Platform superadmin (System-Manager equivalent = User.is_platform_admin).
-Cross-workspace, NOT tenant-scoped. + assert_can_send enforcement."""
+Cross-workspace, NOT tenant-scoped. + assert_can_send enforcement.
 
-from sqlalchemy import func, select
+Suspension source of truth is the Workspace.suspended COLUMN (it's what the R8
+cutover ETL populates from Frappe); the legacy settings-JSON flag written by
+earlier deploys is still honored on read so previously-suspended workspaces
+stay suspended."""
+
+from sqlalchemy import func, or_, select
 
 from app.models import (
     Contact,
@@ -15,6 +20,11 @@ from app.models import (
 
 class Suspended(Exception):
     pass
+
+
+def _is_suspended(ws: Workspace) -> bool:
+    """Column first (ETL + new writes), legacy settings flag as fallback."""
+    return bool(ws.suspended or (ws.settings or {}).get("suspended"))
 
 
 def require_platform_admin(db, user_id) -> None:
@@ -42,7 +52,7 @@ def list_workspaces(db) -> list[dict]:
         ).scalar_one_or_none()
         out.append({
             "name": str(ws.id), "workspace_name": ws.name,
-            "suspended": bool((ws.settings or {}).get("suspended")),
+            "suspended": _is_suspended(ws),
             "members": members, "messages": messages,
             "status": sub.status if sub else "none",
             "plan": sub.plan if sub else None,
@@ -69,10 +79,16 @@ def platform_stats(db) -> dict:
             select(Workspace.plan, func.count()).group_by(Workspace.plan)
         ).all()
     ]
-    suspended = sum(
-        1 for (s,) in db.execute(select(Workspace.settings)).all()
-        if (s or {}).get("suspended")
-    )
+    # One SQL count — never stream every settings blob into Python. Checks the
+    # column (ETL + new writes) OR the legacy settings flag.
+    suspended = db.execute(
+        select(func.count()).select_from(Workspace).where(
+            or_(
+                Workspace.suspended.is_(True),
+                Workspace.settings["suspended"].as_boolean().is_(True),
+            )
+        )
+    ).scalar_one()
     return {
         "totals": {"workspaces": workspaces, "users": users, "messages": messages,
                    "contacts": contacts, "numbers": numbers},
@@ -91,8 +107,9 @@ def suspend(db, workspace_id, suspended: bool, reason: str | None = None) -> Non
     ws = db.get(Workspace, workspace_id)
     if ws is None:
         return
+    ws.suspended = suspended  # the column is the source of truth
     settings = dict(ws.settings or {})
-    settings["suspended"] = suspended
+    settings.pop("suspended", None)  # converge legacy flag onto the column
     if reason:
         settings["suspended_reason"] = reason
     ws.settings = settings
@@ -105,7 +122,7 @@ def assert_can_send(db, workspace_id) -> None:
     if ws is None:
         return
     settings = ws.settings or {}
-    if settings.get("suspended"):
+    if _is_suspended(ws):
         raise Suspended("Workspace is suspended")
     clamp = int(settings.get("send_rate_clamp") or 0)
     if clamp > 0:

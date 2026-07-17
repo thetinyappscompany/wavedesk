@@ -41,6 +41,8 @@ interface ManagedSession {
   lastQr: string | null;
   /** Auto-restarts since the last successful 'open' (bounded — no crash loops). */
   restartCount: number;
+  /** Pending grace-delayed creds-update promotion (see wire()). */
+  promoteTimer: NodeJS.Timeout | undefined;
 }
 
 // WhatsApp disconnect codes we act on (Boom statusCode from lastDisconnect).
@@ -49,6 +51,12 @@ const DISCONNECT_LOGGED_OUT = 401; // device unlinked — creds are dead
 const MAX_AUTO_RESTARTS = 5;
 const FAST_RESTART_DELAY_MS = 2_000;
 export const SLOW_RESTART_DELAY_MS = 60_000;
+/** How long a creds-update promotion waits before declaring 'connected'. A
+ * restored session persists routine key rotations DURING a reconnect handshake
+ * — before the socket is actually open, and before a doomed handshake's close
+ * arrives — so an instant promotion would publish a false 'connected'. A real
+ * failure closes the socket within this window and the delayed check no-ops. */
+export const CREDS_PROMOTE_GRACE_MS = 10_000;
 
 /** '9199…:12@s.whatsapp.net' → '9199…' — device suffix and domain stripped so
  * our own jid can be matched against group participant ids. */
@@ -74,6 +82,8 @@ export interface SessionManagerDeps {
   mediaStorage: MediaStorage;
   logger: Logger;
   snapshotIntervalMs: number;
+  /** Override for tests — see CREDS_PROMOTE_GRACE_MS. */
+  credsPromoteGraceMs?: number;
 }
 
 const REGISTRY_KEY = 'wa:sessions';
@@ -134,6 +144,7 @@ export class SessionManager {
       credsExisted,
       lastQr: null,
       restartCount: 0,
+      promoteTimer: undefined,
     };
     this.sessions.set(id, session);
     this.wire(session, saveCreds);
@@ -158,6 +169,10 @@ export class SessionManager {
    * shows a registered device. */
   private markConnected(session: ManagedSession): void {
     const { info, socket } = session;
+    if (session.promoteTimer) {
+      clearTimeout(session.promoteTimer); // a real 'open' beat the grace timer
+      session.promoteTimer = undefined;
+    }
     if (info.status === 'connected') {
       return; // already connected — nothing to do
     }
@@ -200,10 +215,27 @@ export class SessionManager {
       // This whiskeysockets fork can buffer 'connection: open' during
       // AwaitingInitialSync and never deliver it, leaving a fully-paired session
       // stuck at 'connecting'. The creds update that carries the registered
-      // device id is a reliable signal that pairing completed — promote from
-      // 'connecting' only (never resurrect a deliberately disconnected session).
-      if (info.status === 'connecting' && bareJid(socket.ownJid())) {
-        this.markConnected(session);
+      // device id signals that pairing completed — BUT a restored session also
+      // persists routine key rotations mid-handshake, before the socket is
+      // actually open (registered creds are always present on a restore, so
+      // that alone proves nothing). Promote after a grace window instead of
+      // instantly: a doomed handshake closes within it (status leaves
+      // 'connecting') and the delayed check no-ops, so we never publish a
+      // false 'connected'.
+      if (info.status === 'connecting' && bareJid(socket.ownJid()) && !session.promoteTimer) {
+        const timer = setTimeout(() => {
+          session.promoteTimer = undefined;
+          const current = this.sessions.get(info.id);
+          if (
+            current === session &&
+            info.status === 'connecting' &&
+            bareJid(socket.ownJid())
+          ) {
+            this.markConnected(session);
+          }
+        }, this.deps.credsPromoteGraceMs ?? CREDS_PROMOTE_GRACE_MS);
+        timer.unref();
+        session.promoteTimer = timer;
       }
     });
 
@@ -218,6 +250,10 @@ export class SessionManager {
       } else if (update.connection) {
         info.status = update.connection === 'close' ? 'disconnected' : 'connecting';
         if (update.connection === 'close') {
+          if (session.promoteTimer) {
+            clearTimeout(session.promoteTimer); // handshake died — never promote
+            session.promoteTimer = undefined;
+          }
           this.handleClose(session, disconnectCode(update));
         }
         this.publishStatus(session);

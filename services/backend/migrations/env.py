@@ -25,8 +25,11 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
+    # Read the RESOLVED url (explicit override wins) — never re-derive from
+    # settings here, or offline/--sql mode silently ignores the override the
+    # drift-guard test (and any scratch-DB caller) injects via set_main_option.
     context.configure(
-        url=get_settings().database_url,
+        url=config.get_main_option("sqlalchemy.url"),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
