@@ -17,12 +17,13 @@ function makeManager(overrides?: {
   redis?: Redis;
   snapshots?: MemorySnapshotStorage;
   snapshotKey?: Buffer;
+  autoOpen?: boolean;
 }) {
   const redis = overrides?.redis ?? (new RedisMock());
   const snapshots = overrides?.snapshots ?? new MemorySnapshotStorage();
   const snapshotKey = overrides?.snapshotKey ?? randomBytes(32);
   const mediaStorage = new MemoryMediaStorage();
-  const { factory, sockets } = makeMockSocketFactory();
+  const { factory, sockets } = makeMockSocketFactory({ autoOpen: overrides?.autoOpen ?? true });
   const manager = new SessionManager({
     redis,
     snapshots,
@@ -62,8 +63,38 @@ describe('SessionManager lifecycle', () => {
     expect(qrs).toEqual(['mock-qr-payload']);
     expect(statuses).toContain('connected');
     expect(ctx.manager.list()).toEqual([
-      { id: 's1', workspace: 'WS-00001', status: 'connected', transport: 'baileys' },
+      {
+        id: 's1',
+        workspace: 'WS-00001',
+        status: 'connected',
+        transport: 'baileys',
+        phone: '919999900000:1@s.whatsapp.net', // set from ownJid() on connect
+      },
     ]);
+  });
+
+  it('connects via a creds update when the fork never delivers connection:open', async () => {
+    // The whiskeysockets fork can buffer 'connection: open' during
+    // AwaitingInitialSync — simulate that by suppressing the auto 'open'.
+    const noOpen = makeManager({ autoOpen: false });
+    const statuses: string[] = [];
+    const handle = await noOpen.manager.create('s2', 'WS-00002');
+    handle.emitter.on('status', (s: string) => statuses.push(s));
+    await tick();
+    expect(handle.info.status).toBe('connecting'); // no 'open' arrived
+
+    // A creds update carrying the registered device promotes it to connected.
+    noOpen.sockets[0]!.emitCreds();
+    await tick();
+    expect(statuses).toContain('connected');
+    expect(noOpen.manager.list()[0]).toMatchObject({
+      status: 'connected',
+      phone: '919999900000:1@s.whatsapp.net',
+    });
+
+    // ioredis-mock shares its store across instances — clear s2 from the shared
+    // registry so later tests that assert registry contents aren't polluted.
+    await noOpen.manager.destroy('s2');
   });
 
   it('rejects duplicate session ids', async () => {

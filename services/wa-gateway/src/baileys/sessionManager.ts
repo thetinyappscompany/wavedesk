@@ -16,6 +16,9 @@ export interface SessionInfo {
   workspace: string;
   status: SessionStatus;
   transport: 'baileys';
+  /** Our own WhatsApp jid once paired (device suffix + domain included), else
+   * null. The backend strips it to the bare number. */
+  phone: string | null;
 }
 
 export interface SessionHandle {
@@ -124,7 +127,7 @@ export class SessionManager {
     const socket = await this.deps.factory({ sessionId: id, state });
     const emitter = new EventEmitter();
     const session: ManagedSession = {
-      info: { id, workspace, status: 'connecting', transport: 'baileys' },
+      info: { id, workspace, status: 'connecting', transport: 'baileys', phone: null },
       emitter,
       socket,
       store,
@@ -150,6 +153,40 @@ export class SessionManager {
     };
   }
 
+  /** Idempotent connected-transition side effects. Reachable from the Baileys
+   * 'open' event OR — when the fork buffers 'open' — from a creds update that
+   * shows a registered device. */
+  private markConnected(session: ManagedSession): void {
+    const { info, socket } = session;
+    if (info.status === 'connected') {
+      return; // already connected — nothing to do
+    }
+    info.status = 'connected';
+    info.phone = socket.ownJid(); // full jid; the backend strips to the bare number
+    session.lastQr = null; // paired — QR is spent
+    session.restartCount = 0;
+    // Phase 2: refresh the group registry on every (re)connect — the consumer
+    // upserts idempotently, so re-syncs only heal drift.
+    void this.syncGroups(session);
+    this.publishStatus(session);
+  }
+
+  /** Emit the local 'status' event (SSE) + publish session.status to wa:events. */
+  private publishStatus(session: ManagedSession): void {
+    const { info, emitter } = session;
+    emitter.emit('status', info.status);
+    void this.deps.publisher.publish(
+      makeEvent({
+        transport: 'baileys',
+        type: 'session.status',
+        workspace_hint: info.workspace,
+        wa_chat_id: null,
+        wa_message_id: null,
+        payload: { session_id: info.id, status: info.status },
+      }),
+    );
+  }
+
   private wire(session: ManagedSession, saveCreds: () => Promise<void>): void {
     const { socket, emitter, info } = session;
 
@@ -160,6 +197,14 @@ export class SessionManager {
           'failed to persist creds',
         );
       });
+      // This whiskeysockets fork can buffer 'connection: open' during
+      // AwaitingInitialSync and never deliver it, leaving a fully-paired session
+      // stuck at 'connecting'. The creds update that carries the registered
+      // device id is a reliable signal that pairing completed — promote from
+      // 'connecting' only (never resurrect a deliberately disconnected session).
+      if (info.status === 'connecting' && bareJid(socket.ownJid())) {
+        this.markConnected(session);
+      }
     });
 
     socket.onConnectionUpdate((update) => {
@@ -168,34 +213,14 @@ export class SessionManager {
         session.lastQr = update.qr;
         emitter.emit('qr', update.qr);
       }
-      if (update.connection) {
-        info.status =
-          update.connection === 'open'
-            ? 'connected'
-            : update.connection === 'close'
-              ? 'disconnected'
-              : 'connecting';
-        if (info.status === 'connected') {
-          session.lastQr = null; // paired — QR is spent
-          session.restartCount = 0;
-          // Phase 2: refresh the group registry on every (re)connect — the
-          // consumer upserts idempotently, so re-syncs only heal drift.
-          void this.syncGroups(session);
-        }
+      if (update.connection === 'open') {
+        this.markConnected(session);
+      } else if (update.connection) {
+        info.status = update.connection === 'close' ? 'disconnected' : 'connecting';
         if (update.connection === 'close') {
           this.handleClose(session, disconnectCode(update));
         }
-        emitter.emit('status', info.status);
-        void this.deps.publisher.publish(
-          makeEvent({
-            transport: 'baileys',
-            type: 'session.status',
-            workspace_hint: info.workspace,
-            wa_chat_id: null,
-            wa_message_id: null,
-            payload: { session_id: info.id, status: info.status },
-          }),
-        );
+        this.publishStatus(session);
       }
     });
 

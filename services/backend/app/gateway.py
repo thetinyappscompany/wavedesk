@@ -44,7 +44,12 @@ def create_session(session_id: str, workspace: str) -> dict:
 
 
 def session_status(session_id: str) -> dict:
-    return _request("GET", f"/sessions/{session_id}")
+    # The gateway nests the SessionInfo under "session" ({session, qr, restored}).
+    # Flatten it so callers read status/phone/qr off one dict (the wire contract
+    # the number_status handler expects).
+    data = _request("GET", f"/sessions/{session_id}")
+    session = data.get("session") if isinstance(data.get("session"), dict) else {}
+    return {**session, "qr": data.get("qr"), "restored": data.get("restored")}
 
 
 def disconnect_session(session_id: str) -> dict:
