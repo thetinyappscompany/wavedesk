@@ -95,3 +95,46 @@ def test_login_workspace_binding_is_deterministic_on_ties(client, db, make_user)
     first = _login_active()
     for _ in range(3):
         assert _login_active() == first  # same pick every login
+
+
+def test_signup_creates_account_and_logs_in(client):
+    """Self-serve signup: account created, session cookie set, and the new
+    user can immediately run onboarding (create their workspace)."""
+    import uuid as _uuid
+
+    email = f"founder-{_uuid.uuid4().hex[:8]}@newco.test"
+    r = client.post("/api/method/wavedesk.api.onboarding.signup",
+                    json={"email": email, "password": "brand-new-pass1",
+                          "full_name": "New Founder"})
+    assert r.status_code == 200, r.text
+    assert r.json()["message"]["email"] == email
+    assert "sid" in r.cookies  # logged in
+
+    # Authenticated straight away — the onboarding wizard works next.
+    r = client.get("/api/method/frappe.auth.get_logged_user")
+    assert r.status_code == 200
+    assert r.json()["message"] == email
+    r = client.post("/api/method/wavedesk.api.onboarding.create_workspace",
+                    json={"workspace_name": "NewCo"})
+    assert r.status_code == 200, r.text
+
+    # And a plain login with the same credentials works too.
+    client.cookies.clear()
+    r = client.post("/api/method/login", json={"usr": email, "pwd": "brand-new-pass1"})
+    assert r.status_code == 200
+
+
+def test_signup_validation_and_duplicates(client, make_user):
+    existing = make_user()
+    # duplicate email → 409 (never a second account)
+    r = client.post("/api/method/wavedesk.api.onboarding.signup",
+                    json={"email": existing.email, "password": "whatever-123"})
+    assert r.status_code == 409
+    # short password → 400
+    r = client.post("/api/method/wavedesk.api.onboarding.signup",
+                    json={"email": "ok@newco.test", "password": "short"})
+    assert r.status_code == 400
+    # invalid email → 400
+    r = client.post("/api/method/wavedesk.api.onboarding.signup",
+                    json={"email": "not-an-email", "password": "long-enough-1"})
+    assert r.status_code == 400

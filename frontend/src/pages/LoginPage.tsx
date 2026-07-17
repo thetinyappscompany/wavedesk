@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { client } from '@/lib/client';
@@ -93,6 +93,12 @@ export default function LoginPage(): React.JSX.Element {
                 {authError}
               </p>
             )}
+            <p className="text-sm text-muted-foreground">
+              New to WaveDesk?{' '}
+              <Link to="/signup" className="text-primary underline-offset-2 hover:underline">
+                Create an account
+              </Link>
+            </p>
           </CardFooter>
         </form>
       </Card>
