@@ -25,7 +25,7 @@ DNS name `srv-captain--<appname>`. Public HTTPS + Let's Encrypt is per-app.
 | `whisper` | image `ghcr.io/<owner>/wavedesk-whisper` | no | no — only if voice notes are used |
 | `wd-backend` | image `ghcr.io/<owner>/wavedesk-backend` | **yes** (`api.<domain>`) or internal-only | no |
 | `wd-worker` | **same** backend image, different start command | no | no |
-| `wd-scheduler` | same backend image, periodic trigger | no | no — see Known gaps |
+| `wd-scheduler` | same backend image, `python -m app.scheduler` | no | no |
 | `wd-gateway` | image `ghcr.io/<owner>/wavedesk-gateway` | **yes** (`gw.<domain>`) | no (state in Redis + S3) |
 | `wd-frontend` | image `ghcr.io/<owner>/wavedesk-frontend` | **yes** (`app.<domain>`) | no |
 
@@ -147,20 +147,26 @@ The web app enqueues jobs but does not run them. Create a **second app** from th
 
 ---
 
-## 6. Scheduler (`wd-scheduler`) — see Known gaps
+## 6. Scheduler (`wd-scheduler`) — REQUIRED
 
-Periodic jobs (SLA breach checks, scheduled-message firing, webhook retry sweep,
-retention purge, billing reconciliation, engagement scores) have functions but
-**no scheduler is wired**. Pick one:
+The cron tier lives in `app/scheduler.py`. Create a **third app** from the same
+backend image with the start command:
 
-- **Simplest:** a host `cron` on the VM that `docker exec`s into `wd-worker` to
-  call each function on its cadence (minutely / nightly). Example minutely line:
-  ```
-  * * * * * docker exec srv-captain--wd-worker python -c "from app.sla import check_breaches; from app.schedules import run_due_schedules; from app.webhooks import retry_due; from app.db import get_sessionmaker; db=get_sessionmaker()(); check_breaches(db); run_due_schedules(); retry_due(db); db.commit()"
-  ```
-  (Confirm each function's exact signature/args in the source before wiring.)
-- **Cleaner:** add `rq-scheduler` or APScheduler in a small `wd-scheduler` app.
-  This is the recommended follow-up before production.
+```
+python -m app.scheduler
+```
+
+- Give it the **same environment variables** as `wd-backend`. No HTTP port, no
+  domain. **Run exactly one instance.**
+- It runs minutely (SLA breach checks, due scheduled messages, webhook retry
+  sweep, snooze wake-ups) and daily (per-workspace message-retention purge).
+  Each job is failure-isolated; the daily run is Redis-claimed on the UTC date
+  so a restart never double-runs it.
+
+Without this app, SLA breaches, scheduled messages, webhook retries, and
+retention purges never fire. (Billing reconciliation + engagement-score
+recompute are not yet wired into the scheduler — add them there when their
+all-workspace entrypoints exist.)
 
 ---
 
@@ -231,14 +237,13 @@ culprit. If step 3 fails, check the shared gateway secret and `gw.<domain>` TLS.
 1. **No Alembic migrations.** Schema is created via `Base.metadata.create_all()`
    (step 3). Fine for first bring-up; add Alembic before you need to evolve the
    schema without data loss.
-2. **No periodic-job scheduler wired** (step 6). Until you add cron/rq-scheduler,
-   SLA breaches, scheduled messages, webhook retries, retention, and billing
-   reconciliation will not run on their own.
-3. **Secrets:** every value above comes from env only. Rotate the AI/Zoho keys
+2. **Secrets:** every value above comes from env only. Rotate the AI/Zoho keys
    that were shared in chat before going live.
-4. **Backups:** enable Postgres PITR (or nightly `pg_dump` to S3), back up the
+3. **Backups:** enable Postgres PITR (or nightly `pg_dump` to S3), back up the
    MinIO `wavedesk-sessions` bucket and Qdrant volume — losing session snapshots
    means re-pairing every number.
+4. **Billing reconciliation + engagement scores** are not yet on the scheduler
+   (step 6) — wire them in when their all-workspace entrypoints are added.
 
 ---
 
