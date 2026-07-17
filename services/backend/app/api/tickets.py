@@ -103,8 +103,9 @@ def list_tickets(ctx: Ctx) -> dict:
         query = query.where(Ticket.assigned_agent_id == uuid.UUID(ctx.user_id))
     elif assignee == "unassigned":
         query = query.where(Ticket.assigned_agent_id.is_(None))
-    rows = ctx.db.execute(query.order_by(Ticket.created_at.desc()).limit(200)).scalars()
-    return {"tickets": [_serialize(r) for r in rows]}
+    rows = [_serialize(r) for r in
+            ctx.db.execute(query.order_by(Ticket.created_at.desc()).limit(200)).scalars()]
+    return {"tickets": rows, "total": len(rows)}
 
 
 @method("wavedesk.api.tickets.get_ticket")
