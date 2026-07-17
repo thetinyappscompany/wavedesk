@@ -23,6 +23,7 @@ from app.api import (  # noqa: F401  (registration side effects)
     parity,
     phase3,
     platform,
+    profile,
     send,
     teams,
     tickets,
