@@ -861,6 +861,20 @@ export class WaveDeskClient {
     await this.call('login', { usr: email, pwd: password });
   }
 
+  /** Self-serve signup — creates the account AND logs it in (sid cookie set);
+   * route to /onboarding afterwards to create the workspace. */
+  signup(
+    email: string,
+    password: string,
+    fullName?: string,
+  ): Promise<{ user: string; email: string }> {
+    return this.call('wavedesk.api.onboarding.signup', {
+      email,
+      password,
+      full_name: fullName ?? '',
+    });
+  }
+
   async logout(): Promise<void> {
     await this.call('logout');
   }

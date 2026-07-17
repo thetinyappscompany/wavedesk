@@ -12,6 +12,7 @@ import GroupsPage from '@/pages/GroupsPage';
 import InboxPage from '@/pages/InboxPage';
 import InvitePage from '@/pages/InvitePage';
 import LoginPage from '@/pages/LoginPage';
+import SignupPage from '@/pages/SignupPage';
 import AdminPage from '@/pages/AdminPage';
 import NumbersPage from '@/pages/NumbersPage';
 import OnboardingPage from '@/pages/OnboardingPage';
@@ -22,6 +23,7 @@ export default function App(): React.JSX.Element {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
       <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="/invite/:token" element={<InvitePage />} />
       <Route element={<AppShell />}>
