@@ -15,6 +15,7 @@ vi.mock('@/lib/client', () => ({
     adminSuspendWorkspace: vi.fn(),
     adminUnsuspendWorkspace: vi.fn(),
     adminSetSendRateClamp: vi.fn(),
+    adminCreditWallet: vi.fn(),
   },
 }));
 
@@ -97,6 +98,25 @@ describe('AdminPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Suspend' }));
     await waitFor(() =>
       expect(client.adminSuspendWorkspace).toHaveBeenCalledWith('WS-00001', expect.any(String)),
+    );
+  });
+
+  it('credits a workspace wallet with a fresh idempotency key', async () => {
+    vi.mocked(client.adminWhoami).mockResolvedValue(true);
+    vi.mocked(client.adminCreditWallet).mockResolvedValue({ balance: 300 });
+    renderPage();
+    await screen.findByText('Acme');
+    const creditBtn = screen.getByRole('button', { name: 'Credit' });
+    expect(creditBtn).toBeDisabled(); // no amount yet
+    await userEvent.type(screen.getByLabelText('Credit wallet for Acme'), '300');
+    await userEvent.click(creditBtn);
+    await waitFor(() =>
+      expect(client.adminCreditWallet).toHaveBeenCalledWith(
+        'WS-00001',
+        300,
+        expect.any(String),
+        expect.any(String), // one idempotency key per submit
+      ),
     );
   });
 
