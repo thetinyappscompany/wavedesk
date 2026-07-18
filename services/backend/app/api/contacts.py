@@ -1,4 +1,4 @@
-"""Contacts API — list/get/update (CSV import engine lands in R2)."""
+"""Contacts API — list/get/update (CSV import engine lands in R2) + notes."""
 
 import uuid
 
@@ -6,8 +6,8 @@ from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 
 from app.compat import Ctx, method
-from app.models import Chat, Contact
-from app.tenancy import active_workspace
+from app.models import Chat, Contact, ContactNote, User
+from app.tenancy import MANAGER_ROLES, active_workspace, get_role
 
 PAGE_SIZE_MAX = 100
 
@@ -95,3 +95,62 @@ def update_contact(ctx: Ctx) -> dict:
     if isinstance(attrs, dict):
         row.custom_attributes = attrs
     return _serialize(row)
+
+
+# --- contact notes (Chatwoot parity) -----------------------------------------
+
+
+@method("wavedesk.api.contacts.list_contact_notes")
+def list_contact_notes(ctx: Ctx) -> dict:
+    contact = _get_checked(ctx, ctx.params.get("contact") or "")
+    rows = ctx.db.execute(
+        select(ContactNote, User)
+        .join(User, ContactNote.author_id == User.id, isouter=True)
+        .where(ContactNote.contact_id == contact.id)
+        .order_by(ContactNote.created_at.desc())
+    ).all()
+    return {
+        "notes": [
+            {
+                "name": str(note.id),
+                "content": note.content,
+                "author": str(note.author_id) if note.author_id else None,
+                "author_name": (author.first_name or author.email) if author else None,
+                "creation": note.created_at.isoformat() if note.created_at else None,
+            }
+            for note, author in rows
+        ]
+    }
+
+
+@method("wavedesk.api.contacts.add_contact_note")
+def add_contact_note(ctx: Ctx) -> dict:
+    contact = _get_checked(ctx, ctx.params.get("contact") or "")
+    content = (ctx.params.get("content") or "").strip()
+    if not content:
+        raise HTTPException(400, "Note content is required")
+    note = ContactNote(
+        workspace_id=contact.workspace_id,
+        contact_id=contact.id,
+        author_id=uuid.UUID(ctx.user_id),
+        content=content,
+    )
+    ctx.db.add(note)
+    ctx.db.flush()
+    return {"name": str(note.id), "content": note.content}
+
+
+@method("wavedesk.api.contacts.delete_contact_note")
+def delete_contact_note(ctx: Ctx) -> dict:
+    ws = active_workspace(ctx)
+    try:
+        note = ctx.db.get(ContactNote, uuid.UUID(ctx.params.get("note") or ""))
+    except ValueError:
+        note = None
+    if note is None or note.workspace_id != ws.id:
+        raise HTTPException(404, "Note not found in this workspace")
+    is_author = note.author_id and str(note.author_id) == ctx.user_id
+    if not is_author and get_role(ctx, ws.id) not in MANAGER_ROLES:
+        raise HTTPException(403, "Only the note's author or a manager may delete it")
+    ctx.db.delete(note)
+    return {"deleted": True}

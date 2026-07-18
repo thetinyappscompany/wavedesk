@@ -174,6 +174,7 @@ def apply_event(db, event: dict) -> None:
                 Message.chat_id == chat.id,
                 Message.direction == "out",
                 Message.wa_message_id.is_(None),
+                Message.is_private.is_(False),  # a private note is never our echo
                 Message.body == body,
             )
             .order_by(Message.created_at.desc())

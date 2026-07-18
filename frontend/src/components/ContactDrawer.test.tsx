@@ -7,7 +7,14 @@ import ContactDrawer from './ContactDrawer';
 import { client } from '@/lib/client';
 
 vi.mock('@/lib/client', () => ({
-  client: { getContact: vi.fn(), updateContact: vi.fn(), eraseContact: vi.fn() },
+  client: {
+    getContact: vi.fn(),
+    updateContact: vi.fn(),
+    eraseContact: vi.fn(),
+    listContactNotes: vi.fn(),
+    addContactNote: vi.fn(),
+    deleteContactNote: vi.fn(),
+  },
 }));
 
 function profile(overrides: Partial<WdContactProfile> = {}): WdContactProfile {
@@ -60,6 +67,34 @@ describe('ContactDrawer', () => {
     vi.clearAllMocks();
     vi.mocked(client.getContact).mockResolvedValue(profile());
     vi.mocked(client.updateContact).mockResolvedValue(profile());
+    vi.mocked(client.listContactNotes).mockResolvedValue({ notes: [] });
+  });
+
+  it('adds and lists contact notes', async () => {
+    vi.mocked(client.listContactNotes).mockResolvedValue({
+      notes: [
+        {
+          name: 'NOTE-1',
+          content: 'Prefers Hindi',
+          author: 'U-1',
+          author_name: 'Riya',
+          creation: '2026-07-10 09:00:00',
+        },
+      ],
+    });
+    vi.mocked(client.addContactNote).mockResolvedValue({ name: 'NOTE-2', content: 'Repeat buyer' });
+    const user = userEvent.setup();
+    renderDrawer();
+
+    const row = await screen.findByTestId('contact-note-row');
+    expect(row).toHaveTextContent('Prefers Hindi');
+    expect(row).toHaveTextContent('Riya');
+
+    await user.type(screen.getByLabelText('New contact note'), 'Repeat buyer');
+    await user.click(screen.getByLabelText('Add note'));
+    await waitFor(() => {
+      expect(client.addContactNote).toHaveBeenCalledWith('CONT-1', 'Repeat buyer');
+    });
   });
 
   it('shows contact fields and cross-number conversations', async () => {

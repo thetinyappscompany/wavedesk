@@ -23,6 +23,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, Timestamps, UUIDPrimaryKey
 
 CHAT_STATUSES = ("open", "pending", "resolved", "snoozed")
+CHAT_PRIORITIES = ("low", "medium", "high", "urgent")
 MESSAGE_STATUSES = ("queued", "sending", "sent", "failed")
 
 
@@ -72,6 +73,7 @@ class Chat(UUIDPrimaryKey, Timestamps, Base):
     chat_type: Mapped[str] = mapped_column(String(10))  # dm | group
     wa_chat_id: Mapped[str] = mapped_column(String(120))
     status: Mapped[str] = mapped_column(String(20), default="open")
+    priority: Mapped[str | None] = mapped_column(String(10))  # low|medium|high|urgent
     number_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("whatsapp_numbers.id", ondelete="SET NULL")
     )
@@ -131,6 +133,8 @@ class Message(UUIDPrimaryKey, Timestamps, Base):
     sent_via: Mapped[str | None] = mapped_column(String(20))
     flagged: Mapped[bool] = mapped_column(Boolean, default=False)
     flag_reason: Mapped[str | None] = mapped_column(String(255))
+    # private team note — never dispatched to WhatsApp (message_type "note")
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False)
     # media (P4.5 columns kept from day one so the consumer maps them)
     media_key: Mapped[str | None] = mapped_column(String(255))
     media_mimetype: Mapped[str | None] = mapped_column(String(100))

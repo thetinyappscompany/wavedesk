@@ -17,6 +17,7 @@ from app.api import (  # noqa: F401  (registration side effects)
     groups,
     invites,
     labels,
+    macros,
     messages,
     monitoring,
     numbers,

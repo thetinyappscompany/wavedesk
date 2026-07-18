@@ -97,6 +97,16 @@ def run_daily() -> int:
                 log.exception("retention purge failed for workspace %s", ws_id)
     finally:
         db.close()
+    # auto-resolve idle chats (per-workspace auto_resolve_days setting) — own
+    # session so a failure here never poisons the retention numbers above;
+    # the function commits per tenant itself
+    from app import inbox
+
+    db2 = get_sessionmaker()()
+    try:
+        _guard("inbox.auto_resolve_idle", lambda: inbox.auto_resolve_idle(db2), db=db2)
+    finally:
+        db2.close()
     if purged:
         log.info("scheduler daily retention purged %s messages", purged)
     return purged

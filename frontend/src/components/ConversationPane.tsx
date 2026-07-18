@@ -16,11 +16,13 @@ import {
   Paperclip,
   RotateCcw,
   SendHorizontal,
+  StickyNote,
   Tag,
   TicketPlus,
   UserRound,
+  Zap,
 } from 'lucide-react';
-import type { WdCannedResponse, WdChat, WdMessage } from '@wavedesk/api-client';
+import type { WdCannedResponse, WdChat, WdChatPriority, WdMessage } from '@wavedesk/api-client';
 import { substituteVariables } from '@/lib/canned';
 import { AiCopilotBar } from '@/components/AiCopilotBar';
 import { client } from '@/lib/client';
@@ -160,6 +162,7 @@ function Bubble({
   onRetry: (name: string) => void;
 }): React.JSX.Element {
   const outbound = message.direction === 'out';
+  const isNote = message.is_private;
   return (
     <div
       data-testid="message-bubble"
@@ -169,9 +172,22 @@ function Bubble({
       <div
         className={cn(
           'max-w-[70%] rounded-lg px-3 py-2 text-sm shadow-sm',
-          outbound ? 'bg-primary/15' : 'bg-muted',
+          isNote
+            ? 'border border-amber-400/40 bg-amber-500/15'
+            : outbound
+              ? 'bg-primary/15'
+              : 'bg-muted',
         )}
       >
+        {isNote && (
+          <p
+            data-testid="private-note-badge"
+            className="mb-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-amber-600"
+          >
+            <StickyNote className="h-2.5 w-2.5" /> Private note
+            {message.sender_display ? ` — ${message.sender_display}` : ''}
+          </p>
+        )}
         {showSender && !outbound && message.sender_display && (
           <p data-testid="sender-name" className="mb-0.5 text-xs font-medium text-primary">
             {message.sender_display}
@@ -191,7 +207,7 @@ function Bubble({
             {message.quoted_body}
           </div>
         )}
-        {message.message_type === 'text' ? (
+        {message.message_type === 'text' || isNote ? (
           <p className="whitespace-pre-wrap break-words">{message.body}</p>
         ) : (
           <MediaContent message={message} />
@@ -336,6 +352,78 @@ function TicketButton({
   );
 }
 
+/** One-click macro runner (Chatwoot parity) — lists visible macros, runs on pick. */
+function MacroMenu({ chatName }: { chatName: string }): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const macros = useQuery({
+    queryKey: ['macros'],
+    queryFn: () => client.listMacros(),
+    enabled: open,
+  });
+  const run = useMutation({
+    mutationFn: (macro: string) => client.runMacro(macro, chatName),
+    onSuccess: () => {
+      setOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+      void queryClient.invalidateQueries({ queryKey: ['messages', chatName] });
+      void queryClient.invalidateQueries({ queryKey: ['macros'] });
+    },
+  });
+  return (
+    <div className="relative">
+      <Button
+        aria-label="Run macro"
+        variant="outline"
+        size="icon"
+        className="h-8 w-8"
+        onClick={() => {
+          setOpen((value) => !value);
+        }}
+      >
+        <Zap className="h-4 w-4" />
+      </Button>
+      {open && (
+        <div
+          role="menu"
+          aria-label="Macros"
+          className="absolute right-0 top-9 z-20 w-56 rounded-md border bg-background p-1 shadow-md"
+        >
+          {macros.isLoading && (
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">Loading macros…</p>
+          )}
+          {macros.data?.macros.length === 0 && (
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+              No macros yet — create them in Settings.
+            </p>
+          )}
+          {(macros.data?.macros ?? []).map((macro) => (
+            <button
+              key={macro.name}
+              type="button"
+              disabled={run.isPending}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+              onClick={() => {
+                run.mutate(macro.name);
+              }}
+            >
+              <Zap className="h-3 w-3 shrink-0 text-primary" />
+              <span className="truncate">{macro.macro_name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const PRIORITY_OPTIONS: { value: WdChatPriority; label: string }[] = [
+  { value: 'urgent', label: '🔴 Urgent' },
+  { value: 'high', label: '🟠 High' },
+  { value: 'medium', label: '🔵 Medium' },
+  { value: 'low', label: '⚪ Low' },
+];
+
 function HeaderControls({
   chatName,
   chat,
@@ -348,6 +436,10 @@ function HeaderControls({
   const refreshChats = (): void => {
     void queryClient.invalidateQueries({ queryKey: ['chats'] });
   };
+  const setPriority = useMutation({
+    mutationFn: (priority: WdChatPriority | null) => client.setChatPriority(chatName, priority),
+    onSuccess: refreshChats,
+  });
   const assign = useMutation({
     mutationFn: (agent: string | null) => client.assignChat(chatName, agent),
     onSuccess: refreshChats,
@@ -371,6 +463,21 @@ function HeaderControls({
 
   return (
     <div className="flex items-center gap-2">
+      <select
+        aria-label="Priority"
+        className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+        value={chat?.priority ?? ''}
+        onChange={(e) => {
+          setPriority.mutate((e.target.value || null) as WdChatPriority | null);
+        }}
+      >
+        <option value="">No priority</option>
+        {PRIORITY_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
       <select
         aria-label="Assignee"
         className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
@@ -508,18 +615,27 @@ export default function ConversationPane({
     mutationFn: (body: string) => client.sendMessage(chatName, body),
     onSuccess: refresh,
   });
+  const addNote = useMutation({
+    mutationFn: (body: string) => client.addNote(chatName, body),
+    onSuccess: refresh,
+  });
   const retry = useMutation({
     mutationFn: (name: string) => client.retryMessage(name),
     onSuccess: refresh,
   });
 
+  const [noteMode, setNoteMode] = useState(false);
   const submit = (): void => {
     const body = draft.trim();
-    if (!body || send.isPending) {
+    if (!body || send.isPending || addNote.isPending) {
       return;
     }
     setDraft('');
-    send.mutate(body);
+    if (noteMode) {
+      addNote.mutate(body);
+    } else {
+      send.mutate(body);
+    }
   };
 
   const markRead = useMutation({
@@ -571,6 +687,7 @@ export default function ConversationPane({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <HeaderControls chatName={chatName} chat={chat} />
+          <MacroMenu chatName={chatName} />
           <LabelPicker chatName={chatName} chat={chat} />
           <TicketButton chatName={chatName} lastInbound={lastInbound} />
           {chat?.contact && onToggleContact && (
@@ -619,7 +736,34 @@ export default function ConversationPane({
         <div ref={bottomRef} />
       </div>
 
-      <footer className="border-t p-3">
+      <footer className={cn('border-t p-3', noteMode && 'bg-amber-500/10')}>
+        <div className="mb-2 flex gap-1">
+          <button
+            type="button"
+            className={cn(
+              'rounded px-2 py-0.5 text-xs font-medium',
+              !noteMode ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-accent',
+            )}
+            onClick={() => {
+              setNoteMode(false);
+            }}
+          >
+            Reply
+          </button>
+          <button
+            type="button"
+            data-testid="note-mode-toggle"
+            className={cn(
+              'inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium',
+              noteMode ? 'bg-amber-500/20 text-amber-700' : 'text-muted-foreground hover:bg-accent',
+            )}
+            onClick={() => {
+              setNoteMode(true);
+            }}
+          >
+            <StickyNote className="h-3 w-3" /> Private note
+          </button>
+        </div>
         <AiCopilotBar chatName={chatName} draft={draft} setDraft={setDraft} />
         {cannedOpen && cannedItems.length > 0 && (
           <div
@@ -650,7 +794,11 @@ export default function ConversationPane({
         <div className="flex items-end gap-2">
           <textarea
             aria-label="Message"
-            placeholder="Type a message… ( / for canned responses, Enter to send )"
+            placeholder={
+              noteMode
+                ? 'Private note — only your team sees this ( Enter to save )'
+                : 'Type a message… ( / for canned responses, Enter to send )'
+            }
             value={draft}
             rows={Math.min(draft.split('\n').length, 5)}
             onChange={(e) => {
@@ -694,17 +842,22 @@ export default function ConversationPane({
             className="min-h-9 flex-1 resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
           <Button
-            aria-label="Send"
+            aria-label={noteMode ? 'Save note' : 'Send'}
             size="icon"
-            disabled={!draft.trim() || send.isPending}
+            disabled={!draft.trim() || send.isPending || addNote.isPending}
             onClick={submit}
           >
-            <SendHorizontal className="h-4 w-4" />
+            {noteMode ? <StickyNote className="h-4 w-4" /> : <SendHorizontal className="h-4 w-4" />}
           </Button>
         </div>
         {send.isError && (
           <p role="alert" className="mt-1 text-xs text-destructive">
             Send failed — {send.error.message}
+          </p>
+        )}
+        {addNote.isError && (
+          <p role="alert" className="mt-1 text-xs text-destructive">
+            Note failed — {addNote.error.message}
           </p>
         )}
       </footer>

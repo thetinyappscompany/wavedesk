@@ -40,6 +40,7 @@ def sent_today(db, number_id) -> int:
         .where(
             Chat.number_id == number_id,
             Message.direction == "out",
+            Message.is_private.is_(False),  # internal notes never left the app
             Message.created_at >= day_start,
         )
     ).scalar_one()
@@ -65,6 +66,7 @@ def compute_health(db, number: WhatsAppNumber) -> tuple[int, str]:
         .where(
             Chat.number_id == number.id,
             Message.direction == "out",
+            Message.is_private.is_(False),
             Message.created_at >= since,
         )
     )

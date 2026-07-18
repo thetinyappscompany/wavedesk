@@ -55,6 +55,7 @@ function settings(overrides: Partial<WdWorkspaceSettings> = {}): WdWorkspaceSett
     business_hours: { enabled: false, timezone: 'Asia/Kolkata', days: {}, holidays: [] },
     ooo_reply_enabled: false,
     ooo_reply_message: '',
+    auto_resolve_days: 0,
     ...overrides,
   };
 }

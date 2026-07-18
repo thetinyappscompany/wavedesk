@@ -20,7 +20,16 @@ from app.models.billing import (
 )
 from app.models.core import User, Workspace, WorkspaceMember
 from app.models.groups import Alert, Group, GroupMember, MonitoringRule, Ticket
-from app.models.inbox import CannedResponse, ChatLabel, Invite, Label, Team, TeamMember
+from app.models.inbox import (
+    CannedResponse,
+    ChatLabel,
+    ContactNote,
+    Invite,
+    Label,
+    Macro,
+    Team,
+    TeamMember,
+)
 from app.models.messaging import Chat, Contact, Message, WhatsAppNumber
 from app.models.platform import (
     ApiKey,
@@ -59,6 +68,8 @@ __all__ = [
     "Chat",
     "ChatLabel",
     "Contact",
+    "ContactNote",
+    "Macro",
     "Group",
     "GroupMember",
     "Invite",

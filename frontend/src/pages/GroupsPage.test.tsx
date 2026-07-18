@@ -65,6 +65,7 @@ describe('GroupsPage', () => {
       business_hours: { enabled: false, timezone: 'Asia/Kolkata', days: {}, holidays: [] },
       ooo_reply_enabled: false,
       ooo_reply_message: '',
+      auto_resolve_days: 0,
     });
     vi.mocked(client.workspaceAnalytics).mockResolvedValue({
       days: 14,
@@ -162,6 +163,7 @@ describe('GroupsPage', () => {
       business_hours: { enabled: false, timezone: 'Asia/Kolkata', days: {}, holidays: [] },
       ooo_reply_enabled: false,
       ooo_reply_message: '',
+      auto_resolve_days: 0,
     });
     vi.mocked(client.listGroups).mockResolvedValue({
       groups: [group({ name: 'GRP-1' })],

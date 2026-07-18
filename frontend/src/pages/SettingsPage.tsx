@@ -5,6 +5,7 @@ import type { WdCannedResponse, WdLabel } from '@wavedesk/api-client';
 import { client } from '@/lib/client';
 import InvitePanel from '@/components/InvitePanel';
 import MonitoringCard from '@/components/MonitoringCard';
+import { MacrosCard } from '@/components/MacrosCard';
 import RoutingCard from '@/components/RoutingCard';
 import BusinessHoursCard from '@/components/BusinessHoursCard';
 import SlaCard from '@/components/SlaCard';
@@ -339,6 +340,12 @@ export default function SettingsPage(): React.JSX.Element {
       void queryClient.invalidateQueries({ queryKey: ['groups'] });
     },
   });
+  const saveAutoResolve = useMutation({
+    mutationFn: (days: number) => client.updateWorkspaceSettings({ auto_resolve_days: days }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['workspace-settings'] });
+    },
+  });
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-6">
@@ -414,6 +421,42 @@ export default function SettingsPage(): React.JSX.Element {
                 {errorText(saveThreshold.error)}
               </p>
             )}
+            <label className="mt-4 block text-sm" htmlFor="auto-resolve-days">
+              Auto-resolve idle chats after (days)
+              <span className="block text-xs text-muted-foreground">
+                Open chats with no activity for this many days resolve automatically.
+                0 keeps them open forever.
+              </span>
+            </label>
+            <div className="mt-2 flex items-center gap-2">
+              <Input
+                id="auto-resolve-days"
+                type="number"
+                min={0}
+                max={365}
+                className="w-24"
+                key={settings.data?.auto_resolve_days}
+                defaultValue={settings.data?.auto_resolve_days ?? 0}
+                disabled={!canManage}
+                onBlur={(e) => {
+                  const days = Number(e.target.value);
+                  if (
+                    canManage &&
+                    days >= 0 &&
+                    days <= 365 &&
+                    days !== settings.data?.auto_resolve_days
+                  ) {
+                    saveAutoResolve.mutate(days);
+                  }
+                }}
+              />
+              <span className="text-xs text-muted-foreground">days (0 = never)</span>
+            </div>
+            {saveAutoResolve.isError && (
+              <p role="alert" className="mt-2 text-xs text-destructive">
+                {errorText(saveAutoResolve.error)}
+              </p>
+            )}
           </section>
           <StarterTemplatesCard canManage={canManage} />
         </>
@@ -445,6 +488,7 @@ export default function SettingsPage(): React.JSX.Element {
         <>
           <LabelsCard canManage={canManage} />
           <CannedCard canManage={canManage} />
+          <MacrosCard canManage={canManage} />
           <SlaCard canManage={canManage} />
           <MonitoringCard canManage={canManage} />
         </>
