@@ -185,7 +185,7 @@ function Bubble({
             className="mb-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-amber-600"
           >
             <StickyNote className="h-2.5 w-2.5" /> Private note
-            {message.sender_name ? ` — ${message.sender_name}` : ''}
+            {message.sender_display ? ` — ${message.sender_display}` : ''}
           </p>
         )}
         {showSender && !outbound && message.sender_display && (
@@ -367,6 +367,7 @@ function MacroMenu({ chatName }: { chatName: string }): React.JSX.Element {
       setOpen(false);
       void queryClient.invalidateQueries({ queryKey: ['chats'] });
       void queryClient.invalidateQueries({ queryKey: ['messages', chatName] });
+      void queryClient.invalidateQueries({ queryKey: ['macros'] });
     },
   });
   return (

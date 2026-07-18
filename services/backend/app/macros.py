@@ -59,7 +59,9 @@ def run_macro(db, macro: Macro, chat: Chat, user_id: str | None,
                 results.append({"type": atype, "ok": False, "error": str(err)[:140]})
     finally:
         automation._running.reset(token)
-    macro.run_count = (macro.run_count or 0) + 1
+    macro.run_count = Macro.run_count + 1  # SQL-side: concurrent runs never lose counts
+    db.flush()
+    db.refresh(macro)
     return results
 
 

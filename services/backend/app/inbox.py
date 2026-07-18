@@ -112,27 +112,42 @@ def set_priority(chat: Chat, priority: str | None) -> None:
 def auto_resolve_idle(db) -> int:
     """Daily cron: resolve open chats with no activity for the workspace's
     auto_resolve_days (0/unset = never). Uses set_status so resolved_at stamps
-    and status_change automation fire exactly like a manual resolve."""
+    and status_change automation fire exactly like a manual resolve.
+
+    COMMITS PER TENANT: set_status runs automation inline, and on Postgres a
+    failing rule action aborts the whole transaction — a single end-of-run
+    commit would let one tenant's rollback discard every other tenant's
+    resolves (and the daily claim is already consumed, so nothing retries
+    until the next UTC day)."""
+    import logging
+
     from app.models import Workspace
 
     now = datetime.now(UTC)
     resolved = 0
     for ws_id, settings in db.execute(select(Workspace.id, Workspace.settings)).all():
-        days = int((settings or {}).get("auto_resolve_days") or 0)
-        if not days:
-            continue
-        cutoff = now - timedelta(days=days)
-        idle = db.execute(
-            select(Chat).where(
-                Chat.workspace_id == ws_id,
-                Chat.status == "open",
-                Chat.last_message_at.is_not(None),
-                Chat.last_message_at <= cutoff,
+        try:
+            days = int((settings or {}).get("auto_resolve_days") or 0)
+            if not days:
+                continue
+            cutoff = now - timedelta(days=days)
+            idle = db.execute(
+                select(Chat).where(
+                    Chat.workspace_id == ws_id,
+                    Chat.status == "open",
+                    Chat.last_message_at.is_not(None),
+                    Chat.last_message_at <= cutoff,
+                )
+            ).scalars().all()
+            for chat in idle:
+                set_status(db, chat, "resolved")
+            db.commit()  # this tenant's resolves are durable before the next starts
+            resolved += len(idle)
+        except Exception:  # noqa: BLE001 — one tenant must not block the others
+            db.rollback()
+            logging.getLogger("wavedesk.inbox").exception(
+                "auto-resolve failed for workspace %s", ws_id
             )
-        ).scalars().all()
-        for chat in idle:
-            set_status(db, chat, "resolved")
-            resolved += 1
     return resolved
 
 

@@ -5,8 +5,9 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
 
-from app.models import Label, Message, Workspace, WorkspaceMember
+from app.models import Chat, Label, Message, Workspace, WorkspaceMember
 from tests.helpers import make_chat, make_contact, make_workspace
 
 
@@ -89,7 +90,57 @@ def test_note_requires_body_and_workspace_scope(authed, db):
     assert r.status_code == 404
 
 
-# --- chat priority -----------------------------------------------------------
+def test_echo_never_adopts_a_private_note(authed, db):
+    """A fromMe echo whose body matches a private note must create its own
+    Message row — never claim the note as the sent copy (review finding)."""
+    from app.pipeline import consumer
+    from tests.helpers import baileys_event, make_number
+
+    client, ws = authed
+    number = make_number(db, ws)
+    wa_chat = "919876500009@s.whatsapp.net"
+    r = consumer.get_redis()
+    stream = f"wa:events:test:{uuid.uuid4().hex[:8]}"
+
+    # first inbound creates the chat, then the agent writes a note saying "ok"
+    r.xadd(stream, {"event": baileys_event(ws.id, number.session_ref, wa_chat, "hi")})
+    consumer.process_wa_events(stream=stream, r=r)
+    db.expire_all()
+    chat = db.execute(
+        select(Chat).where(Chat.workspace_id == ws.id, Chat.wa_chat_id == wa_chat)
+    ).scalar_one()
+    note = _call(client, "wavedesk.api.messages.add_note", chat=str(chat.id), body="ok")
+
+    # a real "ok" typed from the paired phone echoes back
+    r.xadd(stream, {"event": baileys_event(
+        ws.id, number.session_ref, wa_chat, "ok",
+        wa_message_id="WAMID.ECHO1", from_me=True,
+    )})
+    consumer.process_wa_events(stream=stream, r=r)
+    db.expire_all()
+
+    note_row = db.get(Message, uuid.UUID(note["name"]))
+    assert note_row.wa_message_id is None  # the note was NOT adopted
+    echo = db.execute(
+        select(Message).where(
+            Message.workspace_id == ws.id, Message.wa_message_id == "WAMID.ECHO1"
+        )
+    ).scalar_one()
+    assert echo.is_private is False
+
+
+def test_private_note_not_counted_as_sent_traffic(authed, db):
+    """Notes never left the app: anti-ban daily counts and the admin send
+    clamp must ignore them (review finding)."""
+    from app import antiban
+    from tests.helpers import make_number
+
+    client, ws = authed
+    number = make_number(db, ws)
+    chat = make_chat(db, ws, number=number)
+    _call(client, "wavedesk.api.messages.add_note", chat=str(chat.id), body="internal")
+    db.expire_all()
+    assert antiban.sent_today(db, number.id) == 0
 
 
 def test_set_priority_and_filter(authed, db):

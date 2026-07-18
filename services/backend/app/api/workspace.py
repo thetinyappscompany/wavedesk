@@ -150,7 +150,10 @@ def update_workspace_settings(ctx: Ctx) -> dict:
             raise HTTPException(400, "needs_reply_minutes must be 1–1440")
         settings["needs_reply_minutes"] = minutes
     if "auto_resolve_days" in ctx.params:
-        days = int(ctx.params["auto_resolve_days"] or 0)
+        try:
+            days = int(ctx.params["auto_resolve_days"] or 0)
+        except (TypeError, ValueError) as err:
+            raise HTTPException(400, "auto_resolve_days must be a number") from err
         if not 0 <= days <= 365:
             raise HTTPException(400, "auto_resolve_days must be 0–365 (0 = never)")
         settings["auto_resolve_days"] = days

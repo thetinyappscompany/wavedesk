@@ -83,7 +83,8 @@ def _dashboard(ctx: Ctx) -> dict:
     per_agent = ctx.db.execute(
         select(User.first_name, User.email, func.count(Message.id))
         .join(Message, Message.sender_agent_id == User.id)
-        .where(Message.workspace_id == ws.id, Message.created_at >= since)
+        .where(Message.workspace_id == ws.id, Message.created_at >= since,
+               Message.is_private.is_(False))  # internal notes aren't agent output
         .group_by(User.id)
         .order_by(func.count(Message.id).desc())
     ).all()

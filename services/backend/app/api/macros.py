@@ -45,21 +45,21 @@ def _can_manage(ctx: Ctx, macro: Macro) -> bool:
     return get_role(ctx, macro.workspace_id) in MANAGER_ROLES
 
 
-def _visible_clause(ctx: Ctx):
-    return or_(
-        Macro.visibility == "global",
-        Macro.created_by_id == uuid.UUID(ctx.user_id),
-    )
-
-
 @method("wavedesk.api.macros.list_macros")
 def list_macros(ctx: Ctx) -> dict:
+    """Global macros + own personal ones; managers see everything (so an
+    orphaned personal macro — creator deleted, created_by SET NULL — never
+    becomes an invisible ghost nobody can delete)."""
     ws = active_workspace(ctx)
-    rows = ctx.db.execute(
-        select(Macro)
-        .where(Macro.workspace_id == ws.id, _visible_clause(ctx))
-        .order_by(Macro.name)
-    ).scalars()
+    query = select(Macro).where(Macro.workspace_id == ws.id)
+    if get_role(ctx, ws.id) not in MANAGER_ROLES:
+        query = query.where(
+            or_(
+                Macro.visibility == "global",
+                Macro.created_by_id == uuid.UUID(ctx.user_id),
+            )
+        )
+    rows = ctx.db.execute(query.order_by(Macro.name)).scalars()
     return {"macros": [_serialize(m) for m in rows]}
 
 
@@ -127,8 +127,12 @@ def delete_macro(ctx: Ctx) -> dict:
 @method("wavedesk.api.macros.run_macro")
 def run_macro(ctx: Ctx) -> dict:
     macro = _get_checked(ctx, ctx.params.get("macro") or "")
-    # personal macros are runnable only by their creator
-    if macro.visibility != "global" and str(macro.created_by_id) != ctx.user_id:
+    # personal macros are runnable by their creator (managers can run any)
+    if (
+        macro.visibility != "global"
+        and str(macro.created_by_id) != ctx.user_id
+        and get_role(ctx, macro.workspace_id) not in MANAGER_ROLES
+    ):
         raise HTTPException(404, "Macro not found in this workspace")
     chat = get_chat_checked(ctx, ctx.params.get("chat") or "")
     user = ctx.db.get(User, uuid.UUID(ctx.user_id))

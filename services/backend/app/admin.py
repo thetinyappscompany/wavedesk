@@ -150,6 +150,7 @@ def assert_can_send(db, workspace_id) -> None:
             select(func.count()).select_from(Message).where(
                 Message.workspace_id == workspace_id,
                 Message.direction == "out",
+                Message.is_private.is_(False),  # notes never left the app
                 Message.created_at >= start,
             )
         ).scalar_one()

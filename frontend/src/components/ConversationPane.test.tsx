@@ -185,7 +185,7 @@ describe('ConversationPane', () => {
           direction: 'out',
           message_type: 'note',
           is_private: true,
-          sender_name: 'Riya',
+          sender_display: 'Riya',
         }),
       ],
       has_more: false,
