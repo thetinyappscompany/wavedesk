@@ -10,6 +10,15 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
+✅ COLLAB SUITE 2026-07-18 (feat/collab-suite, PR #71, base=main): Chatwoot-
+inspired — private notes (Message.is_private, never sent to WA, echo-adoption
+excluded), chat priority (+filter/badge/automation set_priority), macros
+(personal/global, managers see all, SQL-side run_count), contact notes,
+auto-resolve idle chats (auto_resolve_days, per-tenant-commit daily job).
+Notes excluded from antiban counts/admin clamp/per-agent analytics. Alembic
+cf845e8846e5 (is_private server_default false for live table). 164 backend +
+180 frontend + 7 e2e green. Same day: PR #68 (self-serve signup) MERGED to
+main; PR #70 (Zoho raw-payload normalizer) conflict resolved, awaiting merge.
 ✅ FRAPPE FULLY REMOVED 2026-07-17 (chore/remove-frappe): apps/wavedesk (281
 files) deleted; the FastAPI + SQLAlchemy + Postgres backend in services/backend
 is now the ONLY backend. Deploy configs (compose dev/staging, .env example) +
