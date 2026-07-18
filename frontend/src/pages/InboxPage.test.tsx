@@ -34,6 +34,7 @@ function chat(overrides: Partial<WdChat>): WdChat {
     name: 'CHAT-1',
     chat_type: 'dm',
     status: 'open',
+    priority: null,
     number: null,
     contact: null,
     assigned_agent: null,

@@ -23,6 +23,10 @@ vi.mock('@/lib/client', () => ({
     setChatLabels: vi.fn(),
     createTicket: vi.fn(),
     getMediaUrl: vi.fn(),
+    addNote: vi.fn(),
+    setChatPriority: vi.fn(),
+    listMacros: vi.fn(),
+    runMacro: vi.fn(),
   },
 }));
 vi.mock('@/lib/realtime', () => ({
@@ -53,6 +57,7 @@ function message(overrides: Partial<WdMessage>): WdMessage {
     media_duration: null,
     is_voice: false,
     transcript: null,
+    is_private: false,
     creation: '2026-07-07 12:00:00',
     ...overrides,
   };
@@ -63,6 +68,7 @@ function chatRow(overrides: Partial<WdChat> = {}): WdChat {
     name: 'CHAT-1',
     chat_type: 'dm',
     status: 'open',
+    priority: null,
     number: null,
     contact: null,
     assigned_agent: null,
@@ -147,6 +153,93 @@ describe('ConversationPane', () => {
     expect(await screen.findByTestId('sender-name')).toHaveTextContent('Riya S');
     // exactly one: the outbound bubble never shows a sender
     expect(screen.getAllByTestId('sender-name')).toHaveLength(1);
+  });
+
+  it('note mode saves a private note instead of sending', async () => {
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [],
+      has_more: false,
+      next_before: null,
+    });
+    vi.mocked(client.addNote).mockResolvedValue(
+      message({ name: 'N1', body: 'VIP hai', is_private: true, message_type: 'note' }),
+    );
+    const user = userEvent.setup();
+    renderPane();
+
+    await user.click(await screen.findByTestId('note-mode-toggle'));
+    await user.type(screen.getByLabelText('Message'), 'VIP hai');
+    await user.click(screen.getByLabelText('Save note'));
+    await waitFor(() => {
+      expect(client.addNote).toHaveBeenCalledWith('CHAT-1', 'VIP hai');
+    });
+    expect(client.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('private notes render with the amber badge', async () => {
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [
+        message({
+          name: 'N1',
+          body: 'internal only',
+          direction: 'out',
+          message_type: 'note',
+          is_private: true,
+          sender_name: 'Riya',
+        }),
+      ],
+      has_more: false,
+      next_before: null,
+    });
+    renderPane();
+    expect(await screen.findByTestId('private-note-badge')).toHaveTextContent('Private note — Riya');
+    expect(screen.getByText('internal only')).toBeInTheDocument();
+  });
+
+  it('priority select updates the chat priority', async () => {
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [],
+      has_more: false,
+      next_before: null,
+    });
+    vi.mocked(client.setChatPriority).mockResolvedValue({ chat: 'CHAT-1', priority: 'urgent' });
+    const user = userEvent.setup();
+    renderPane();
+    await user.selectOptions(await screen.findByLabelText('Priority'), 'urgent');
+    await waitFor(() => {
+      expect(client.setChatPriority).toHaveBeenCalledWith('CHAT-1', 'urgent');
+    });
+  });
+
+  it('runs a macro from the macro menu', async () => {
+    vi.mocked(client.listMessages).mockResolvedValue({
+      messages: [],
+      has_more: false,
+      next_before: null,
+    });
+    vi.mocked(client.listMacros).mockResolvedValue({
+      macros: [
+        {
+          name: 'MAC-1',
+          macro_name: 'VIP intake',
+          visibility: 'global',
+          actions: [{ type: 'set_priority', value: 'high' }],
+          run_count: 0,
+          created_by: null,
+        },
+      ],
+    });
+    vi.mocked(client.runMacro).mockResolvedValue({
+      results: [{ type: 'set_priority', ok: true }],
+      run_count: 1,
+    });
+    const user = userEvent.setup();
+    renderPane();
+    await user.click(await screen.findByLabelText('Run macro'));
+    await user.click(await screen.findByText('VIP intake'));
+    await waitFor(() => {
+      expect(client.runMacro).toHaveBeenCalledWith('MAC-1', 'CHAT-1');
+    });
   });
 
   it('flagged messages show the monitoring badge', async () => {

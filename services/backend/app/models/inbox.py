@@ -1,16 +1,18 @@
-"""Inbox-layer models — teams, labels, canned responses, invites (R2)."""
+"""Inbox-layer models — teams, labels, canned responses, invites (R2),
+macros + contact notes (Chatwoot-parity collab suite)."""
 
 import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, Timestamps, UUIDPrimaryKey
 
 INVITE_STATUSES = ("pending", "accepted", "revoked", "expired")
 ROUTING_MODES = ("manual", "round_robin", "load_based")
+MACRO_VISIBILITIES = ("personal", "global")
 
 
 class Team(UUIDPrimaryKey, Timestamps, Base):
@@ -75,6 +77,40 @@ class CannedResponse(UUIDPrimaryKey, Timestamps, Base):
         UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
     shortcode: Mapped[str] = mapped_column(String(60))
+    content: Mapped[str] = mapped_column(Text)
+
+
+class Macro(UUIDPrimaryKey, Timestamps, Base):
+    """One-click multi-action runbook an agent fires on a chat."""
+
+    __tablename__ = "macros"
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(140))
+    visibility: Mapped[str] = mapped_column(String(10), default="personal")
+    actions: Mapped[list] = mapped_column(JSONB, default=list)  # [{type, value}]
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    run_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ContactNote(UUIDPrimaryKey, Timestamps, Base):
+    """Free-form internal note pinned to a contact (Chatwoot parity)."""
+
+    __tablename__ = "contact_notes"
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
+    contact_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="CASCADE"), index=True
+    )
+    author_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
     content: Mapped[str] = mapped_column(Text)
 
 

@@ -62,6 +62,21 @@ function ChatRow({ chat, selected, onSelect }: {
           {chat.chat_type === 'group' && (
             <span className="rounded border px-1 text-xs text-muted-foreground">group</span>
           )}
+          {chat.priority && (
+            <span
+              data-testid="priority-badge"
+              title={`Priority: ${chat.priority}`}
+              className={cn(
+                'shrink-0 rounded px-1 text-[10px] font-semibold uppercase',
+                chat.priority === 'urgent' && 'bg-red-500/15 text-red-600',
+                chat.priority === 'high' && 'bg-orange-500/15 text-orange-600',
+                chat.priority === 'medium' && 'bg-sky-500/15 text-sky-600',
+                chat.priority === 'low' && 'bg-slate-500/15 text-slate-500',
+              )}
+            >
+              {chat.priority}
+            </span>
+          )}
           {chips.map((chip) => (
             <span
               key={chip.label}

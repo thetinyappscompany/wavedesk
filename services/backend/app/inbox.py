@@ -76,6 +76,66 @@ def assign_chat(db, chat: Chat, agent_id: str | None, team_id: str | None) -> No
     realtime.emit_chat_updated(str(chat.workspace_id), str(chat.id))
 
 
+def add_private_note(db, chat: Chat, body: str, agent_id: str | None = None,
+                     agent_name: str | None = None):
+    """Create an internal team note on a chat. It is a Message row so the pane
+    renders it inline, but it NEVER enters the send pipeline and never reaches
+    WhatsApp — and it must not stamp first_response_at or clear the pending
+    query (the customer heard nothing)."""
+    from app.models import Message
+
+    msg = Message(
+        workspace_id=chat.workspace_id,
+        chat_id=chat.id,
+        direction="out",
+        message_type="note",
+        is_private=True,
+        body=body,
+        sender_agent_id=uuid.UUID(agent_id) if agent_id else None,
+        sender_name=agent_name,
+    )
+    db.add(msg)
+    db.flush()
+    realtime.emit_message(str(chat.workspace_id), str(chat.id), str(msg.id), "out")
+    return msg
+
+
+def set_priority(chat: Chat, priority: str | None) -> None:
+    from app.models.messaging import CHAT_PRIORITIES
+
+    if priority is not None and priority not in CHAT_PRIORITIES:
+        raise ValueError(f"Invalid priority: {priority}")
+    chat.priority = priority
+    realtime.emit_chat_updated(str(chat.workspace_id), str(chat.id))
+
+
+def auto_resolve_idle(db) -> int:
+    """Daily cron: resolve open chats with no activity for the workspace's
+    auto_resolve_days (0/unset = never). Uses set_status so resolved_at stamps
+    and status_change automation fire exactly like a manual resolve."""
+    from app.models import Workspace
+
+    now = datetime.now(UTC)
+    resolved = 0
+    for ws_id, settings in db.execute(select(Workspace.id, Workspace.settings)).all():
+        days = int((settings or {}).get("auto_resolve_days") or 0)
+        if not days:
+            continue
+        cutoff = now - timedelta(days=days)
+        idle = db.execute(
+            select(Chat).where(
+                Chat.workspace_id == ws_id,
+                Chat.status == "open",
+                Chat.last_message_at.is_not(None),
+                Chat.last_message_at <= cutoff,
+            )
+        ).scalars().all()
+        for chat in idle:
+            set_status(db, chat, "resolved")
+            resolved += 1
+    return resolved
+
+
 def unsnooze_due(db) -> int:
     """Minutely cron: wake snoozed chats whose timer elapsed."""
     due = db.execute(

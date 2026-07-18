@@ -72,10 +72,14 @@ export interface WdChatLabelChip {
   color: string;
 }
 
+export type WdChatPriority = 'low' | 'medium' | 'high' | 'urgent';
+
 export interface WdChat {
   name: string;
   chat_type: 'dm' | 'group';
   status: 'open' | 'pending' | 'resolved' | 'snoozed';
+  /** Manual/automation-set priority, or null when unset. */
+  priority: WdChatPriority | null;
   number: string | null;
   contact: string | null;
   assigned_agent: string | null;
@@ -146,6 +150,8 @@ export interface ChatListParams {
   label?: string;
   /** true → only the Needs Reply queue (unanswered group questions) */
   needs_reply?: boolean;
+  /** filter to chats at this priority */
+  priority?: WdChatPriority;
   limit?: number;
   offset?: number;
 }
@@ -394,6 +400,8 @@ export interface WdWorkspaceSettings {
   business_hours: WdBusinessHours;
   ooo_reply_enabled: boolean;
   ooo_reply_message: string;
+  /** days of inactivity before an open chat auto-resolves (0 = never) */
+  auto_resolve_days: number;
 }
 
 export interface WdContact {
@@ -669,7 +677,45 @@ export interface WdMessage {
   is_voice: boolean;
   /** Speech-to-text of a voice note (P4.5 Whisper), once transcribed. */
   transcript: string | null;
+  /** Private team note — rendered inline, never sent to WhatsApp. */
+  is_private: boolean;
   creation: string;
+}
+
+export type WdMacroActionType =
+  | 'set_status'
+  | 'set_priority'
+  | 'assign_agent'
+  | 'assign_team'
+  | 'add_label'
+  | 'send_message'
+  | 'add_private_note';
+
+export interface WdMacroAction {
+  type: WdMacroActionType;
+  value?: string | null;
+}
+
+export interface WdMacro {
+  name: string;
+  macro_name: string;
+  visibility: 'personal' | 'global';
+  actions: WdMacroAction[];
+  run_count: number;
+  created_by: string | null;
+}
+
+export interface WdMacroRunResult {
+  results: { type: string; ok: boolean; error?: string }[];
+  run_count: number;
+}
+
+export interface WdContactNote {
+  name: string;
+  content: string;
+  author: string | null;
+  author_name: string | null;
+  creation: string | null;
 }
 
 export interface WdMediaUrl {
@@ -942,6 +988,57 @@ export class WaveDeskClient {
 
   markChatRead(chat: string): Promise<{ chat: string; unread_count: number }> {
     return this.call('wavedesk.api.messages.mark_chat_read', { chat });
+  }
+
+  /** Set or clear (pass null) a chat's priority. */
+  setChatPriority(chat: string, priority: WdChatPriority | null): Promise<{ chat: string; priority: WdChatPriority | null }> {
+    return this.call('wavedesk.api.chats.set_priority', { chat, priority });
+  }
+
+  /** Private team note — rendered inline in the pane, never sent to WhatsApp. */
+  addNote(chat: string, body: string): Promise<WdMessage> {
+    return this.call('wavedesk.api.messages.add_note', { chat, body });
+  }
+
+  // --- macros (Chatwoot-parity collab suite) ---
+  listMacros(): Promise<{ macros: WdMacro[] }> {
+    return this.call('wavedesk.api.macros.list_macros');
+  }
+
+  createMacro(macroName: string, actions: WdMacroAction[], visibility: 'personal' | 'global' = 'personal'): Promise<WdMacro> {
+    return this.call('wavedesk.api.macros.create_macro', {
+      macro_name: macroName,
+      actions,
+      visibility,
+    });
+  }
+
+  updateMacro(
+    macro: string,
+    changes: { macro_name?: string; actions?: WdMacroAction[]; visibility?: 'personal' | 'global' },
+  ): Promise<WdMacro> {
+    return this.call('wavedesk.api.macros.update_macro', { macro, ...changes });
+  }
+
+  deleteMacro(macro: string): Promise<{ deleted: boolean }> {
+    return this.call('wavedesk.api.macros.delete_macro', { macro });
+  }
+
+  runMacro(macro: string, chat: string): Promise<WdMacroRunResult> {
+    return this.call('wavedesk.api.macros.run_macro', { macro, chat });
+  }
+
+  // --- contact notes (Chatwoot-parity collab suite) ---
+  listContactNotes(contact: string): Promise<{ notes: WdContactNote[] }> {
+    return this.call('wavedesk.api.contacts.list_contact_notes', { contact });
+  }
+
+  addContactNote(contact: string, content: string): Promise<{ name: string; content: string }> {
+    return this.call('wavedesk.api.contacts.add_contact_note', { contact, content });
+  }
+
+  deleteContactNote(note: string): Promise<{ deleted: boolean }> {
+    return this.call('wavedesk.api.contacts.delete_contact_note', { note });
   }
 
   /** Media pipeline (P4.5): resolve a short-lived URL for a message's media. */
@@ -2019,6 +2116,7 @@ export class WaveDeskClient {
   updateWorkspaceSettings(changes: {
     mask_numbers?: boolean;
     needs_reply_minutes?: number;
+    auto_resolve_days?: number;
     default_routing_team?: string | null;
     business_hours?: WdBusinessHours;
     ooo_reply_enabled?: boolean;

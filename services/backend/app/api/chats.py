@@ -12,7 +12,7 @@ from app.api._ids import parse_uuid
 from app.compat import Ctx, method
 from app.inbox import needs_reply_threshold
 from app.models import Chat, Contact
-from app.models.messaging import CHAT_STATUSES
+from app.models.messaging import CHAT_PRIORITIES, CHAT_STATUSES
 from app.tenancy import active_workspace
 
 PAGE_SIZE_MAX = 100
@@ -38,6 +38,10 @@ def list_chats(ctx: Ctx) -> dict:
         if status not in CHAT_STATUSES:
             raise HTTPException(400, f"Invalid status filter: {status}")
         query = query.where(Chat.status == status)
+    if p.get("priority"):
+        if p["priority"] not in CHAT_PRIORITIES:
+            raise HTTPException(400, f"Invalid priority filter: {p['priority']}")
+        query = query.where(Chat.priority == p["priority"])
     if p.get("number"):
         query = query.where(Chat.number_id == parse_uuid(p["number"], "number"))
     assignee = p.get("assignee")
@@ -100,6 +104,7 @@ def list_chats(ctx: Ctx) -> dict:
                 "name": str(chat.id),
                 "chat_type": chat.chat_type,
                 "status": chat.status,
+                "priority": chat.priority,
                 "number": str(chat.number_id) if chat.number_id else None,
                 "contact": str(chat.contact_id) if chat.contact_id else None,
                 "group": str(chat.group_id) if chat.group_id else None,
@@ -118,6 +123,19 @@ def list_chats(ctx: Ctx) -> dict:
             }
         )
     return {"chats": chats, "total": total}
+
+
+@method("wavedesk.api.chats.set_priority")
+def set_priority(ctx: Ctx) -> dict:
+    from app import inbox
+
+    chat = get_chat_checked(ctx, ctx.params.get("chat") or "")
+    priority = ctx.params.get("priority") or None
+    try:
+        inbox.set_priority(chat, priority)
+    except ValueError as err:
+        raise HTTPException(400, str(err)) from err
+    return {"chat": str(chat.id), "priority": chat.priority}
 
 
 def get_chat_checked(ctx: Ctx, chat_id: str) -> Chat:

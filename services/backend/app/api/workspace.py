@@ -125,6 +125,7 @@ def get_workspace_settings(ctx: Ctx) -> dict:
         "role": get_role(ctx, ws.id),
         "mask_numbers": bool(settings.get("mask_numbers")),
         "needs_reply_minutes": int(settings.get("needs_reply_minutes", 10)),
+        "auto_resolve_days": int(settings.get("auto_resolve_days") or 0),
         "default_routing_team": settings.get("default_routing_team"),
         "business_hours": _business_hours(settings),
         "ooo_reply_enabled": bool(settings.get("ooo_reply_enabled")),
@@ -148,6 +149,11 @@ def update_workspace_settings(ctx: Ctx) -> dict:
         if not 1 <= minutes <= 1440:
             raise HTTPException(400, "needs_reply_minutes must be 1–1440")
         settings["needs_reply_minutes"] = minutes
+    if "auto_resolve_days" in ctx.params:
+        days = int(ctx.params["auto_resolve_days"] or 0)
+        if not 0 <= days <= 365:
+            raise HTTPException(400, "auto_resolve_days must be 0–365 (0 = never)")
+        settings["auto_resolve_days"] = days
     if "default_routing_team" in ctx.params:
         settings["default_routing_team"] = ctx.params["default_routing_team"] or None
     if "business_hours" in ctx.params:

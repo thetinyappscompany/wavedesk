@@ -17,7 +17,7 @@ _running = contextvars.ContextVar("wd_automation_running", default=False)
 CONDITION_TYPES = ("is_group", "is_dm", "has_label", "keyword", "first_time_contact", "in_segment")
 ACTION_TYPES = (
     "assign_agent", "assign_team", "add_label", "create_ticket",
-    "set_status", "auto_reply",
+    "set_status", "set_priority", "auto_reply",
 )
 
 
@@ -116,6 +116,10 @@ def _run_action(db, action: dict, chat: Chat, ctx: dict) -> None:
         from app import inbox
 
         inbox.set_status(db, chat, value or "open")
+    elif atype == "set_priority":
+        from app import inbox
+
+        inbox.set_priority(chat, value or None)
     elif atype == "assign_agent":
         from app import inbox
 
