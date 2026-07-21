@@ -98,6 +98,10 @@ export default function LoginPage(): React.JSX.Element {
               <Link to="/signup" className="text-primary underline-offset-2 hover:underline">
                 Create an account
               </Link>
+              {' · '}
+              <Link to="/pricing" className="text-primary underline-offset-2 hover:underline">
+                Pricing
+              </Link>
             </p>
           </CardFooter>
         </form>
