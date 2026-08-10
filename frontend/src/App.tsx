@@ -11,8 +11,10 @@ import DashboardPage from '@/pages/DashboardPage';
 import GroupsPage from '@/pages/GroupsPage';
 import InboxPage from '@/pages/InboxPage';
 import InvitePage from '@/pages/InvitePage';
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
 import LoginPage from '@/pages/LoginPage';
 import PricingPage from '@/pages/PricingPage';
+import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import SignupPage from '@/pages/SignupPage';
 import AdminPage from '@/pages/AdminPage';
 import NumbersPage from '@/pages/NumbersPage';
@@ -26,6 +28,8 @@ export default function App(): React.JSX.Element {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/pricing" element={<PricingPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="/invite/:token" element={<InvitePage />} />
       <Route element={<AppShell />}>

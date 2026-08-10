@@ -125,9 +125,36 @@ The image's default CMD is the web process:
 | `WHISPER_URL` | `http://srv-captain--whisper:9010` | only for voice notes |
 | `ZOHO_WEBHOOK_TOKEN` | *(shared secret)* | verifies Zoho billing webhooks |
 | `WD_IP_ALLOWLIST_TRUSTED_PROXY` | `1` | trust `X-Forwarded-For` behind CapRover's nginx |
+| `WD_APP_BASE_URL` | `https://app.<domain>` | **required for password resets** — the origin used to build emailed links |
+| `WD_SMTP_HOST` | `smtp.zoho.in` | see §4a; blank = email disabled |
+| `WD_SMTP_PORT` | `587` | `465` if you set `WD_SMTP_STARTTLS=false` |
+| `WD_SMTP_USER` | `no-reply@<domain>` | the full mailbox address |
+| `WD_SMTP_PASSWORD` | *(Zoho app password)* | NOT the account password when 2FA is on |
+| `WD_SMTP_FROM` | `WaveDesk <no-reply@<domain>>` | defaults to `WD_SMTP_USER` |
+| `WD_SMTP_STARTTLS` | `true` | `false` = implicit TLS on 465 |
 
 (Config is pydantic `WD_`-prefixed for core settings; the rest are read from the
 environment directly. Never put these in the repo — non-negotiable #8.)
+
+### 4a. Zoho SMTP (password-reset emails)
+
+Password recovery is the only thing that emails users today, and it is inert
+until SMTP is set. Until then `/forgot-password` still answers normally (it must
+never reveal whether an address exists) but nothing is delivered — so configure
+this before telling customers the feature exists.
+
+1. Zoho Mail admin → add a mailbox (or alias) such as `no-reply@<domain>`.
+2. Zoho → **My Account → Security → App Passwords** → generate one for
+   "WaveDesk". With 2FA enabled, the normal password will NOT authenticate SMTP.
+3. Set the `WD_SMTP_*` vars above on **`wd-backend`** (host `smtp.zoho.in` for
+   the India DC — use `smtp.zoho.com` / `smtp.zoho.eu` for other regions), plus
+   `WD_APP_BASE_URL` so links point at the real SPA.
+4. Verify: open `https://app.<domain>/forgot-password`, submit your own address,
+   and confirm the mail arrives. The link is single-use and expires in 60 min.
+
+Until step 3 is done, a platform admin can still recover any account: **Admin →
+Accounts → Send reset link** returns the link in the UI when email is
+unconfigured, to hand over through a channel you trust.
 
 ---
 

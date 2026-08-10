@@ -1,6 +1,7 @@
 """Phase-5 API surface — public API keys + v1 endpoints, outbound webhooks,
 admin, DPDP privacy, 2FA/security, verticals, IP allowlist, billing webhook."""
 
+import logging
 import uuid
 
 from fastapi import HTTPException
@@ -18,6 +19,8 @@ from app.models import (
     Workspace,
 )
 from app.tenancy import active_workspace, require_manager
+
+_log = logging.getLogger("wavedesk.admin")
 
 
 # --- public API key management (cookie-session, Owner/Admin) ------------------
@@ -258,10 +261,66 @@ def admin_credit_wallet(ctx: Ctx) -> dict:
 
 @method("wavedesk.api.admin.suspend_workspace")
 def admin_suspend(ctx: Ctx) -> dict:
+    """Defaults to suspending. An omitted `suspended` param used to read as
+    False here, so the admin panel's Suspend button quietly un-suspended
+    instead of suspending; the endpoint's own name is the safer default."""
     admin.require_platform_admin(ctx.db, uuid.UUID(ctx.user_id))
+    raw = ctx.params.get("suspended", True)
+    suspended = raw if isinstance(raw, bool) else str(raw).lower() not in ("false", "0", "")
     admin.suspend(ctx.db, uuid.UUID(ctx.params.get("workspace") or ""),
-                  bool(ctx.params.get("suspended")), ctx.params.get("reason"))
-    return {"ok": True}
+                  suspended, ctx.params.get("reason"))
+    return {"ok": True, "suspended": suspended}
+
+
+@method("wavedesk.api.admin.list_users")
+def admin_list_users(ctx: Ctx) -> dict:
+    """Every account on the platform (cross-workspace, platform admin only)."""
+    admin.require_platform_admin(ctx.db, uuid.UUID(ctx.user_id))
+    return {"users": admin.list_users(ctx.db, ctx.params.get("search"))}
+
+
+@method("wavedesk.api.admin.send_password_reset")
+def admin_send_password_reset(ctx: Ctx) -> dict:
+    """Operator-triggered recovery: emails a single-use reset LINK to the user's
+    own address. It never reveals or sets a password, so the operator stays out
+    of the credential path. When SMTP isn't configured yet the link comes back
+    in the response so recovery still works — that is a deliberate, logged
+    escape hatch for the platform owner, not a normal-operation path."""
+    from app import mailer, passwords
+
+    admin.require_platform_admin(ctx.db, uuid.UUID(ctx.user_id))
+    user = _resolve_user(ctx)
+    token = passwords.issue(ctx.db, user, by_admin=True)
+    delivered = passwords.send_reset_email(user, token)
+    _log.info("admin %s issued a password reset for user %s (delivered=%s)",
+              ctx.user_id, user.id, delivered)
+    return {
+        "user": str(user.id),
+        "delivered": delivered,
+        "email_configured": mailer.is_configured(),
+        "expires_in_minutes": passwords.TOKEN_TTL_MINUTES,
+        # only when we could not send it — otherwise the link stays in the inbox
+        "link": None if delivered else passwords.reset_link(token),
+    }
+
+
+def _resolve_user(ctx: Ctx):
+    """Target a user by id or email (the admin table sends the id)."""
+    from app.models import User
+
+    raw = (ctx.params.get("user") or ctx.params.get("email") or "").strip()
+    if not raw:
+        raise HTTPException(400, "user (id or email) is required")
+    row = None
+    try:
+        row = ctx.db.get(User, uuid.UUID(raw))
+    except ValueError:
+        row = ctx.db.execute(
+            select(User).where(User.email == raw.lower())
+        ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(404, "User not found")
+    return row
 
 
 # --- DPDP privacy -------------------------------------------------------------

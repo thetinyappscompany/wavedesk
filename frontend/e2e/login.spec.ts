@@ -17,6 +17,13 @@ test('signup page renders from the login link', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Create account' })).toBeVisible();
 });
 
+test('forgot-password page is reachable from login', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByRole('link', { name: 'Forgot password?' }).click();
+  await expect(page).toHaveURL(/\/forgot-password$/);
+  await expect(page.getByRole('button', { name: 'Send reset link' })).toBeVisible();
+});
+
 test('root redirects to login', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveURL(/\/login$/);

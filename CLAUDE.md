@@ -10,6 +10,25 @@ $5 token allowance, extra tokens internally cost×1.25 — CONFIDENTIAL, never c
 STOP and ask me. Never invent scope not in the current phase.
 
 ## Current status  ← UPDATE THIS EVERY SESSION
+✅ PASSWORD RECOVERY 2026-08-10 (feat/password-reset, base=main): the product
+had NO reset flow at all. Added mailer.py (SMTP, Zoho defaults, never raises),
+PasswordResetToken (sha256-at-rest, 1h TTL, single-use, one live link/user),
+passwords.py engine, guest endpoints request_password_reset (identical ACK
+always = no user enumeration; Redis 5/email + 20/IP per hour) +
+reset_password (destroys EVERY session on success), admin.list_users +
+admin.send_password_reset (emails the LINK to the user; returns it only when
+SMTP unconfigured = documented operator escape hatch). Frontend
+/forgot-password + /reset-password + "Forgot password?" on login + Admin
+"Accounts" table with Send reset link. Alembic c1d2f513c89c (new table only).
+DRIVE-BY FIX: admin.suspend_workspace read a missing `suspended` param as
+False — the Suspend button silently UN-suspended; now defaults to True
+(+ api-client sends it explicitly, + regression test). platform_stats.users
+now counts ALL users (was: only those with a membership). 180 backend + 190
+frontend green. FOUNDER: set WD_SMTP_* + WD_APP_BASE_URL on wd-backend
+(runbook §4a) — Zoho needs an APP PASSWORD, not the account password.
+✅ PRICING PAGE 2026-08-10 (feat/pricing-page, PR #72): public /pricing with
+the launch plan matrix; AI add-on shown as flat ₹1,200/mo, test asserts no
+internal pricing mechanics render.
 ✅ COLLAB SUITE 2026-07-18 (feat/collab-suite, PR #71, base=main): Chatwoot-
 inspired — private notes (Message.is_private, never sent to WA, echo-adoption
 excluded), chat priority (+filter/badge/automation set_priority), macros
