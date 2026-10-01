@@ -156,6 +156,31 @@ Until step 3 is done, a platform admin can still recover any account: **Admin �
 Accounts → Send reset link** returns the link in the UI when email is
 unconfigured, to hand over through a channel you trust.
 
+### 4b. Locked out of the platform-admin account itself
+
+No password is recoverable — they are bcrypt hashes, so nobody (not even with
+full database access) can read an existing password. Recovery means *setting a
+new one*. If you can still reach `/admin`, use the Accounts table. If you
+cannot, open a shell on **`wd-backend`** (CapRover → App → Deployment → Exec,
+or `docker exec -it $(docker ps -qf name=wd-backend) bash`) and run:
+
+```bash
+cd /srv
+python -m scripts.admin_recover --list                 # who exists, who is admin
+python -m scripts.admin_recover --grant you@company.com   # restore the admin flag
+python -m scripts.admin_recover --set-password you@company.com
+```
+
+`--set-password` prompts for the password (hidden on a terminal) and never
+takes it as an argument, so it stays out of shell history and `ps`. Changing it
+signs out every existing session for that user. With the password-recovery
+release deployed you can instead run `--reset-link you@company.com` to print a
+single-use link rather than setting a password in the shell.
+
+This needs a shell on the app, which already implies database access — the
+script adds no privilege, it just makes the safe version easy. Treat shell
+access to `wd-backend` as equivalent to full platform admin.
+
 ---
 
 ## 5. Worker app (`wd-worker`) — REQUIRED
