@@ -232,6 +232,25 @@ def test_admin_requires_platform_flag(authed, db):
     assert isinstance(stats["by_plan"], list)
 
 
+def test_suspend_endpoint_defaults_to_suspending(authed, db):
+    """Regression: the admin panel sent no `suspended` param, which the endpoint
+    read as False — the Suspend button silently un-suspended a workspace."""
+    from app.models import Workspace
+
+    client, ws, user = authed
+    db.get(type(user), user.id).is_platform_admin = True
+    db.commit()
+    out = _call(client, "wavedesk.api.admin.suspend_workspace",
+                workspace=str(ws.id), reason="abuse")
+    assert out["suspended"] is True
+    db.expire_all()
+    assert db.get(Workspace, ws.id).suspended is True
+
+    _call(client, "wavedesk.api.admin.unsuspend_workspace", workspace=str(ws.id))
+    db.expire_all()
+    assert db.get(Workspace, ws.id).suspended is False
+
+
 def test_suspend_blocks_send(authed, db):
     from app import admin
     from app.pipeline import sender

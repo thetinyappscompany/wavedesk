@@ -77,11 +77,53 @@ def list_workspaces(db, search: str | None = None) -> list[dict]:
     return out
 
 
+def list_users(db, search: str | None = None, limit: int = 200) -> list[dict]:
+    """Every account on the platform with the workspaces it belongs to. One
+    membership query for the whole page — never N+1 per user."""
+    query = select(User)
+    if search:
+        needle = f"%{search.lower()}%"
+        query = query.where(
+            or_(
+                func.lower(User.email).like(needle),
+                func.lower(User.first_name).like(needle),
+            )
+        )
+    users = db.execute(
+        query.order_by(User.created_at.desc()).limit(limit)
+    ).scalars().all()
+    if not users:
+        return []
+
+    memberships: dict[str, list[dict]] = {}
+    rows = db.execute(
+        select(WorkspaceMember.user_id, WorkspaceMember.role, Workspace.name)
+        .join(Workspace, Workspace.id == WorkspaceMember.workspace_id)
+        .where(WorkspaceMember.user_id.in_([u.id for u in users]))
+    ).all()
+    for user_id, role, ws_name in rows:
+        memberships.setdefault(str(user_id), []).append(
+            {"workspace_name": ws_name, "role": role}
+        )
+    return [
+        {
+            "name": str(u.id),
+            "email": u.email,
+            "full_name": u.first_name,
+            "enabled": bool(u.enabled),
+            "is_platform_admin": bool(u.is_platform_admin),
+            "workspaces": memberships.get(str(u.id), []),
+            "creation": u.created_at.isoformat() if u.created_at else None,
+        }
+        for u in users
+    ]
+
+
 def platform_stats(db) -> dict:
     workspaces = db.execute(select(func.count()).select_from(Workspace)).scalar_one()
-    users = db.execute(
-        select(func.count(func.distinct(WorkspaceMember.user_id)))
-    ).scalar_one()
+    # every account, including self-serve signups that haven't created a
+    # workspace yet — matches what the admin Users table lists
+    users = db.execute(select(func.count()).select_from(User)).scalar_one()
     messages = db.execute(select(func.count()).select_from(Message)).scalar_one()
     contacts = db.execute(select(func.count()).select_from(Contact)).scalar_one()
     numbers = db.execute(select(func.count()).select_from(WhatsAppNumber)).scalar_one()

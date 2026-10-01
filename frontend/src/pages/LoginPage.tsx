@@ -93,6 +93,12 @@ export default function LoginPage(): React.JSX.Element {
                 {authError}
               </p>
             )}
+            <Link
+              to="/forgot-password"
+              className="text-sm text-primary underline-offset-2 hover:underline"
+            >
+              Forgot password?
+            </Link>
             <p className="text-sm text-muted-foreground">
               New to WaveDesk?{' '}
               <Link to="/signup" className="text-primary underline-offset-2 hover:underline">

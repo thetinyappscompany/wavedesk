@@ -332,6 +332,27 @@ export interface WdPlatformStats {
   by_plan: Array<{ plan: string; count: number }>;
 }
 
+/** A platform account as listed in the admin Users table. */
+export interface WdAdminUser {
+  name: string;
+  email: string;
+  full_name: string | null;
+  enabled: boolean;
+  is_platform_admin: boolean;
+  workspaces: { workspace_name: string; role: string }[];
+  creation: string | null;
+}
+
+export interface WdPasswordResetIssued {
+  user: string;
+  /** true when the email left the building; false when SMTP isn't configured */
+  delivered: boolean;
+  email_configured: boolean;
+  expires_in_minutes: number;
+  /** Present ONLY when delivery failed — hand it over manually, then it's spent. */
+  link: string | null;
+}
+
 export interface WdAdminWorkspaceDetail {
   name: string;
   workspace_name: string;
@@ -1939,8 +1960,26 @@ export class WaveDeskClient {
     return this.call('wavedesk.api.admin.workspace_detail', { workspace });
   }
 
+  /** Every account on the platform (platform admins only). */
+  adminListUsers(search?: string): Promise<WdAdminUser[]> {
+    return this.call<{ users: WdAdminUser[] }>('wavedesk.api.admin.list_users', {
+      ...(search ? { search } : {}),
+    }).then((r) => r.users);
+  }
+
+  /** Email a single-use password-reset link to the user's own address. */
+  adminSendPasswordReset(user: string): Promise<WdPasswordResetIssued> {
+    return this.call('wavedesk.api.admin.send_password_reset', { user });
+  }
+
   adminSuspendWorkspace(workspace: string, reason: string): Promise<{ suspended: boolean }> {
-    return this.call('wavedesk.api.admin.suspend_workspace', { workspace, reason });
+    // `suspended` must be explicit — without it the endpoint reads it as false
+    // and the Suspend button silently un-suspends instead.
+    return this.call('wavedesk.api.admin.suspend_workspace', {
+      workspace,
+      reason,
+      suspended: true,
+    });
   }
 
   adminUnsuspendWorkspace(workspace: string): Promise<{ suspended: boolean }> {
@@ -2137,6 +2176,17 @@ export class WaveDeskClient {
 
   retryMessage(message: string): Promise<{ name: string; status: string }> {
     return this.call('wavedesk.api.send.retry_message', { message });
+  }
+
+  // --- password recovery (public, no session) ---
+  /** Ask for a reset link. The response is deliberately identical whether or
+   * not the address has an account — never branch UI on it. */
+  requestPasswordReset(email: string): Promise<{ ok: boolean; detail: string }> {
+    return this.call('wavedesk.api.auth.request_password_reset', { email });
+  }
+
+  resetPassword(token: string, password: string): Promise<{ email: string }> {
+    return this.call('wavedesk.api.auth.reset_password', { token, password });
   }
 
   /** Low-level call to a whitelisted Frappe method (`/api/method/<path>`). */

@@ -18,7 +18,7 @@ from app.models.billing import (
     UsageRecord,
     WalletTransaction,
 )
-from app.models.core import User, Workspace, WorkspaceMember
+from app.models.core import PasswordResetToken, User, Workspace, WorkspaceMember
 from app.models.groups import Alert, Group, GroupMember, MonitoringRule, Ticket
 from app.models.inbox import (
     CannedResponse,
@@ -76,6 +76,7 @@ __all__ = [
     "Label",
     "Message",
     "MonitoringRule",
+    "PasswordResetToken",
     "Team",
     "TeamMember",
     "Ticket",

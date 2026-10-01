@@ -1,5 +1,6 @@
 """Auth handlers — mirror Frappe's login contract so the SPA works unchanged."""
 
+import logging
 import re
 
 from fastapi import HTTPException
@@ -12,6 +13,7 @@ from app.models import User, WorkspaceMember
 from app.security import hash_password, verify_password
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_log = logging.getLogger("wavedesk.auth")
 
 
 def _set_session_cookie(ctx: Ctx, sid: str) -> None:
@@ -81,6 +83,48 @@ def signup(ctx: Ctx) -> dict:
     sid = sessions.create(str(user.id), user.email)
     _set_session_cookie(ctx, sid)
     return {"user": str(user.id), "email": user.email}
+
+
+_RESET_ACK = {
+    "ok": True,
+    "detail": "If that email has a WaveDesk account, a reset link is on its way.",
+}
+
+
+@method("wavedesk.api.auth.request_password_reset", allow_guest=True)
+def request_password_reset(ctx: Ctx) -> dict:
+    """Public 'forgot password'. ALWAYS returns the same acknowledgement — a
+    different response (or error, or latency) for a registered vs unregistered
+    address turns this endpoint into an account-enumeration oracle."""
+    from app import access, passwords
+
+    email = (ctx.params.get("email") or "").strip().lower()
+    if not _EMAIL_RE.match(email):
+        return _RESET_ACK
+    if not passwords.rate_limit_ok(email, access.client_ip(ctx.request)):
+        _log.warning("password reset rate-limited")
+        return _RESET_ACK
+    user = ctx.db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if user is None or not user.enabled:
+        return _RESET_ACK
+    token = passwords.issue(ctx.db, user)
+    passwords.send_reset_email(user, token)  # best-effort; never raises
+    return _RESET_ACK
+
+
+@method("wavedesk.api.auth.reset_password", allow_guest=True)
+def reset_password(ctx: Ctx) -> dict:
+    """Consume a reset link and set the new password. No session is issued —
+    the user signs in with the new password, which proves it took."""
+    from app import passwords
+
+    try:
+        user = passwords.consume(
+            ctx.db, ctx.params.get("token") or "", ctx.params.get("password") or ""
+        )
+    except passwords.ResetError as err:
+        raise HTTPException(400, str(err)) from err
+    return {"email": user.email}
 
 
 @method("logout")
